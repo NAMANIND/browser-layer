@@ -158,6 +158,11 @@ async function main() {
       const r = await live({ cmd: 'tab', session: t.session, url: t.url })
       reopened.push(`  ${t.session}: ${(r.ok ? r.text! : `could not reopen ${t.url}: ${r.error}`).split('\n')[0]}`)
     }
+    // Chrome shows a window only when it has a tab, so showing an empty browser opens a blank one.
+    if (cmd === 'show' && !open.length) {
+      await live({ cmd: 'tab', session, url: 'about:blank' })
+      return console.log("The agent's browser is a visible window now, with a blank tab (no tabs were open). Next: agent-layer go <url>")
+    }
     return console.log([`The agent's browser is ${cmd === 'show' ? 'a visible window' : 'headless'} now.${open.length ? ' Reopened:' : ''}`, ...reopened].join('\n'))
   }
 
