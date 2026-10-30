@@ -7,9 +7,9 @@ import { chromium, type BrowserContext, type Page } from 'playwright-core'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
 import { snapshot } from './snapshot.js'
 import { ping, socketPath } from './client.js'
+import { loadPolicy, type Policy } from './policy.js'
 
 
-const IDLE_MS = 30 * 60 * 1000
 // Analytics and ads calls bury the API the page actually uses; `net --all` still shows them.
 const NOISE = /\/(log|logs|collect|analytics|telemetry|metrics|beacon|pixel|gen_204|ping)(\/|\?|$)|ogads-pa\.|doubleclick|googletagmanager|google-analytics/i
 
@@ -19,10 +19,6 @@ function printable(body: string | null | undefined): string | undefined {
   const bad = body.slice(0, 300).replace(/[\x20-\x7e\t\n\r -￿]/g, '').length
   return bad > 2 ? `<binary, ${body.length} bytes>` : body.slice(0, 300).replace(/\s+/g, ' ')
 }
-const VIEW_CAP = 15000
-// Hard ceiling on one snapshot; past the view cap the rest is reachable with read --page.
-const SNAPSHOT_CAP = 400000
-const NET_CAP = 300
 
 type Req = { method: string; url: string; status: number; type: string; kind: string; post?: string }
 type Tab = { id: number; session: string; page: Page; inflight: number; net: Req[] }
@@ -33,6 +29,7 @@ const tabs = new Map<number, Tab>()
 const current = new Map<string, number>()
 let nextId = 1
 let ctx: BrowserContext
+let policy: Policy
 
 function toBrowser(c: Cookie) {
   return { name: c.name, value: c.value, domain: c.hostOnly ? c.domain : `.${c.domain}`, path: c.path, expires: c.expires ? c.expires / 1000 : -1, secure: !!c.secure }
@@ -75,7 +72,7 @@ function track(tab: Tab) {
       kind,
       post: printable(r.postData()),
     })
-    if (tab.net.length > NET_CAP) tab.net.shift()
+    if (tab.net.length > policy['network.keep']) tab.net.shift()
   })
   page.on('close', () => {
     tabs.delete(tab.id)
@@ -88,14 +85,14 @@ function track(tab: Tab) {
 
 // Done when the network is idle and the DOM has stopped changing for a moment, or after 5s.
 async function settle(tab: Tab) {
-  await tab.page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {})
-  const end = Date.now() + 5000
+  await tab.page.waitForLoadState('domcontentloaded', { timeout: policy['load.timeoutMs'] }).catch(() => {})
+  const end = Date.now() + policy['settle.deadlineMs']
   let last = -1
   let quietSince = Date.now()
   while (Date.now() < end) {
     const muts = await tab.page.evaluate(() => (window as unknown as { __alMut?: number }).__alMut ?? 0).catch(() => -2)
     if (muts !== last || tab.inflight > 0) { last = muts; quietSince = Date.now() }
-    else if (Date.now() - quietSince >= 400) return
+    else if (Date.now() - quietSince >= policy['settle.quietMs']) return
     await new Promise(r => setTimeout(r, 100))
   }
 }
@@ -105,7 +102,7 @@ function paginate(body: string): string[] {
   const pages: string[] = []
   let cur = ''
   for (const line of body.split('\n')) {
-    if (cur && cur.length + line.length + 1 > VIEW_CAP) { pages.push(cur); cur = '' }
+    if (cur && cur.length + line.length + 1 > policy['render.pageChars']) { pages.push(cur); cur = '' }
     cur = cur ? `${cur}\n${line}` : line
   }
   if (cur || !pages.length) pages.push(cur)
@@ -113,7 +110,7 @@ function paginate(body: string): string[] {
 }
 
 async function view(tab: Tab, page = 1): Promise<string> {
-  const snap = await tab.page.evaluate(snapshot, SNAPSHOT_CAP)
+  const snap = await tab.page.evaluate(snapshot, policy['render.maxChars'])
   const pages = paginate(snap.body)
   if (page < 1 || page > pages.length) throw new Error(`page ${page} does not exist; this view has ${pages.length}`)
   const head = `tab ${tab.id}  ${tab.page.url()}${snap.title ? `  "${snap.title}"` : ''}${pages.length > 1 ? `  (page ${page} of ${pages.length})` : ''}`
@@ -156,7 +153,7 @@ async function newTab(session: string, url: string): Promise<Tab> {
   tabs.set(tab.id, tab)
   track(tab)
   current.set(session, tab.id)
-  await page.goto(withUrl(url), { waitUntil: 'domcontentloaded', timeout: 30000 })
+  await page.goto(withUrl(url), { waitUntil: 'domcontentloaded', timeout: policy['load.timeoutMs'] })
   return tab
 }
 
@@ -169,7 +166,7 @@ async function run(c: Command): Promise<string> {
     }
     case 'go': {
       const tab = need(c.session)
-      await tab.page.goto(withUrl(c.url!), { waitUntil: 'domcontentloaded', timeout: 30000 })
+      await tab.page.goto(withUrl(c.url!), { waitUntil: 'domcontentloaded', timeout: policy['load.timeoutMs'] })
       await settle(tab)
       return view(tab)
     }
@@ -193,14 +190,14 @@ async function run(c: Command): Promise<string> {
       return view(need(c.session), c.page ?? 1)
     case 'click': {
       const tab = need(c.session)
-      await (await ensureRef(tab, c.ref)).click({ timeout: 10000 })
+      await (await ensureRef(tab, c.ref)).click({ timeout: policy['actions.timeoutMs'] })
       await settle(tab)
       return view(tab)
     }
     case 'type': {
       const tab = need(c.session)
       const loc = await ensureRef(tab, c.ref)
-      await loc.fill(c.text ?? '', { timeout: 10000 })
+      await loc.fill(c.text ?? '', { timeout: policy['actions.timeoutMs'] })
       if (c.enter) await loc.press('Enter')
       await settle(tab)
       return view(tab)
@@ -208,7 +205,7 @@ async function run(c: Command): Promise<string> {
     case 'pick': {
       const tab = need(c.session)
       const loc = await ensureRef(tab, c.ref)
-      await loc.selectOption({ label: c.text! }, { timeout: 5000 }).catch(() => loc.selectOption(c.text!, { timeout: 5000 }))
+      await loc.selectOption({ label: c.text! }, { timeout: policy['actions.timeoutMs'] }).catch(() => loc.selectOption(c.text!, { timeout: policy['actions.timeoutMs'] }))
       await settle(tab)
       return view(tab)
     }
@@ -247,10 +244,11 @@ async function main() {
     console.log('another daemon already answers on the socket; exiting')
     process.exit(0)
   }
+  policy = loadPolicy()
   ctx = await chromium.launchPersistentContext(join(home(), 'profile'), {
     channel: 'chrome',
     headless: true,
-    viewport: { width: 1280, height: 900 },
+    viewport: { width: policy['viewport.width'], height: policy['viewport.height'] },
     args: ['--blink-settings=imagesEnabled=false'],
   })
   // tsx/esbuild wraps nested functions in __name(); give injected functions a no-op one.
@@ -271,7 +269,7 @@ async function main() {
     if (reply) reply('stopped')
     else process.exit(0)
   }
-  const touch = () => { clearTimeout(idle); idle = setTimeout(() => void shutdown(), IDLE_MS) }
+  const touch = () => { clearTimeout(idle); idle = setTimeout(() => void shutdown(), policy['daemon.idleMs']) }
 
   const server = createServer((req, res) => {
     let body = ''
