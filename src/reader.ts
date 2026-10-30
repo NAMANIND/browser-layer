@@ -21,6 +21,9 @@ export type Node = {
   // A table cell (HTML table model); header marks a column header cell.
   cell?: boolean
   header?: boolean
+  // One of several siblings with the same element signature and parts: a record in a collection the page
+  // did not mark up as a list (§4.5). Records are addressable; they do not change how the page reads.
+  record?: boolean
   children?: Node[]
 }
 
@@ -39,9 +42,11 @@ export const LANDMARKS = new Set(['banner', 'navigation', 'main', 'search', 'com
 export const COLLECTIONS = new Set(['list', 'table', 'grid', 'treegrid', 'tree', 'menu', 'menubar', 'tablist', 'radiogroup'])
 const CELLS = new Set(['cell', 'gridcell', 'columnheader', 'rowheader'])
 export const TABLES = new Set(['table', 'grid', 'treegrid'])
+// Separates the segments of a field path (Node.key).
+export const SEGMENT = '\u001e'
 
 // The rows of a collection and the cells of a row, not descending into nested collections.
-export const rowsOf = (n: Node): Node[] => (n.row ? [n] : (n.children ?? []).flatMap(c => (COLLECTIONS.has(c.role ?? '') ? [] : rowsOf(c))))
+export const rowsOf = (n: Node): Node[] => (n.row || n.record ? [n] : (n.children ?? []).flatMap(c => (COLLECTIONS.has(c.role ?? '') ? [] : rowsOf(c))))
 export const cellsOf = (n: Node): Node[] => (n.cell ? [n] : (n.children ?? []).flatMap(c => (COLLECTIONS.has(c.role ?? '') ? [] : cellsOf(c))))
 // HTML table model: a row whose cells are all column headers names the columns.
 export const isHeaderRow = (row: Node) => { const cells = cellsOf(row); return cells.length > 0 && cells.every(c => c.header) }
@@ -67,7 +72,9 @@ function statesOf(ax: AXNode): { states: string[]; url?: string; level?: number 
   return { states, url, level }
 }
 
-export async function readTree(cdp: CDPSession, refs: Refs): Promise<Node> {
+export type Limits = { minRepeats: number; minParts: number }
+
+export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits): Promise<Node> {
   const [{ nodes: ax }, snap] = await Promise.all([
     cdp.send('Accessibility.getFullAXTree') as Promise<{ nodes: AXNode[] }>,
     cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: ['display', 'visibility', 'opacity'] }),
@@ -97,8 +104,9 @@ export async function readTree(cdp: CDPSession, refs: Refs): Promise<Node> {
   const content = (s: string) => s.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase()
 
   // muted: inside aria-hidden (text shows, controls get no ref). unseen: visibility hidden or opacity 0.
-  // path: this node's place inside the nearest row, for lining records up.
-  function walk(i: number, muted: boolean, unseen: boolean, path = ''): Node[] {
+  // path: this node's place inside the nearest row, for lining records up. marked: inside a collection
+  // the page marked up itself, where its own rows win over detected ones.
+  function walk(i: number, muted: boolean, unseen: boolean, path = '', marked = false): Node[] {
     const l = layoutOf.get(i)
     if (nodeType[i] === 3) {
       if (l === undefined || unseen) return []
@@ -114,8 +122,10 @@ export async function readTree(cdp: CDPSession, refs: Refs): Promise<Node> {
     const hidden = l === undefined ? unseen : visibility === 'hidden' || visibility === 'collapse' || unseen || opacity === '0'
     const role = !quiet && a && !a.ignored ? String(a.role?.value ?? '') : ''
     const cls = attr(i, 'class')?.trim()
-    const key = ROWS.has(role) ? '' : `${path}/${str(nodeName[i]).toLowerCase()}${cls ? `.${cls.split(/\s+/).join('.')}` : ''}`
-    const children = kids[i].flatMap(c => walk(c, quiet, hidden, key))
+    // Segments are split by a control character and classes by spaces: neither can occur in a class name.
+    const key = ROWS.has(role) ? '' : `${path}${SEGMENT}${str(nodeName[i]).toLowerCase()}${cls ? ` ${cls.split(/\s+/).join(' ')}` : ''}`
+    const perKid = kids[i].map(c => walk(c, quiet, hidden, key, marked || COLLECTIONS.has(role)))
+    const children = perKid.flat()
     // Generated content (::before, ::after, ::marker) is a pseudo element carrying its own layout text,
     // and a field of its own: a bullet or a rank is not part of the text beside it.
     if (str(nodeName[i]).startsWith('::')) return l === undefined || hidden ? [] : [{ key, children: [{ text: str(doc.layout.text[l]) }] }]
@@ -138,7 +148,37 @@ export async function readTree(cdp: CDPSession, refs: Refs): Promise<Node> {
     if (COLLECTIONS.has(role)) return [{ ref: refFor(backendNodeId[i]), role, block: true, children }]
     if (ROWS.has(role)) return [{ row: true, block: true, children }]
     if (CELLS.has(role)) return [{ cell: true, header: role === 'columnheader', block: true, key, children }]
+    if (!marked && (!role || role === 'generic' || role === 'none') && block && markRecords(i, perKid)) return [{ ref: refFor(backendNodeId[i]), role: 'list', block: true, key, children }]
     return block ? [{ block: true, key, children }] : children
+  }
+
+  // Data-region detection: at least minRepeats element children share a signature (tag and the classes
+  // more than one of them has) and
+  // each has at least minParts block-level parts. A card has a title, a price, a rating; a run of
+  // paragraphs repeats but has no parts, so it is not records. The largest such group is marked.
+  function markRecords(i: number, perKid: Node[][]): boolean {
+    // Block-level parts of a node, looking through wrappers: a box whose only content is one box is that box.
+    const parts = (n: Node, need: number): number => {
+      const boxes: Node[] = []
+      const collect = (m: Node) => { for (const c of m.children ?? []) if (c.block || c.ref) boxes.push(c); else collect(c) }
+      collect(n)
+      return boxes.length === 1 && !boxes[0].ref ? parts(boxes[0], need) : Math.min(boxes.length, need)
+    }
+    // A class only one sibling has (item-3) is that sibling's identity, not its template.
+    const classes = (c: number) => (attr(c, 'class') ?? '').split(/\s+/).filter(Boolean)
+    const siblingsWith = new Map<string, number>()
+    for (const c of kids[i]) for (const t of new Set(classes(c))) siblingsWith.set(t, (siblingsWith.get(t) ?? 0) + 1)
+    const groups = new Map<string, Node[]>()
+    kids[i].forEach((c, k) => {
+      const [only, ...rest] = perKid[k]
+      if (nodeType[c] !== 1 || rest.length || !only?.block || parts(only, limits.minParts) < limits.minParts) return
+      const sig = [str(nodeName[c]), ...classes(c).filter(t => (siblingsWith.get(t) ?? 0) > 1)].join(' ')
+      groups.set(sig, [...(groups.get(sig) ?? []), only])
+    })
+    const best = [...groups.values()].sort((a, b) => b.length - a.length)[0]
+    if (!best || best.length < limits.minRepeats) return false
+    for (const n of best) n.record = true
+    return true
   }
 
   // WAI-ARIA: while a modal dialog is open, content outside it is not available. The view is the dialog.

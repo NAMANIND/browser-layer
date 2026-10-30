@@ -70,6 +70,15 @@ const server = createServer((req, res) => {
       <ul>${flights.map(([a, p, t], i) => `<li><div class="t">${t}</div>${i === 1 ? '<span class="badge">Best</span>' : ''}<div class="a">${a}</div><div class="p">${p}</div></li>`).join('')}</ul>
       <table><tr><th>Name</th><th>Size</th></tr><tr><td>a.txt</td><td>10 KB</td></tr><tr><td>b.txt</td><td>2 KB</td></tr></table></main>`)
   }
+  if (req.url === '/cards') {
+    // Cards with no list role, a per-item class, and a wrapper around their parts; beside them, a run of
+    // paragraphs that repeats but has no parts.
+    const items = [['Acer Aspire', '₹32,990'], ['HP 15', '₹55,989'], ['Lenovo IdeaPad', '₹1,05,000'], ['Dell 14', '₹41,500']]
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<meta charset="utf-8"><title>cards</title><main>
+      <div class="grid">${items.map(([n, p], i) => `<div class="card item-${i}"><div class="inner"><h3 class="title">${n}</h3><div class="price">${p}</div></div></div>`).join('')}</div>
+      <div class="article">${Array.from({ length: 5 }, (_, i) => `<p class="para">Paragraph ${i} of plain text.</p>`).join('')}</div></main>`)
+  }
   if (req.url === '/watch') {
     // Counts every DOM change that is not its own counter update.
     res.setHeader('content-type', 'text/html')
@@ -256,6 +265,16 @@ test('get turns a list or table into records that line up, sort as numbers, and 
   const bad = await run('get', list, '--sort', 'price')
   assert.equal(bad.code, 1)
   assert.match(bad.out, /no column "price"; columns are c1, c2, c3, c4/)
+})
+
+test('repeated cards without list markup are records; repeated paragraphs are not', async () => {
+  const map = await run('tab', `${base}/cards`)
+  assert.match(map.out, /\[\d+\] list of 4: /)
+  assert.doesNotMatch(map.out, /list of 5/)
+  const cheap = await run('get', ref(map.out, /list of 4/), '--sort', 'c2', '--limit', '2')
+  assert.match(cheap.out, /^c1\tc2\nAcer Aspire\t₹32,990\nDell 14\t₹41,500$/m)
+  // The page reads as before: a detected collection does not turn cards into single lines.
+  assert.match((await run('read')).out, /^### Acer Aspire\n₹32,990$/m)
 })
 
 test('reading never changes the page', async () => {

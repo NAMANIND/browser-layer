@@ -110,6 +110,10 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number): 
           const line = (r: Node) => clipTo(renderText({ block: true, children: [r] }, origin, caps).replace(/\n/g, ' · '), caps.nameChars)
           const sample = header ? `columns ${cellsOf(header).map(c => renderText({ block: true, children: c.children }, origin, caps)).join(' · ')}` : `${line(rows[0])}${rows.length > 1 ? ' …' : ''}`
           lists.push(`[${n.ref}] ${n.role} of ${rows.length}: ${sample}`)
+          // Whatever else the container holds (a heading, pagination) still belongs in the map, and so
+          // does a collection nested inside one of its rows.
+          const nestedLists = (r: Node): void => (r.children ?? []).forEach(c => (COLLECTIONS.has(c.role ?? '') ? walk(c) : nestedLists(c)))
+          for (const c of n.children ?? []) if (rowsOf(c).length) nestedLists(c); else walk(c)
           return
         }
       }

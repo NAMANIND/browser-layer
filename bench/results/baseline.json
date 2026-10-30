@@ -1,8 +1,8 @@
 [
   {
     "page": "hacker-news",
-    "readMsP50": 16,
-    "readMsMax": 39,
+    "readMsP50": 17,
+    "readMsMax": 42,
     "lines": 68,
     "chars": 8817,
     "mapChars": 249,
@@ -13,11 +13,11 @@
   },
   {
     "page": "github-repo",
-    "readMsP50": 31,
-    "readMsMax": 53,
+    "readMsP50": 33,
+    "readMsMax": 64,
     "lines": 318,
     "chars": 17467,
-    "mapChars": 1542,
+    "mapChars": 1676,
     "refs": 288,
     "facts": {
       "file and folder rows": 25
@@ -25,11 +25,11 @@
   },
   {
     "page": "google-flights",
-    "readMsP50": 79,
-    "readMsMax": 124,
+    "readMsP50": 81,
+    "readMsMax": 126,
     "lines": 138,
-    "chars": 20233,
-    "mapChars": 2122,
+    "chars": 20236,
+    "mapChars": 1837,
     "refs": 242,
     "facts": {
       "flight rows with times, airports and price": 61
@@ -37,11 +37,11 @@
   },
   {
     "page": "amazon-search",
-    "readMsP50": 49,
-    "readMsMax": 103,
+    "readMsP50": 52,
+    "readMsMax": 94,
     "lines": 440,
-    "chars": 22402,
-    "mapChars": 2998,
+    "chars": 22403,
+    "mapChars": 1998,
     "refs": 408,
     "facts": {
       "product rows with price and M.R.P": 16
@@ -49,8 +49,8 @@
   },
   {
     "page": "react-todomvc",
-    "readMsP50": 3,
-    "readMsMax": 8,
+    "readMsP50": 4,
+    "readMsMax": 9,
     "lines": 22,
     "chars": 1049,
     "mapChars": 590,

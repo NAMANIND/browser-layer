@@ -15,6 +15,8 @@ export const DEFAULTS = {
   'render.labelChars': 40,
   'render.mapFew': 8,
   'data.rows': 20,
+  'data.minRepeats': 3,
+  'data.minParts': 2,
   'network.keep': 300,
   'daemon.idleMs': 30 * 60 * 1000,
 }

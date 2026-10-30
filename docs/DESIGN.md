@@ -161,8 +161,16 @@ gets the full view. pushState and hash changes are the same document: refs and t
 - **Sorting** uses the standard collator with numeric ordering, after removing digit-group separators
   and turning 12-hour times into 24-hour ones. Empty values sort last.
 
-Known gaps: results that are not in an ARIA list or table (Amazon's product grid) are not a collection
-yet; a field styled differently per row (a "good" vs "average" class) splits into two columns.
+- **Unmarked collections** (data-region detection): when at least `data.minRepeats` children of a
+  container with no semantic role share a signature (tag and the classes more than one of them has) and
+  each has at least `data.minParts` block-level parts (looking through single-box wrappers), the largest
+  such group is a collection of records. A card has a title, a price, a rating; a run of paragraphs
+  repeats but has no parts. Never inside a collection the page marked up itself. Detected records are
+  addressable (map, `get`) and do not change how the page reads.
+- **Template, not identity:** a class only one sibling or one row has (an item id) is left out of
+  signatures and field paths.
+
+Known gap: a field styled differently per row (a "good" vs "average" class) splits into two columns.
 
 ## 5. Actions
 
@@ -231,6 +239,8 @@ Keys are added when the phase that uses them lands.
 | `render.labelChars` | 40 | Cap for labels only assistive tech hears |
 | `render.mapFew` | 8 | In the map, controls are named up to this many per kind, counted above |
 | `data.rows` | 20 | Records `get` returns when no `--limit` is given |
+| `data.minRepeats` | 3 | Siblings sharing a signature before they count as records |
+| `data.minParts` | 2 | Block-level parts each of those siblings needs |
 | `network.hide` | tracker list (data file) | Hidden from `net` unless `--all` |
 | `permissions` | deny all | Per-origin grants |
 | `sessions.max` | 8 | Parallel sessions |

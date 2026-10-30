@@ -110,7 +110,7 @@ const caps = () => ({ nameChars: policy['render.nameChars'], labelChars: policy[
 
 // One read of the page: the tree and its full text.
 async function snapshot(tab: Tab) {
-  const tree = await readTree(tab.cdp, tab.refs)
+  const tree = await readTree(tab.cdp, tab.refs, { minRepeats: policy['data.minRepeats'], minParts: policy['data.minParts'] })
   const origin = new URL(tab.page.url()).origin
   return { tree, origin, text: renderText(tree, origin, caps()) }
 }

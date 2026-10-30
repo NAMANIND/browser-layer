@@ -1,5 +1,5 @@
 import { control, renderText, type Caps } from './render.js'
-import { cellsOf, COLLECTIONS, isHeaderRow, rowsOf, TABLES, type Node } from './reader.js'
+import { cellsOf, COLLECTIONS, isHeaderRow, rowsOf, SEGMENT, TABLES, type Node } from './reader.js'
 
 // A collection as records: columns and rows of cell text. Column ids are always c1…cN; a table's
 // header row also gives them names.
@@ -28,14 +28,26 @@ function tableRecords(table: Node, origin: string, caps: Caps): Records {
 
 // Lists have no column model. Each row's text is split by the innermost field it sits in (DESIGN §4.5);
 // the field's path inside the row is its column, so rows from one template line up even when some rows
-// have optional parts.
+// have optional parts. The template is what repeats: a class only one row has (an item id) is that
+// row's identity, not structure, and is left out of its paths.
 function listRecords(list: Node, origin: string, caps: Caps): Records {
+  const rows = rowsOf(list)
+  const tokensOf = (key: string) => key.split(SEGMENT).flatMap(seg => seg.split(' ').slice(1))
+  const rowsWith = new Map<string, number>()
+  for (const row of rows) {
+    const mine = new Set<string>()
+    const collect = (n: Node) => { if (n.key) tokensOf(n.key).forEach(t => mine.add(t)); (n.children ?? []).forEach(collect) }
+    collect(row)
+    for (const t of mine) rowsWith.set(t, (rowsWith.get(t) ?? 0) + 1)
+  }
+  const template = (key: string) => key.split(SEGMENT).map(seg => seg.split(' ').filter((t, i) => i === 0 || (rowsWith.get(t) ?? 0) > 1).join(' ')).join(SEGMENT)
   const keys: string[] = []
-  const cells = rowsOf(list).map(row => {
+  const cells = rows.map(row => {
     const cell = new Map<string, string>()
     const seen = new Map<string, number>()
     // The same path twice in one row is two fields: the second becomes path#2.
-    const field = (key: string) => {
+    const field = (raw: string) => {
+      const key = template(raw)
       const n = (seen.get(key) ?? 0) + 1
       seen.set(key, n)
       return n === 1 ? key : `${key}#${n}`
