@@ -5,11 +5,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
 import assert from 'node:assert/strict'
+import { DEFAULTS } from '../src/policy.js'
 
 // A page that only exists after JS runs: autocomplete, then a fetch() send with no <form>.
 const APP = `<!doctype html><title>Trip</title><body><div id="app"></div><script>
   const app = document.getElementById('app')
-  app.innerHTML = '<h1>Plan a trip</h1><label for="city">City</label><input id="city"><ul id="sug"></ul>' +
+  app.innerHTML = '<h1>Plan a trip</h1><label for="city">City</label><input id="city"><ul id="sug" role="listbox"></ul>' +
     '<button id="send" disabled>Book</button><p id="out"></p><div style="display:none">hidden promo</div>'
   const city = document.getElementById('city'), sug = document.getElementById('sug'), send = document.getElementById('send')
   city.addEventListener('input', () => {
@@ -43,15 +44,23 @@ const server = createServer((req, res) => {
   }
   if (req.url === '/view') {
     res.setHeader('content-type', 'text/html')
-    // Rows are flex like real result lists; the two rows themselves stack, so they stay two lines.
-    return res.end(`<meta charset="utf-8"><title>view</title><style>.row, .time { display: flex; gap: 8px }</style>
-      <div class="row"><div class="time"><span>7:00 AM</span><div>–</div><span>9:10 AM</span></div><div>IndiGo</div><div>₹6,895</div></div>
-      <div class="row"><div class="time"><span>4:15 AM</span><div>–</div><span>6:25 AM</span></div><div>SpiceJet</div><div>₹7,118</div></div>
+    // A result list: each item is one row on screen whatever blocks it is built from.
+    return res.end(`<meta charset="utf-8"><title>view</title>
+      <ul><li><div><span>7:00 AM</span><div>–</div><span>9:10 AM</span></div><div>IndiGo</div><div>₹6,895</div></li>
+      <li><div><span>4:15 AM</span><div>–</div><span>6:25 AM</span></div><div>SpiceJet</div><div>₹7,118</div></li></ul>
       <h2>Stacked</h2><p>first line</p><p>second line</p>
       <div aria-hidden="true"><p>BOM – DEL</p><button>ghost</button></div>
       <div inert><p>behind the dialog</p></div>
       <a href="/vote?id=1"></a> <a href="/about">About us</a> <a href="https://example.org/x">Elsewhere</a>
-      <button aria-label="From 6895 Indian rupees. Nonstop flight with IndiGo. Leaves at seven in the morning">Select</button>`)
+      <button aria-label="From 6895 Indian rupees. Nonstop flight with IndiGo. Leaves Chhatrapati Shivaji Maharaj International Airport Mumbai at 7:00 AM and arrives at 9:10 AM">Select</button>`)
+  }
+  if (req.url === '/watch') {
+    // Counts every DOM change that is not its own counter update.
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<title>watch</title><p>mutations: <span id="n">0</span></p><a href="/x">a link</a><input aria-label="field">
+      <script>let n = 0; const out = document.getElementById('n')
+      new MutationObserver(ms => { const mine = ms.filter(m => !out.contains(m.target)); if (mine.length) out.textContent = n += mine.length })
+        .observe(document, { subtree: true, childList: true, attributes: true, characterData: true })</script>`)
   }
   if (req.url === '/long') {
     res.setHeader('content-type', 'text/html')
@@ -161,19 +170,27 @@ test('two commands from cold start one daemon, and both tabs live in it', async 
   assert.match(tabs, /page\/two/)
 })
 
-test('the live view: one line per row, screen-reader hiding, short hidden labels, links only when useful', async () => {
+test('the live view: one line per row, aria-hidden text without refs, clipped names, links only when useful', async () => {
   const { code, out } = await run('tab', `${base}/view`)
   assert.equal(code, 0, out)
-  assert.match(out, /^7:00 AM – 9:10 AM · IndiGo · ₹6,895$/m)
-  assert.match(out, /^4:15 AM – 6:25 AM · SpiceJet · ₹7,118$/m)
-  assert.match(out, /^Stacked$\n^first line$\n^second line$/m)
+  assert.match(out, /^• 7:00 AM – 9:10 AM · IndiGo · ₹6,895$/m)
+  assert.match(out, /^• 4:15 AM – 6:25 AM · SpiceJet · ₹7,118$/m)
+  assert.match(out, /^## Stacked$\n^first line$\n^second line$/m)
   assert.match(out, /^BOM – DEL$\n^ghost$/m)
   assert.doesNotMatch(out, /button "ghost"|behind the dialog/)
   assert.match(out, /link → \/vote\?id=1/)
   assert.match(out, /link "About us"(?! →)/)
   assert.match(out, /link "Elsewhere" → example\.org/)
   const label = out.match(/button "(From 6895[^"]*)"/)
-  assert.ok(label && label[1].length <= 45 && label[1].endsWith('…'), out)
+  assert.ok(label && label[1].length === DEFAULTS['render.nameChars'] && label[1].endsWith('…'), out)
+})
+
+test('reading never changes the page', async () => {
+  await run('tab', `${base}/watch`)
+  await run('read')
+  const r = await run('read')
+  assert.match(r.out, /mutations: 0/)
+  assert.match(r.out, /\[\d+\] link "a link"/)
 })
 
 test('long views come in pages and every page is reachable', async () => {
@@ -204,5 +221,5 @@ test('stale refs and missing tabs fail with a clear message', async () => {
   await run('tab', `${base}/page/x`)
   const r = await run('click', '9999')
   assert.equal(r.code, 1)
-  assert.match(r.out, /\[9999\] is no longer on the page/)
+  assert.match(r.out, /\[9999\] is not on the page/)
 })

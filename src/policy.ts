@@ -9,9 +9,9 @@ export const DEFAULTS = {
   'viewport.height': 900,
   'settle.quietMs': 400,
   'settle.deadlineMs': 5000,
-  'actions.timeoutMs': 10000,
   'render.pageChars': 15000,
   'render.maxChars': 400000,
+  'render.nameChars': 120,
   'network.keep': 300,
   'daemon.idleMs': 30 * 60 * 1000,
 }

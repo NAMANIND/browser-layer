@@ -1,9 +1,11 @@
 // Replays each corpus page offline and measures the reader on it: time, size, refs, and the facts the
-// page must show (test/corpus/pages.json). Exits 1 if a fact is missing.
+// page must show (test/corpus/pages.json), counted as matches; `.` never crosses a line, so a pattern
+// with several parts requires them on one line. Exits 1 if a fact is missing.
 // Usage: npm run measure [-- --save] [-- --dump DIR]
 import { chromium } from 'playwright-core'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { snapshot } from '../dist/snapshot.js'
+import { newRefs, readTree } from '../dist/reader.js'
+import { renderText } from '../dist/render.js'
 import { DEFAULTS } from '../dist/policy.js'
 import { deterministic } from './deterministic.mjs'
 
@@ -26,16 +28,19 @@ for (const { name, url, facts = [] } of pages) {
   await page.goto(url, { waitUntil: 'load' })
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {})
 
+  const cdp = await ctx.newCDPSession(page)
+  await cdp.send('Accessibility.enable')
+  const refs = newRefs()
+  const origin = new URL(page.url()).origin
   const times = []
-  let snap
+  let body = ''
   for (let i = 0; i < RUNS; i++) {
     const t = performance.now()
-    snap = await page.evaluate(snapshot, DEFAULTS['render.maxChars'])
+    body = renderText(await readTree(cdp, refs), origin, DEFAULTS['render.nameChars'])
     times.push(performance.now() - t)
   }
   await ctx.close()
   times.sort((a, b) => a - b)
-  const body = snap.body
   if (dump) { mkdirSync(dump, { recursive: true }); writeFileSync(`${dump}/${name}.txt`, body) }
 
   const row = {
@@ -48,7 +53,7 @@ for (const { name, url, facts = [] } of pages) {
     facts: {},
   }
   for (const { label, pattern, min } of facts) {
-    const count = body.split('\n').filter(l => new RegExp(pattern).test(l)).length
+    const count = (body.match(new RegExp(pattern, 'g')) ?? []).length
     row.facts[label] = count
     if (count < min) { failed = true; console.error(`  MISSING ${name}: "${label}" ${count} < ${min}`) }
   }

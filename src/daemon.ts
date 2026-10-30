@@ -3,12 +3,18 @@
 import { createServer } from 'node:http'
 import { chmodSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { chromium, type BrowserContext, type Page } from 'playwright-core'
+import { chromium, type BrowserContext, type CDPSession, type Page } from 'playwright-core'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
-import { snapshot } from './snapshot.js'
+import { newRefs, readTree, type Refs } from './reader.js'
+import { paginate, renderText } from './render.js'
+import { click, fill, pick } from './act.js'
 import { ping, socketPath } from './client.js'
 import { loadPolicy, type Policy } from './policy.js'
 
+// Decoration the agent never needs; DESIGN §1 principle 3. Never requested.
+const DECORATION = new Set(['image', 'font', 'media'])
+// Animations and transitions finish at once, so pages settle without waiting on motion.
+const MOTION_RATE = 1000
 
 // Analytics and ads calls bury the API the page actually uses; `net --all` still shows them.
 const NOISE = /\/(log|logs|collect|analytics|telemetry|metrics|beacon|pixel|gen_204|ping)(\/|\?|$)|ogads-pa\.|doubleclick|googletagmanager|google-analytics/i
@@ -21,7 +27,7 @@ function printable(body: string | null | undefined): string | undefined {
 }
 
 type Req = { method: string; url: string; status: number; type: string; kind: string; post?: string }
-type Tab = { id: number; session: string; page: Page; inflight: number; net: Req[] }
+type Tab = { id: number; session: string; page: Page; cdp: CDPSession; refs: Refs; inflight: number; net: Req[] }
 export type Command = { cmd: string; session: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean; page?: number }
 
 // Tab ids are unique across the daemon; each session (one agent, one task) has its own current tab.
@@ -97,25 +103,16 @@ async function settle(tab: Tab) {
   }
 }
 
-// Splits on line boundaries so a page never cuts a control's line in half.
-function paginate(body: string): string[] {
-  const pages: string[] = []
-  let cur = ''
-  for (const line of body.split('\n')) {
-    if (cur && cur.length + line.length + 1 > policy['render.pageChars']) { pages.push(cur); cur = '' }
-    cur = cur ? `${cur}\n${line}` : line
-  }
-  if (cur || !pages.length) pages.push(cur)
-  return pages
-}
-
 async function view(tab: Tab, page = 1): Promise<string> {
-  const snap = await tab.page.evaluate(snapshot, policy['render.maxChars'])
-  const pages = paginate(snap.body)
+  let text = renderText(await readTree(tab.cdp, tab.refs), new URL(tab.page.url()).origin, policy['render.nameChars'])
+  const truncated = text.length > policy['render.maxChars']
+  if (truncated) text = text.slice(0, text.lastIndexOf('\n', policy['render.maxChars']))
+  const pages = paginate(text, policy['render.pageChars'])
   if (page < 1 || page > pages.length) throw new Error(`page ${page} does not exist; this view has ${pages.length}`)
-  const head = `tab ${tab.id}  ${tab.page.url()}${snap.title ? `  "${snap.title}"` : ''}${pages.length > 1 ? `  (page ${page} of ${pages.length})` : ''}`
+  const title = await tab.page.title()
+  const head = `tab ${tab.id}  ${tab.page.url()}${title ? `  "${title}"` : ''}${pages.length > 1 ? `  (page ${page} of ${pages.length})` : ''}`
   const more = page < pages.length ? `\n… more below: agent-layer read --page ${page + 1}` : ''
-  const cut = snap.truncated && page === pages.length ? '\n… (snapshot ceiling reached; the page is larger than this)' : ''
+  const cut = truncated && page === pages.length ? '\n… (view ceiling reached; the page is larger than this)' : ''
   return `${head}\n\n${pages[page - 1]}${more}${cut}`
 }
 
@@ -132,15 +129,22 @@ function own(session: string, id: number): Tab {
   return tab
 }
 
-function target(tab: Tab, ref?: string) {
+function nodeOf(tab: Tab, ref?: string): number {
   if (!ref || !/^\d+$/.test(ref)) throw new Error(`expected a ref number like 12, got "${ref ?? ''}"`)
-  return tab.page.locator(`[data-al="${ref}"]`).first()
+  const id = tab.refs.byRef.get(Number(ref))
+  if (!id) throw new Error(`[${ref}] is not on the page — run: agent-layer read`)
+  return id
 }
 
-async function ensureRef(tab: Tab, ref?: string) {
-  const loc = target(tab, ref)
-  if (!(await loc.count())) throw new Error(`[${ref}] is no longer on the page — run: agent-layer read`)
-  return loc
+// A ref whose node is gone (re-rendered, navigated away) fails here with the same advice.
+async function act(tab: Tab, ref: string | undefined, fn: (id: number) => Promise<void>) {
+  const id = nodeOf(tab, ref)
+  try {
+    await fn(id)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    throw new Error(/No node with given id|Could not find node/i.test(msg) ? `[${ref}] is not on the page — run: agent-layer read` : `cannot act on [${ref}]: ${msg}`)
+  }
 }
 
 function withUrl(url: string) {
@@ -149,7 +153,17 @@ function withUrl(url: string) {
 
 async function newTab(session: string, url: string): Promise<Tab> {
   const page = await ctx.newPage()
-  const tab: Tab = { id: nextId++, session, page, inflight: 0, net: [] }
+  const cdp = await ctx.newCDPSession(page)
+  await cdp.send('Accessibility.enable')
+  await cdp.send('Animation.enable')
+  await cdp.send('Animation.setPlaybackRate', { playbackRate: MOTION_RATE })
+  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(), inflight: 0, net: [] }
+  // A new document can reuse node ids, so old refs are dropped; numbering continues, never reused.
+  page.on('framenavigated', f => {
+    if (f !== page.mainFrame()) return
+    tab.refs.byNode.clear()
+    tab.refs.byRef.clear()
+  })
   tabs.set(tab.id, tab)
   track(tab)
   current.set(session, tab.id)
@@ -190,22 +204,20 @@ async function run(c: Command): Promise<string> {
       return view(need(c.session), c.page ?? 1)
     case 'click': {
       const tab = need(c.session)
-      await (await ensureRef(tab, c.ref)).click({ timeout: policy['actions.timeoutMs'] })
+      await act(tab, c.ref, id => click(tab.cdp, id))
       await settle(tab)
       return view(tab)
     }
     case 'type': {
       const tab = need(c.session)
-      const loc = await ensureRef(tab, c.ref)
-      await loc.fill(c.text ?? '', { timeout: policy['actions.timeoutMs'] })
-      if (c.enter) await loc.press('Enter')
+      await act(tab, c.ref, id => fill(tab.cdp, id, c.text ?? ''))
+      if (c.enter) await tab.page.keyboard.press('Enter')
       await settle(tab)
       return view(tab)
     }
     case 'pick': {
       const tab = need(c.session)
-      const loc = await ensureRef(tab, c.ref)
-      await loc.selectOption({ label: c.text! }, { timeout: policy['actions.timeoutMs'] }).catch(() => loc.selectOption(c.text!, { timeout: policy['actions.timeoutMs'] }))
+      await act(tab, c.ref, id => pick(tab.cdp, id, c.text ?? ''))
       await settle(tab)
       return view(tab)
     }
@@ -249,11 +261,10 @@ async function main() {
     channel: 'chrome',
     headless: true,
     viewport: { width: policy['viewport.width'], height: policy['viewport.height'] },
-    args: ['--blink-settings=imagesEnabled=false'],
+    reducedMotion: 'reduce',
   })
-  // tsx/esbuild wraps nested functions in __name(); give injected functions a no-op one.
+  await ctx.route('**/*', r => (DECORATION.has(r.request().resourceType()) ? r.abort() : r.continue()))
   await ctx.addInitScript(`
-    window.__name = window.__name || (f => f);
     window.__alMut = 0;
     new MutationObserver(() => { window.__alMut++ }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
   `)
