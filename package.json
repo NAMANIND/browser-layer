@@ -1,0 +1,26 @@
+{
+  "name": "agent-layer",
+  "version": "0.0.1",
+  "description": "Websites as text and verbs for agents. No browser, no paint.",
+  "type": "module",
+  "bin": {
+    "agent-layer": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "node-html-parser": "^9.0.6",
+    "playwright-core": "^1.64.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
