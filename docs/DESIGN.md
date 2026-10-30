@@ -141,6 +141,24 @@ Not covered: CSS `:hover` rules (cross-origin stylesheets cannot be read from th
 put one hover listener on the document root (React) mark nothing; elements that react to hover but are
 not controls get no ref.
 
+### 4.3a Exploring what menus hold
+
+Web apps build most menus only when opened, so no page can declare their items in advance. `explore`
+discovers them the way a screen-reader user walks an unfamiliar app's menus:
+
+- **Triggers** are controls that declare they open something (WAI-ARIA `aria-haspopup`, or
+  `aria-expanded="false"`): buttons, menu items, links, tabs; not comboboxes (value lists) and not
+  disabled ones. Nothing else is ever clicked, so exploring runs no command.
+- Each trigger is clicked; the controls that appeared are its items (containers are not items); a
+  trigger among them is opened too, up to `explore.depth`; Escape closes what was opened. Exploring
+  stops if a click opens a dialog or leaves the page, and after `explore.max` opens.
+- `menu "A > B > C"` runs a path by names: each step is the best name match (exact, prefix, contains),
+  and after the first step, among equals, the newest control, which is in the menu just opened.
+- The map says how many triggers are closed, and shows a canvas with drawn text as
+  `[ref] canvas: N lines — first line`.
+
+The same rules apply on every site; there is no per-site knowledge.
+
 ### 4.4 Answers carry only what changed
 
 The agent already holds the page, so an action answers with the lines that changed since the last view
@@ -243,6 +261,9 @@ Keys are added when the phase that uses them lands.
 | `render.mapFew` | 8 | In the map, controls are named up to this many per kind, counted above |
 | `actions.timeoutMs` | 5000 | Wait for a control to be ready before pointer input |
 | `wait.timeoutMs` | 15000 | How long `wait` looks for its text |
+| `explore.depth` | 2 | Levels of submenus `explore` opens |
+| `explore.max` | 40 | Most menus one `explore` opens |
+| `explore.waitMs` | 1500 | Settle deadline after opening or closing a menu while exploring |
 | `data.rows` | 20 | Records `get` returns when no `--limit` is given |
 | `data.minRepeats` | 3 | Siblings sharing a signature before they count as records |
 | `data.minParts` | 2 | Block-level parts each of those siblings needs |

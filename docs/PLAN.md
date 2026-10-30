@@ -138,6 +138,13 @@ P4 ✅: controls say what they reveal (aria-controls / aria-owns / popovertarget
 grids). Live: Amazon's language menu shows its hidden options in the map. 41 tests green. Not covered:
 CSS :hover rules, React's root-delegated listeners, WebGL text (Figma).
 
+
+Exploring (DESIGN §4.3a): `explore [ref]` opens every declared menu and pop-up, reads what appeared,
+closes it, never runs a command; `menu "A > B > C"` runs a path by names; the map shows closed-menu
+counts and canvas content. Live on a Google Sheet, with no Google-specific code: the map shows the
+40-line canvas grid and 20 closed menus; `explore` on File lists File > Download ▸ … CSV in 6.8 s;
+`menu "File > Download > Comma-separated"` downloads the CSV. 42 tests green.
+
 Still open:
 P5 fast path on parse5 and the HTML form submission algorithm.
 

@@ -10,6 +10,8 @@ export type Node = {
   // What the control opens that is not on screen yet: items of the element it controls (aria-controls,
   // aria-owns, popovertarget) or the content of a closed <details>, known before it is triggered.
   reveals?: string[]
+  // aria-haspopup as the browser computes it (menu, listbox, dialog, true): the control opens something.
+  popup?: string
   value?: string
   states?: string[]
   url?: string
@@ -49,6 +51,13 @@ export const TABLES = new Set(['table', 'grid', 'treegrid'])
 // Separates the segments of a field path (Node.key).
 export const SEGMENT = '\u001e'
 
+// Every node with a ref, in page order.
+export const withRefs = (n: Node): Node[] => [...(n.ref ? [n] : []), ...(n.children ?? []).flatMap(withRefs)]
+// WAI-ARIA: a control that declares it opens something (aria-haspopup, or aria-expanded=false) and is
+// enabled. Comboboxes open value lists (fonts, sizes), not commands, so they are left out.
+const OPENERS = new Set(['button', 'menuitem', 'link', 'tab'])
+export const isTrigger = (n: Node) => OPENERS.has(n.role ?? '') && !n.states?.includes('disabled') && (!!n.popup || !!n.states?.includes('collapsed'))
+
 // The rows of a collection and the cells of a row, not descending into nested collections.
 export const rowsOf = (n: Node): Node[] => (n.row || n.record ? [n] : (n.children ?? []).flatMap(c => (COLLECTIONS.has(c.role ?? '') ? [] : rowsOf(c))))
 export const cellsOf = (n: Node): Node[] => (n.cell ? [n] : (n.children ?? []).flatMap(c => (COLLECTIONS.has(c.role ?? '') ? [] : cellsOf(c))))
@@ -80,10 +89,11 @@ async function hooked(cdp: CDPSession, list: string, value: string, cap: number)
 
 type AXNode = { ignored: boolean; role?: { value?: unknown }; name?: { value?: unknown }; value?: { value?: unknown }; properties?: { name: string; value: { value?: unknown } }[]; backendDOMNodeId?: number }
 
-function statesOf(ax: AXNode): { states: string[]; url?: string; level?: number } {
+function statesOf(ax: AXNode): { states: string[]; url?: string; level?: number; popup?: string } {
   const states: string[] = []
   let url: string | undefined
   let level: number | undefined
+  let popup: string | undefined
   for (const { name, value: { value } } of ax.properties ?? []) {
     if (name === 'checked') states.push(value === 'mixed' ? 'mixed' : value === 'true' ? 'checked' : 'unchecked')
     else if (name === 'expanded') states.push(value ? 'expanded' : 'collapsed')
@@ -92,8 +102,9 @@ function statesOf(ax: AXNode): { states: string[]; url?: string; level?: number 
     else if (BOOLEAN_STATES.includes(name) && value === true) states.push(name)
     else if (name === 'url') url = String(value)
     else if (name === 'level') level = Number(value)
+    else if (name === 'hasPopup' && value !== 'false') popup = String(value)
   }
-  return { states, url, level }
+  return { states, url, level, popup }
 }
 
 export type Limits = { minRepeats: number; minParts: number; revealItems: number }
@@ -224,20 +235,21 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
       : kids[i].map(c => walk(d, c, quiet, hidden, key, inner))
     const children = perKid.flat()
     const canvasLines = drawn.get(backendNodeId[i])
-    if (Array.isArray(canvasLines)) children.push(...canvasLines.map(t => ({ block: true, children: [{ text: String(t) }] })))
+    // A canvas with drawn text is content the map points to; it gets a ref so the agent can read it.
+    if (Array.isArray(canvasLines) && canvasLines.length) return [{ ref: refFor(backendNodeId[i]), role: 'canvas', block: true, children: canvasLines.map(t => ({ block: true, children: [{ text: String(t) }] })) }]
     // Generated content (::before, ::after, ::marker) is a pseudo element carrying its own layout text,
     // and a field of its own: a bullet or a rank is not part of the text beside it.
     if (str(nodeName[i]).startsWith('::')) return l === undefined || hidden ? [] : [{ key, children: [{ text: str(doc.layout.text[l]) }] }]
 
     const block = l !== undefined && display !== undefined && !INLINE_DISPLAY.test(display)
     if (WIDGETS.has(role) && l !== undefined && visibility !== 'hidden') {
-      const { states, url } = statesOf(a!)
+      const { states, url, popup } = statesOf(a!)
       if (hovered.has(backendNodeId[i]) || HOVER_ATTRS.some(h => attr(i, h) !== undefined)) states.push('reacts to hover')
       const value = a!.value?.value
       const name = squash(String(a!.name?.value ?? ''))
       return [{
         ref: refFor(backendNodeId[i]), role, name, nameShown: content(textOf(children)).includes(content(name)), states, url, block, key,
-        reveals: revealsOf(d, i, limits.revealItems),
+        reveals: revealsOf(d, i, limits.revealItems), popup,
         value: value === undefined || value === '' ? undefined : String(value),
         children: hasRef(children) ? children : undefined,
       }]

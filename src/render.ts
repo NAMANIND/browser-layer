@@ -1,4 +1,4 @@
-import { cellsOf, COLLECTIONS, isHeaderRow, LANDMARKS, rowsOf, type Node } from './reader.js'
+import { cellsOf, COLLECTIONS, isHeaderRow, isTrigger, LANDMARKS, rowsOf, withRefs, type Node } from './reader.js'
 
 // Text for the agent: blocks start lines, rows read as one line with ' · ' between their parts,
 // controls inline as [ref] role "name". All shortening happens here, never in the reader.
@@ -49,8 +49,8 @@ export function renderText(root: Node, origin: string, caps: Caps): string {
       flush()
       return
     }
-    // A collection reads as its items; its ref is for the map and `get`.
-    if (n.ref && !COLLECTIONS.has(n.role ?? '')) {
+    // A collection or a canvas reads as its contents; its ref is for the map, `read` and `get`.
+    if (n.ref && !COLLECTIONS.has(n.role ?? '') && n.role !== 'canvas') {
       if (n.block && !inRow) flush()
       line += control(n, origin, caps)
       for (const c of n.children ?? []) visit(c, inRow)
@@ -118,6 +118,11 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number): 
           return
         }
       }
+      if (n.role === 'canvas') {
+        const lines = n.children ?? []
+        lists.push(`[${n.ref}] canvas: ${lines.length} lines — ${clipTo(renderText({ block: true, children: lines.slice(0, 1) }, origin, caps), caps.nameChars)}${lines.length > 1 ? ' …' : ''}`)
+        return
+      }
       if (n.ref && !COLLECTIONS.has(n.role ?? '')) (FIELDS.has(n.role ?? '') ? fields : n.role === 'option' ? options : n.role === 'link' ? links : actions).push(n)
       for (const c of n.children ?? []) walk(c)
     }
@@ -141,6 +146,8 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number): 
     nested.forEach(r => summarize(regionLine(r, caps), r.children ?? []))
   }
   summarize('page (outside any region)', root.children ?? [])
+  const closed = withRefs(root).filter(isTrigger).length
+  if (closed) out.push(`closed menus and pop-ups: ${closed} (agent-layer explore lists what they hold)`)
   return out.join('\n')
 }
 

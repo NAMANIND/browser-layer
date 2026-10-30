@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { chromium, type BrowserContext, type CDPSession, type Dialog, type Page, type Request } from 'playwright-core'
 import { isTracker } from './trackers.js'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
-import { newRefs, readTree, type Refs } from './reader.js'
+import { COLLECTIONS, LANDMARKS, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
 import { diffLines, findRef, paginate, renderMap, renderText } from './render.js'
 import { call, fill, isFileInput, pick, pointer, setFiles, wheel, type Pointer, type Target } from './act.js'
 import { query, records, toTsv, type Query } from './data.js'
@@ -169,12 +169,12 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 // Settled when no request is in flight and the DOM has been quiet for settle.quietMs; or a dialog is
 // waiting (the page is blocked until it is answered); or the deadline passes. Says which.
-async function settle(tab: Tab): Promise<string> {
+async function settle(tab: Tab, deadline = policy['settle.deadlineMs']): Promise<string> {
   const start = Date.now()
   await tab.page.waitForLoadState('domcontentloaded', { timeout: policy['load.timeoutMs'] }).catch(() => {})
   let last = -1
   let quietSince = Date.now()
-  while (Date.now() - start < policy['settle.deadlineMs']) {
+  while (Date.now() - start < deadline) {
     if (tab.dialog) return 'dialog'
     // A dialog opening mid-read blocks page scripts, so the read is bounded.
     const muts = await Promise.race([tab.page.evaluate(() => (window as unknown as { __alMut?: number }).__alMut ?? 0).catch(() => -2), sleep(500).then(() => -3)])
@@ -182,7 +182,7 @@ async function settle(tab: Tab): Promise<string> {
     else if (Date.now() - quietSince >= policy['settle.quietMs']) return `idle in ${Date.now() - start} ms`
     await sleep(100)
   }
-  return `deadline ${policy['settle.deadlineMs']} ms (the page kept changing)`
+  return `deadline ${deadline} ms (the page kept changing)`
 }
 
 const caps = () => ({ nameChars: policy['render.nameChars'], labelChars: policy['render.labelChars'] })
@@ -389,7 +389,38 @@ async function untilDialog(tab: Tab, work: Promise<unknown>) {
   try { await Promise.race([work, dialog]) } finally { tab.page.off('dialog', opened) }
 }
 
-const pointerAt = (tab: Tab, c: Command, how: Pointer) => untilDialog(tab, act(tab, c.ref, t => pointer(t, policy['actions.timeoutMs'], how)))
+const pointerAt = (tab: Tab, ref: string | undefined, how: Pointer) => untilDialog(tab, act(tab, ref, t => pointer(t, policy['actions.timeoutMs'], how)))
+
+// explore (DESIGN §4.6): what the page's declared menus and pop-ups hold. Only declared triggers are
+// clicked, what appeared is read, and Escape closes it again; plain actions are never clicked.
+type Explored = { name: string; items: { name: string; sub?: Explored }[] }
+// What a menu holds is its controls, not containers (the menu itself, a list, a region, a canvas).
+const isItem = (n: Node) => !COLLECTIONS.has(n.role ?? '') && !LANDMARKS.has(n.role ?? '') && n.role !== 'dialog' && n.role !== 'canvas'
+const refsNow = async (tab: Tab) => new Set(withRefs((await snapshot(tab)).tree).map(n => n.ref))
+
+async function openRead(tab: Tab, trigger: Node, depth: number, budget: { opens: number }): Promise<Explored> {
+  const before = await refsNow(tab)
+  const doc = tab.doc
+  budget.opens--
+  await pointerAt(tab, String(trigger.ref), {})
+  await settle(tab, policy['explore.waitMs'])
+  if (tab.doc !== doc || tab.dialog) throw new Error(`opening "${trigger.name}" ${tab.dialog ? 'opened a dialog' : 'left the page'}; explore stopped there`)
+  const items = withRefs((await snapshot(tab)).tree).filter(n => !before.has(n.ref) && isItem(n))
+  const out: Explored = { name: trigger.name || trigger.role!, items: [] }
+  for (const item of items) {
+    const sub = depth > 1 && budget.opens > 0 && isTrigger(item) && (await refsNow(tab)).has(item.ref)
+      ? await openRead(tab, item, depth - 1, budget) : undefined
+    out.items.push({ name: item.name || item.role!, sub })
+  }
+  // Escape is the standard way to close a menu or pop-up; pressed until what this opened is gone.
+  for (let k = 0; k < 3; k++) {
+    await tab.page.keyboard.press('Escape')
+    await settle(tab, policy['explore.waitMs'])
+    const now = await refsNow(tab)
+    if (!items.some(i => now.has(i.ref))) break
+  }
+  return out
+}
 
 async function run(c: Command): Promise<string> {
   switch (c.cmd) {
@@ -445,7 +476,7 @@ async function run(c: Command): Promise<string> {
     case 'rightclick':
     case 'hover': {
       const tab = need(c.session)
-      await pointerAt(tab, c, { clicks: c.cmd === 'dblclick' ? 2 : 1, button: c.cmd === 'rightclick' ? 'right' : 'left', move: c.cmd === 'hover' })
+      await pointerAt(tab, c.ref, { clicks: c.cmd === 'dblclick' ? 2 : 1, button: c.cmd === 'rightclick' ? 'right' : 'left', move: c.cmd === 'hover' })
       return answer(tab)
     }
     case 'type': {
@@ -508,6 +539,44 @@ async function run(c: Command): Promise<string> {
       if (c.dir === 'accept') await d.accept(c.text)
       else if (c.dir === 'dismiss') await d.dismiss()
       else throw new Error('usage: agent-layer dialog accept [text] | dismiss')
+      return answer(tab)
+    }
+    case 'explore': {
+      const tab = need(c.session)
+      const { tree } = await snapshot(tab)
+      const scope = c.ref ? findRef(tree, Number(c.ref)) : tree
+      if (!scope) throw new Error(`[${c.ref}] is not on the page — run: agent-layer map`)
+      const triggers = (isTrigger(scope) ? [scope] : withRefs(scope).filter(isTrigger))
+      if (!triggers.length) return 'nothing here declares a menu or pop-up (aria-haspopup / aria-expanded)'
+      const budget = { opens: policy['explore.max'] }
+      const lines: string[] = []
+      const print = (e: Explored, path: string) => {
+        lines.push(`${path} ▸ ${e.items.map(i => (i.sub ? `${i.name} ▸` : i.name)).join(' · ') || '(nothing appeared)'}`)
+        for (const i of e.items) if (i.sub) print(i.sub, `${path} > ${i.name}`)
+      }
+      for (const t of triggers) {
+        if (budget.opens <= 0) { lines.push(`… stopped after ${policy['explore.max']} opens (explore <ref> looks at one)`); break }
+        const e = await openRead(tab, t, policy['explore.depth'], budget)
+        print(e, `[${t.ref}] ${e.name}`)
+      }
+      return `${await header(tab)}  — ${triggers.length} declared menus and pop-ups, each opened, read and closed\n\n${lines.join('\n')}\n\n(menu "A > B > C" runs one by name)`
+    }
+    case 'menu': {
+      // A path of names: each step is clicked, then looked for among what the previous step opened.
+      const tab = need(c.session)
+      const steps = (c.text ?? '').split('>').map(s => s.trim().toLowerCase()).filter(Boolean)
+      if (!steps.length) throw new Error('usage: agent-layer menu "File > Download > CSV"')
+      for (const [k, step] of steps.entries()) {
+        const named = (n: Node) => (n.name ?? '').toLowerCase()
+        const fit = (n: Node) => (named(n) === step ? 0 : named(n).startsWith(step) ? 1 : named(n).includes(step) ? 2 : 3)
+        // Best name match first; among equals, the newest control (the menu just opened) after step one.
+        const hits = withRefs((await snapshot(tab)).tree)
+          .filter(n => isItem(n) && !n.states?.includes('disabled') && fit(n) < 3)
+          .sort((a, b) => fit(a) - fit(b) || (k ? b.ref! - a.ref! : a.ref! - b.ref!))
+        if (!hits.length) throw new Error(`nothing named "${step}"${k ? ` after "${steps.slice(0, k).join(' > ')}"` : ''} — explore lists what menus hold`)
+        await pointerAt(tab, String(hits[0].ref), {})
+        if (k < steps.length - 1) await settle(tab, policy['explore.waitMs'])
+      }
       return answer(tab)
     }
     case 'allow': {

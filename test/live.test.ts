@@ -119,6 +119,29 @@ const server = createServer((req, res) => {
     const g = c.getContext('2d'); g.font = '14px sans-serif'
     g.fillText('stale', 10, 100); g.clearRect(0, 80, 400, 40)
     g.fillText('Name', 10, 20); g.fillText('Price', 200, 20); g.fillText('Tea', 10, 50); g.fillText('₹40', 200, 50)</script>`)
+  if (req.url === '/menus') return page('menus', `
+    <div role="menubar"><button aria-haspopup="menu" aria-expanded="false" data-m="file">File</button>
+    <button aria-haspopup="menu" aria-expanded="false" data-m="edit">Edit</button></div>
+    <button onclick="o.textContent = 'deleted'">Delete everything</button><p id="o">nothing done</p>
+    <script>
+      // Menus are built only when opened, as Google's are; Escape closes the newest one.
+      const MENUS = { file: [['New'], ['Download', 'dl'], ['Print']], dl: [['CSV'], ['PDF']], edit: [['Undo'], ['Redo']] }
+      const open = []
+      function show(key, by) {
+        by.setAttribute('aria-expanded', 'true')
+        const m = document.createElement('div'); m.setAttribute('role', 'menu')
+        for (const [name, sub] of MENUS[key]) {
+          const b = document.createElement('button'); b.setAttribute('role', 'menuitem'); b.textContent = name
+          if (sub) { b.setAttribute('aria-haspopup', 'menu'); b.setAttribute('aria-expanded', 'false'); b.onclick = () => show(sub, b) }
+          else b.onclick = () => { o.textContent = 'did ' + name; while (open.length) close() }
+          m.append(b)
+        }
+        document.body.append(m); open.push([m, by])
+      }
+      function close() { const [m, by] = open.pop(); m.remove(); by.setAttribute('aria-expanded', 'false') }
+      document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => show(b.dataset.m, b))
+      addEventListener('keydown', e => { if (e.key === 'Escape' && open.length) close() })
+    </script>`)
   if (req.url === '/mouse') return page('mouse', `<button ondblclick="o.textContent = 'double'" oncontextmenu="event.preventDefault(); o.textContent = 'context menu'">Target</button><p id="o">none</p>`)
   if (req.url === '/watch') {
     // Counts every DOM change that is not its own counter update.
@@ -538,9 +561,25 @@ test('controls say what they reveal and whether they react to hover, before any 
 })
 
 test('text drawn on a canvas reads as lines, and text painted over is forgotten', async () => {
-  const out = (await openRead(`${base}/canvas`)).out
+  const map = (await run('tab', `${base}/canvas`)).out
+  assert.match(map, /\[\d+\] canvas: 2 lines — Name · Price …/)
+  const out = (await run('read')).out
   assert.match(out, /^Name · Price\nTea · ₹40$/m)
   assert.doesNotMatch(out, /stale/)
+})
+
+test('explore opens every declared menu, reads it, closes it, and never runs a command', async () => {
+  const map = (await run('tab', `${base}/menus`)).out
+  assert.match(map, /closed menus and pop-ups: 2 \(agent-layer explore lists what they hold\)/)
+  const out = (await run('explore')).out
+  assert.match(out, /2 declared menus and pop-ups, each opened, read and closed/)
+  assert.match(out, /^\[\d+\] File ▸ New · Download ▸ · Print$/m)
+  assert.match(out, /^\[\d+\] File > Download ▸ CSV · PDF$/m)
+  assert.match(out, /^\[\d+\] Edit ▸ Undo · Redo$/m)
+  const after = (await run('read')).out
+  assert.match(after, /nothing done/)
+  assert.doesNotMatch(after, /menuitem/)
+  assert.match((await run('menu', 'File > Download > CSV')).out, /did CSV/)
 })
 
 test('stale refs and missing tabs fail with a clear message', async () => {

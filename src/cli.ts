@@ -36,6 +36,8 @@ Live tabs (headless Chrome kept alive in the background; runs the page's JS):
   agent-layer forward | reload
   agent-layer eval <js>               run JavaScript in the page; prints the result as JSON
   agent-layer allow <perm>[,perm] [lat,lon]   grant geolocation, notifications… to the current site
+  agent-layer explore [ref]           open every declared menu / pop-up, list what it holds, close it
+  agent-layer menu "A > B > C"        run a menu path by names (File > Download > CSV)
   Pop-ups open as tabs in the same session and become current; downloads are saved and reported.
   agent-layer net [--all]             requests the page made (the API under the UI); trackers hidden
   agent-layer net show <#>            one request in full: headers (secrets redacted) and bodies
@@ -55,7 +57,7 @@ const CHROME: Record<string, string> = {
   win32: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
 }
 
-const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'allow', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
+const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'allow', 'explore', 'menu', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
 
 function fail(msg: string): never {
   console.error(msg)
@@ -193,6 +195,8 @@ async function main() {
     if (cmd === 'dialog') [c.dir, c.text] = [target, rest.length ? rest.join(' ') : undefined]
     if (cmd === 'wait' || cmd === 'eval') c.text = [target, ...rest].filter(Boolean).join(' ')
     if (cmd === 'allow') [c.text, c.dir] = [target, rest[0]]
+    if (cmd === 'explore' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: agent-layer explore [ref]')
+    if (cmd === 'menu') c.text = [target, ...rest].filter(Boolean).join(' ')
     if (cmd === 'read' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: agent-layer read [ref] [--page N]')
     if (cmd === 'get') c.ref = target && /^\d+$/.test(target) ? target : fail('usage: agent-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b]')
     if (cmd === 'type' || cmd === 'pick') c.text = rest.join(' ')
