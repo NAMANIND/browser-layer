@@ -1,0 +1,52 @@
+[
+  {
+    "site": "hacker-news",
+    "script": 1,
+    "style": 8,
+    "layout": 6,
+    "paint": 14,
+    "pixels": 77,
+    "parse": 2,
+    "paintShare": 85
+  },
+  {
+    "site": "github-repo",
+    "script": 216,
+    "style": 94,
+    "layout": 46,
+    "paint": 68,
+    "pixels": 154,
+    "parse": 13,
+    "paintShare": 38
+  },
+  {
+    "site": "google-flights",
+    "script": 517,
+    "style": 81,
+    "layout": 46,
+    "paint": 107,
+    "pixels": 57,
+    "parse": 68,
+    "paintShare": 19
+  },
+  {
+    "site": "amazon-search",
+    "script": 697,
+    "style": 84,
+    "layout": 59,
+    "paint": 51,
+    "pixels": 77,
+    "parse": 47,
+    "paintShare": 13
+  },
+  {
+    "site": "react-todomvc",
+    "script": 85,
+    "style": 2,
+    "layout": 12,
+    "paint": 10,
+    "pixels": 59,
+    "parse": 0,
+    "paintShare": 41
+  }
+]
