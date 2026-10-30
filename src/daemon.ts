@@ -8,7 +8,7 @@ import { isTracker } from './trackers.js'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
 import { diffLines, findRef, paginate, renderMap, renderText } from './render.js'
-import { call, fill, isFileInput, pick, pointer, setFiles, wheel, type Pointer, type Target } from './act.js'
+import { call, drag, fill, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
 import { query, records, toTsv, type Query } from './data.js'
 import { ping, socketPath } from './client.js'
 import { loadPolicy, type Policy } from './policy.js'
@@ -101,7 +101,7 @@ type Tab = {
 }
 export type Command = {
   cmd: string; session: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean
-  page?: number; files?: string[]; dir?: string; gone?: boolean
+  page?: number; files?: string[]; dir?: string; gone?: boolean; keys?: boolean; to?: string
 } & Query
 
 // Tab ids are unique across the daemon; each session (one agent, one task) has its own current tab.
@@ -431,7 +431,9 @@ async function run(c: Command): Promise<string> {
     }
     case 'go': {
       const tab = need(c.session)
-      await tab.page.goto(withUrl(c.url!), { waitUntil: 'domcontentloaded', timeout: policy['load.timeoutMs'] })
+      // A page can ask before it is left (beforeunload): that dialog waits for the agent like any other.
+      await untilDialog(tab, tab.page.goto(withUrl(c.url!), { waitUntil: 'domcontentloaded', timeout: policy['load.timeoutMs'] }))
+      if (tab.dialog) return answer(tab)
       await settle(tab)
       return mapView(tab)
     }
@@ -440,7 +442,8 @@ async function run(c: Command): Promise<string> {
     case 'reload': {
       const tab = need(c.session)
       const opts = { waitUntil: 'domcontentloaded' as const, timeout: policy['load.timeoutMs'] }
-      await (c.cmd === 'back' ? tab.page.goBack(opts) : c.cmd === 'forward' ? tab.page.goForward(opts) : tab.page.reload(opts))
+      await untilDialog(tab, c.cmd === 'back' ? tab.page.goBack(opts) : c.cmd === 'forward' ? tab.page.goForward(opts) : tab.page.reload(opts))
+      if (tab.dialog) return answer(tab)
       await settle(tab)
       return mapView(tab)
     }
@@ -481,9 +484,64 @@ async function run(c: Command): Promise<string> {
     }
     case 'type': {
       const tab = need(c.session)
-      await act(tab, c.ref, t => fill(t, c.text ?? ''))
+      // --keys sends one key event per character, for fields that listen to keys rather than input.
+      await act(tab, c.ref, async t => {
+        await fill(t, c.keys ? '' : c.text ?? '')
+        if (c.keys) await tab.page.keyboard.type(c.text ?? '')
+      })
       if (c.enter) await untilDialog(tab, tab.page.keyboard.press('Enter'))
       return answer(tab)
+    }
+    case 'check':
+    case 'uncheck': {
+      const tab = need(c.session)
+      const want = c.cmd === 'check'
+      // Only a box in the other state is clicked, so check and uncheck can be repeated safely.
+      if (await isChecked(targetOf(tab, c.ref)) !== want) await pointerAt(tab, c.ref, {})
+      const out = await answer(tab)
+      return (await isChecked(targetOf(tab, c.ref))) === want ? out : `${out}\nnote: [${c.ref}] is still ${want ? 'unchecked' : 'checked'}`
+    }
+    case 'submit': {
+      const tab = need(c.session)
+      await untilDialog(tab, act(tab, c.ref, submit))
+      return answer(tab)
+    }
+    case 'drag': {
+      const tab = need(c.session)
+      const to = targetOf(tab, c.to)
+      await untilDialog(tab, act(tab, c.ref, from => drag(from, to, policy['actions.timeoutMs'])))
+      return answer(tab)
+    }
+    case 'find': {
+      const tab = need(c.session)
+      const want = (c.text ?? '').toLowerCase()
+      if (!want) throw new Error('usage: agent-layer find <text>')
+      const hits = (await snapshot(tab)).text.split('\n').filter(l => l.toLowerCase().includes(want))
+      if (!hits.length) return `"${c.text}" is not on the page`
+      const shown = hits.slice(0, policy['data.rows'])
+      return `${hits.length} lines with "${c.text}"${hits.length > shown.length ? ` (first ${shown.length})` : ''}\n\n${shown.join('\n')}`
+    }
+    case 'cookies': {
+      // Cookie values are credentials, so they are never shown; names, sites and expiry are.
+      if (c.dir === 'clear') {
+        await ctx.clearCookies(c.url ? { domain: c.url } : undefined)
+        return `cleared cookies${c.url ? ` for ${c.url}` : ''}`
+      }
+      const list = (await ctx.cookies()).filter(k => !c.url || k.domain.replace(/^\./, '').endsWith(c.url))
+      if (!list.length) return 'no cookies'
+      return list.map(k => `${k.domain}  ${k.name}  ${k.path}  ${k.expires > 0 ? `until ${new Date(k.expires * 1000).toISOString().slice(0, 10)}` : 'session'}${k.httpOnly ? '  httpOnly' : ''}${k.secure ? '  secure' : ''}`).join('\n')
+    }
+    case 'storage': {
+      const tab = need(c.session)
+      if (c.dir !== 'local' && c.dir !== 'session') throw new Error('usage: agent-layer storage local|session [clear]')
+      const area = `${c.dir}Storage`
+      if (c.text === 'clear') {
+        await tab.page.evaluate(`${area}.clear()`)
+        return `cleared ${area} for ${new URL(tab.page.url()).origin}`
+      }
+      const entries = await tab.page.evaluate(`Object.entries(${area})`) as [string, string][]
+      if (!entries.length) return `${area} is empty for ${new URL(tab.page.url()).origin}`
+      return entries.map(([k, v]) => `${k} = ${v.length > policy['render.nameChars'] ? `${v.slice(0, policy['render.nameChars'] - 1)}…` : v}`).join('\n')
     }
     case 'pick': {
       const tab = need(c.session)

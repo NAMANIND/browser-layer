@@ -33,6 +33,16 @@ const PICK_OPTION = `function (want) {
   return ''
 }`
 const IS_FILE_INPUT = `function () { return this instanceof HTMLInputElement && this.type === 'file' }`
+const CHECKED = `function () { return 'checked' in this ? this.checked : this.getAttribute('aria-checked') === 'true' }`
+// HTML: requestSubmit() submits as the user's submit button would, running validation and submit events.
+const SUBMIT = `function () {
+  const f = this instanceof HTMLFormElement ? this : this.form || this.closest('form')
+  if (!f) return 'it is not in a form'
+  f.requestSubmit()
+  return ''
+}`
+// Pointer moves between press and release, so drag libraries see a real path, not a jump.
+const DRAG_STEPS = 8
 
 // Where a node lives: the engine session of its frame, and that frame's offset in the page.
 export type Target = { cdp: CDPSession; page: CDPSession; id: number; offset: () => Promise<[number, number]> }
@@ -108,6 +118,36 @@ export async function pick(t: Target, option: string) {
 }
 
 export const isFileInput = async (t: Target) => Boolean(await call(t, IS_FILE_INPUT))
+export const isChecked = async (t: Target) => Boolean(await call(t, CHECKED))
+
+export async function submit(t: Target) {
+  const problem = await call(t, SUBMIT)
+  if (problem) throw new Error(String(problem))
+}
+
+// Pointer-based drags (most drag libraries) follow the mouse. HTML drag and drop does not: Chrome hands
+// the drag to the protocol (Input.setInterceptDrags), and the drop is dispatched there with its data.
+export async function drag(from: Target, to: Target, timeoutMs: number) {
+  const [x0, y0] = await pointAt(from, timeoutMs)
+  const [x1, y1] = await pointAt(to, timeoutMs)
+  const page = from.page
+  let data: unknown
+  const grab = (e: { data: unknown }) => { data = e.data }
+  page.on('Input.dragIntercepted', grab)
+  await page.send('Input.setInterceptDrags', { enabled: true })
+  try {
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0, y: y0 })
+    await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: x0, y: y0, button: 'left', buttons: 1, clickCount: 1 })
+    for (let k = 1; k <= DRAG_STEPS; k++) {
+      await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0 + ((x1 - x0) * k) / DRAG_STEPS, y: y0 + ((y1 - y0) * k) / DRAG_STEPS, button: 'left', buttons: 1 })
+    }
+    if (data) for (const type of ['dragEnter', 'dragOver', 'drop'] as const) await page.send('Input.dispatchDragEvent', { type, x: x1, y: y1, data: data as never })
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x1, y: y1, button: 'left', buttons: 0, clickCount: 1 })
+  } finally {
+    await page.send('Input.setInterceptDrags', { enabled: false })
+    page.off('Input.dragIntercepted', grab)
+  }
+}
 
 export async function setFiles(t: Target, files: string[]) {
   await t.cdp.send('DOM.setFileInputFiles', { backendNodeId: t.id, files })

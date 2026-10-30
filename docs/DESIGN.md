@@ -218,19 +218,21 @@ waiting, or at `settle.deadlineMs`. Every answer says which (`idle in 412 ms`, `
 | Capability | Commands |
 |---|---|
 | Navigation | `tab <url>`, `go <url>`, `back`, `forward`, `reload`, `tabs`, `use`, `close` |
-| Reading | `read [--page N]`, `find <text>`, `text <ref>`, `wait <text \| ref \| gone:ref>` |
-| Pointer | `click`, `dblclick`, `rightclick`, `hover`, `drag <ref> <ref>` |
-| Keyboard | `type <ref> <text>`, `fill <ref> <text>`, `press <keys>` (combos: `Control+A`, `Shift+Tab`) |
-| Form | `check`, `uncheck`, `pick <ref> <option>`, `upload <ref> <file…>`, `submit <ref>` |
-| Scroll | `scroll <ref \| page> [down \| up \| to-end]`, infinite scroll via repeated `to-end` with settle |
-| Dialogs | `alert` / `confirm` / `prompt` / `beforeunload` are surfaced in the result; `dialog accept [text] \| dismiss` |
-| Windows | Pop-ups and `target=_blank` open as new tabs in the same session and are reported |
-| Downloads | Saved to the session's download dir, reported with path and size; `downloads` lists them |
+| Reading | `map`, `read [ref] [--page N]`, `find <text>`, `get <ref>` (records), `wait [--gone] <text>` |
+| Menus | `explore [ref]`, `menu "A > B > C"` |
+| Pointer | `click`, `dblclick`, `rightclick`, `hover`, `drag <ref> <onto ref>` (pointer drags and HTML drag and drop) |
+| Keyboard | `type <ref> <text> [--enter] [--keys]` (replace as typing over a selection; `--keys` sends one key event per character), `press <key or combo>` |
+| Form | `check`, `uncheck` (repeatable), `pick <ref> <option>`, `upload <ref> <file…>`, `submit <ref>` (`requestSubmit`) |
+| Scroll | `scroll [ref] [down \| up \| top \| bottom]`; lazily loaded rows come back as changes |
+| Dialogs | `alert` / `confirm` / `prompt` / `beforeunload` wait for `dialog accept [text] \| dismiss` |
+| Windows | Pop-ups and `target=_blank` open as tabs in the same session and become current |
+| Downloads | Saved under `<home>/downloads`, reported by the action that caused them |
 | Frames | Read and act inside frames by ref, cross-origin included |
-| Storage | `cookies [--domain]`, `storage local \| session [--origin]`, `eval <js>` |
-| Network | `net [--all]` (HAR entries), `net show <id>` (headers, body) |
-| Permissions | Geolocation, notifications, clipboard: policy grants or denies; prompts reported |
+| Storage | `cookies [domain]` (names, never values), `cookies clear [domain]`, `storage local\|session [clear]`, `eval <js>` |
+| Network | `net [--all]`, `net show <#>` (headers with credentials redacted, bodies) |
+| Permissions | `allow <permission>[,…] [lat,lon]` per site; everything else denied |
 | Profiles and sign-in | `--profile <name>` is a separate browser; `login <url>` opens a normal Chrome window on the agent's profile (no automation attached) for the person to sign in, with the same mock keychain as the agent's browser so the session decrypts |
+| Watching | `show` makes the current browser a visible window; `hide`, a closed window or any restart makes it headless again |
 
 ## 7. Engines
 

@@ -36,6 +36,13 @@ Live tabs (headless Chrome kept alive in the background; runs the page's JS):
   agent-layer forward | reload
   agent-layer eval <js>               run JavaScript in the page; prints the result as JSON
   agent-layer allow <perm>[,perm] [lat,lon]   grant geolocation, notifications… to the current site
+  agent-layer find <text>             the lines of the page that contain it
+  agent-layer check | uncheck <ref>   set a checkbox (repeatable: only clicks if it must change)
+  agent-layer submit <ref>            submit the form a field is in, as its submit button would
+  agent-layer drag <ref> <onto ref>   pointer drag, and HTML drag and drop
+  agent-layer type <ref> <text> --keys    one key event per character, for fields that listen to keys
+  agent-layer cookies [domain] | cookies clear [domain]     names and expiry; values are never shown
+  agent-layer storage local|session [clear]                the current site's web storage
   agent-layer explore [ref]           open every declared menu / pop-up, list what it holds, close it
   agent-layer menu "A > B > C"        run a menu path by names (File > Download > CSV)
   Pop-ups open as tabs in the same session and become current; downloads are saved and reported.
@@ -57,7 +64,7 @@ const CHROME: Record<string, string> = {
   win32: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
 }
 
-const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'allow', 'explore', 'menu', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
+const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'allow', 'explore', 'menu', 'check', 'uncheck', 'submit', 'drag', 'find', 'cookies', 'storage', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
 
 function fail(msg: string): never {
   console.error(msg)
@@ -141,7 +148,7 @@ async function main() {
     process.env.AGENT_LAYER_HOME = join(home(), 'profiles', profile)
   }
   const json = argv.includes('--json')
-  const flags = new Set(['--json', '--enter', '--all', '--desc', '--gone'])
+  const flags = new Set(['--json', '--enter', '--all', '--desc', '--gone', '--keys'])
   const [cmd, target, ...rest] = argv.filter(a => !flags.has(a))
 
   if (cmd === 'show' || cmd === 'hide') {
@@ -184,11 +191,15 @@ async function main() {
   }
 
   if (LIVE.has(cmd)) {
-    const c: Command = { cmd, session, page, limit, sort, cols, desc: argv.includes('--desc'), gone: argv.includes('--gone'), enter: argv.includes('--enter'), all: argv.includes('--all') }
+    const c: Command = { cmd, session, page, limit, sort, cols, desc: argv.includes('--desc'), gone: argv.includes('--gone'), keys: argv.includes('--keys'), enter: argv.includes('--enter'), all: argv.includes('--all') }
     if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: agent-layer ${cmd} <url>`)
     if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)
     if (cmd === 'net' && target) c.id = target === 'show' && /^#?\d+$/.test(rest[0] ?? '') ? Number(rest[0].replace('#', '')) : fail('usage: agent-layer net [--all] | net show <#>')
-    if (['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload'].includes(cmd)) c.ref = target ?? fail(`usage: agent-layer ${cmd} <ref>`)
+    if (['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload', 'check', 'uncheck', 'submit', 'drag'].includes(cmd)) c.ref = target ?? fail(`usage: agent-layer ${cmd} <ref>`)
+    if (cmd === 'drag') c.to = rest[0] ?? fail('usage: agent-layer drag <ref> <onto ref>')
+    if (cmd === 'find') c.text = [target, ...rest].filter(Boolean).join(' ')
+    if (cmd === 'cookies') [c.dir, c.url] = target === 'clear' ? ['clear', rest[0]] : [undefined, target]
+    if (cmd === 'storage') [c.dir, c.text] = [target, rest[0]]
     // The daemon runs elsewhere, so files are resolved against the agent's working directory here.
     if (cmd === 'upload') c.files = rest.map(f => resolve(f))
     if (cmd === 'scroll') [c.ref, c.dir] = target && /^\d+$/.test(target) ? [target, rest[0]] : [undefined, target]

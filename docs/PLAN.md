@@ -145,6 +145,11 @@ counts and canvas content. Live on a Google Sheet, with no Google-specific code:
 40-line canvas grid and 20 closed menus; `explore` on File lists File > Download ▸ … CSV in 6.8 s;
 `menu "File > Download > Comma-separated"` downloads the CSV. 42 tests green.
 
+
+P6 ✅: `find`, `drag` (pointer and HTML drag and drop), `check` / `uncheck`, `submit`, `type --keys`,
+`cookies` (values never shown), `storage`, `beforeunload` waits for the agent; DESIGN §6 matches what
+is built. 46 tests green.
+
 Still open:
 P5 fast path on parse5 and the HTML form submission algorithm.
 

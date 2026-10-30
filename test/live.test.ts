@@ -142,6 +142,17 @@ const server = createServer((req, res) => {
       document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => show(b.dataset.m, b))
       addEventListener('keydown', e => { if (e.key === 'Escape' && open.length) close() })
     </script>`)
+  if (req.url === '/form2') return page('form2', `<form onsubmit="event.preventDefault(); o.textContent = 'submitted ' + q.value">
+    <input id="q" aria-label="Query"><input type="checkbox" aria-label="Agree">
+    <div role="checkbox" aria-checked="false" tabindex="0" aria-label="Newsletter" style="width:16px;height:16px;border:1px solid" onclick="this.setAttribute('aria-checked', String(this.getAttribute('aria-checked') !== 'true'))"></div></form>
+    <p id="o">nothing</p><input id="k" aria-label="Keys"><p>keydowns: <span id="kc">0</span></p>
+    <script>k.addEventListener('keydown', () => kc.textContent = +kc.textContent + 1)</script>`)
+  if (req.url === '/drag') return page('drag', `<div role="button" draggable="true" ondragstart="event.dataTransfer.setData('text', 'card A')">Card A</div>
+    <section aria-label="Done" style="height:80px" ondragover="event.preventDefault()" ondrop="event.preventDefault(); r.textContent = 'dropped ' + event.dataTransfer.getData('text')">Done column</section>
+    <div role="button" id="b2" onmousedown="window.held = true">Card B</div>
+    <section aria-label="Later" style="height:80px" onmouseup="if (window.held) r.textContent = 'moved card B'">Later column</section><p id="r">nothing moved</p>`)
+  if (req.url === '/store') return page('store', `<p>stored</p><script>localStorage.setItem('theme', 'dark'); sessionStorage.setItem('step', '2')</script>`)
+  if (req.url === '/leave') return page('leave', `<input aria-label="Draft"><script>addEventListener('beforeunload', e => { e.preventDefault(); e.returnValue = '' })</script>`)
   if (req.url === '/mouse') return page('mouse', `<button ondblclick="o.textContent = 'double'" oncontextmenu="event.preventDefault(); o.textContent = 'context menu'">Target</button><p id="o">none</p>`)
   if (req.url === '/watch') {
     // Counts every DOM change that is not its own counter update.
@@ -580,6 +591,55 @@ test('explore opens every declared menu, reads it, closes it, and never runs a c
   assert.match(after, /nothing done/)
   assert.doesNotMatch(after, /menuitem/)
   assert.match((await run('menu', 'File > Download > CSV')).out, /did CSV/)
+})
+
+test('check and uncheck set a state; submit submits; --keys sends key events', async () => {
+  const page = await openRead(`${base}/form2`)
+  const agree = ref(page.out, /checkbox "Agree"/)
+  await run('check', agree)
+  await run('check', agree)
+  assert.match((await run('read')).out, /checkbox "Agree"(?: \w+)* checked\b/)
+  await run('uncheck', agree)
+  assert.match((await run('read')).out, /checkbox "Agree"(?: \w+)* unchecked\b/)
+  await run('check', ref(page.out, /checkbox "Newsletter"/))
+  assert.match((await run('read')).out, /checkbox "Newsletter"(?: \w+)* checked\b/)
+  const query = ref(page.out, /textbox "Query"/)
+  await run('type', query, 'tea')
+  assert.match((await run('submit', query)).out, /submitted tea/)
+  const keys = ref(page.out, /textbox "Keys"/)
+  await run('type', keys, 'abc')
+  assert.match((await run('find', 'keydowns')).out, /keydowns: 0/)
+  await run('type', keys, 'abc', '--keys')
+  // A Backspace to clear the field, then one key per character, as a person replacing the text.
+  assert.match((await run('find', 'keydowns')).out, /keydowns: 4/)
+  assert.match((await run('find', 'no such words')).out, /is not on the page/)
+})
+
+test('drag works for HTML drag and drop and for pointer-based drags', async () => {
+  const page = await openRead(`${base}/drag`)
+  assert.match((await run('drag', ref(page.out, /button "Card A"/), ref(page.out, /region "Done"/))).out, /dropped card A/)
+  assert.match((await run('drag', ref(page.out, /button "Card B"/), ref(page.out, /region "Later"/))).out, /moved card B/)
+})
+
+test('cookies list names without values and can be cleared; storage is listed and cleared', async () => {
+  await openRead(`${base}/signin`)
+  const jar = (await run('cookies', '127.0.0.1')).out
+  assert.match(jar, /127\.0\.0\.1 {2}sid {2}\/ {2}until \d{4}-\d\d-\d\d/)
+  assert.doesNotMatch(jar, /signed-in/)
+  await run('cookies', 'clear', '127.0.0.1')
+  assert.match((await openRead(`${base}/who`)).out, /who: anonymous/)
+  await openRead(`${base}/store`)
+  assert.match((await run('storage', 'local')).out, /^theme = dark$/m)
+  assert.match((await run('storage', 'session')).out, /^step = 2$/m)
+  await run('storage', 'local', 'clear')
+  assert.match((await run('storage', 'local')).out, /localStorage is empty/)
+})
+
+test('a page that asks before it is left waits for the agent', async () => {
+  const page = await openRead(`${base}/leave`)
+  await run('type', ref(page.out, /textbox "Draft"/), 'unsaved')
+  assert.match((await run('go', `${base}/page/after`)).out, /a beforeunload dialog is open/)
+  assert.match((await run('dialog', 'accept')).out, /\/page\/after/)
 })
 
 test('stale refs and missing tabs fail with a clear message', async () => {
