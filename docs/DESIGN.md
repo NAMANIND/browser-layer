@@ -195,7 +195,13 @@ document: refs and the view stay valid. A dialog, a pop-up and finished download
 - **Template, not identity:** a class only one sibling or one row has (an item id) is left out of
   signatures and field paths.
 
-Known gap: a field styled differently per row (a "good" vs "average" class) splits into two columns.
+- **Canvases** (`get` on a canvas ref): text drawn on one line is a row; the positions where text
+  starts, gathered over the canvas, are its columns.
+
+Known gaps: a field styled differently per row (a "good" vs "average" class) splits into two columns. On
+a canvas, centred or right-aligned text starts elsewhere than left-aligned text in the same column, and a
+wrapped cell is several rows: Google Sheets' grid comes out split and spread. A canvas has no cells to
+read, so for such apps their own export (found with `explore`, run with `menu`) is the clean path.
 
 ## 5. Actions
 

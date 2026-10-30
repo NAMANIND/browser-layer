@@ -587,6 +587,9 @@ test('text drawn on a canvas reads as lines, and text painted over is forgotten'
   const out = (await run('read')).out
   assert.match(out, /^Name · Price\nTea · ₹40$/m)
   assert.doesNotMatch(out, /stale/)
+  const rows = await run('get', ref(map, /canvas: 2 lines/), '--sort', 'c1', '--desc')
+  assert.match(rows.out, /canvas: 2 records, 2 columns/)
+  assert.match(rows.out, /^c1\tc2\nTea\t₹40\nName\tPrice$/m)
 })
 
 test('explore opens every declared menu, reads it, closes it, and never runs a command', async () => {

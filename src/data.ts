@@ -9,7 +9,29 @@ export type Records = { columns: string[]; names: string[]; rows: string[][] }
 const mark = /^[\p{P}\p{S}]+$/u
 
 export function records(collection: Node, origin: string, caps: Caps): Records {
+  if (collection.role === 'canvas') return canvasRecords(collection.drawn ?? [])
   return TABLES.has(collection.role ?? '') ? tableRecords(collection, origin, caps) : listRecords(collection, origin, caps)
+}
+
+// A canvas has no cells, only text drawn at positions. Text drawn on one line is a row; the places where
+// text starts, gathered over the whole canvas, are its columns. A wrapped cell is several rows.
+const SAME_LINE_PX = 4 // the same tolerance the page hook uses to put text on one line
+const SAME_COLUMN_PX = 8 // starts closer than this are one column (glyph and padding differences)
+function canvasRecords(drawn: [string, number, number][]): Records {
+  const starts = [...new Set(drawn.map(([, x]) => Math.round(x)))].sort((a, b) => a - b)
+  const columns: number[] = []
+  for (const x of starts) if (!columns.length || x - columns[columns.length - 1] >= SAME_COLUMN_PX) columns.push(x)
+  const column = (x: number) => columns.reduce((best, c, k) => (c <= x + SAME_COLUMN_PX / 2 ? k : best), 0)
+  const rows: string[][] = []
+  let lineY = Number.NEGATIVE_INFINITY
+  for (const [t, x, y] of [...drawn].sort((a, b) => a[2] - b[2] || a[1] - b[1])) {
+    if (y - lineY >= SAME_LINE_PX) { rows.push(columns.map(() => '')); lineY = y }
+    const row = rows[rows.length - 1]
+    const k = column(x)
+    row[k] = row[k] ? `${row[k]} ${t}` : t
+  }
+  const ids = columns.map((_, k) => `c${k + 1}`)
+  return { columns: ids, names: ids.map(() => ''), rows }
 }
 
 // HTML table model: a column is a cell position; the first all-header row names the columns.

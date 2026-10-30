@@ -29,6 +29,8 @@ export type Node = {
   // One of several siblings with the same element signature and parts: a record in a collection the page
   // did not mark up as a list (§4.5). Records are addressable; they do not change how the page reads.
   record?: boolean
+  // On a canvas: each piece of drawn text with its position, for reading the canvas as records.
+  drawn?: [string, number, number][]
   children?: Node[]
 }
 
@@ -154,7 +156,7 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
   const [hovered, clicked, drawn] = await Promise.all([
     hooked(cdp, 'window.__alHover ? [...window.__alHover].filter(e => e.isConnected) : []', 'function () { return true }', 300),
     hooked(cdp, 'window.__alClick ? [...window.__alClick].filter(e => e.isConnected) : []', 'function () { return true }', 500),
-    hooked(cdp, 'window.__alCanvases ? window.__alCanvases() : []', 'function () { return window.__alCanvasLines(this) }', 50),
+    hooked(cdp, 'window.__alCanvases ? window.__alCanvases() : []', 'function () { return { lines: window.__alCanvasLines(this), runs: window.__alCanvasRuns(this) } }', 50),
   ])
 
   // What a control reveals that is not on screen: the items of a hidden element it controls, or the
@@ -236,9 +238,9 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
       : remote.has(backendNodeId[i]) ? [remote.get(backendNodeId[i])!]
       : kids[i].map(c => walk(d, c, quiet, hidden, key, inner))
     const children = perKid.flat()
-    const canvasLines = drawn.get(backendNodeId[i])
+    const canvas = drawn.get(backendNodeId[i]) as { lines: string[]; runs: [string, number, number][] } | undefined
     // A canvas with drawn text is content the map points to; it gets a ref so the agent can read it.
-    if (Array.isArray(canvasLines) && canvasLines.length) return [{ ref: refFor(backendNodeId[i]), role: 'canvas', block: true, children: canvasLines.map(t => ({ block: true, children: [{ text: String(t) }] })) }]
+    if (canvas?.lines?.length) return [{ ref: refFor(backendNodeId[i]), role: 'canvas', block: true, drawn: canvas.runs, children: canvas.lines.map(t => ({ block: true, children: [{ text: String(t) }] })) }]
     // Generated content (::before, ::after, ::marker) is a pseudo element carrying its own layout text,
     // and a field of its own: a bullet or a rank is not part of the text beside it.
     if (str(nodeName[i]).startsWith('::')) return l === undefined || hidden ? [] : [{ key, children: [{ text: str(doc.layout.text[l]) }] }]

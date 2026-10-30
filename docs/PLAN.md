@@ -150,6 +150,12 @@ P6 ✅: `find`, `drag` (pointer and HTML drag and drop), `check` / `uncheck`, `s
 `cookies` (values never shown), `storage`, `beforeunload` waits for the agent; DESIGN §6 matches what
 is built. 46 tests green.
 
+
+Real-use fixes ✅: settle waits for what the command caused, not standing connections (Sheets actions
+5 s → 0.4–1.4 s); script-made clickable elements get refs (0–2 per page on real sites); `get` on a
+canvas (rows by line, columns by text start; Sheets' mixed alignment and wrapped cells come out split,
+documented). 48 tests green.
+
 Still open:
 P5 fast path on parse5 and the HTML form submission algorithm.
 

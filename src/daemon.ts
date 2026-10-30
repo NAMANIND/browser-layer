@@ -64,6 +64,7 @@ const PAGE_HOOKS = `(() => {
     return clear.call(this, x, y, w, h)
   }
   window.__alCanvases = () => [...canvases].filter(c => c.isConnected && runs.get(c)?.size)
+  window.__alCanvasRuns = c => [...runs.get(c).values()]
   // Runs within half a line of each other read as one line, left to right.
   window.__alCanvasLines = c => {
     const all = [...runs.get(c).values()].sort((a, b) => a[2] - b[2] || a[1] - b[1])
