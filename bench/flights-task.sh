@@ -19,6 +19,8 @@ O=$($AL click "$(ref 'combobox "Change ticket type')"); step "open trip type" "$
 O=$($AL click "$(ref 'option "One way"')"); step "one way" "$O"
 O=$($AL type "$(ref 'textbox "Departure"')" "Fri, Nov 20" --enter); step "date" "$O"
 O=$($AL click "$(ref 'button "Search"')"); step "search" "$O"
-printf '%s\n' "$O" | grep -cE '[0-9]{1,2}:[0-9]{2} [AP]M – [0-9]{1,2}:[0-9]{2} [AP]M.*BOM ?– ?DEL.*₹' | sed 's/^/result rows on first view: /'
+# The search answers with the map; an agent then opens the results region to see the flights.
+O=$($AL read "$(ref 'main')"); step "read results region" "$O"
+printf '%s\n' "$O" | grep -cE '[0-9]{1,2}:[0-9]{2} [AP]M – [0-9]{1,2}:[0-9]{2} [AP]M.*BOM ?– ?DEL.*₹' | sed 's/^/result rows seen: /'
 printf '%-28s %6s chars\n' "TOTAL" "$TOTAL"
 [ -n "$KEEP" ] || $AL stop > /dev/null

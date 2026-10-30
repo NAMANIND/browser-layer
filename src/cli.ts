@@ -15,9 +15,10 @@ Fast path (plain HTTP, no browser):
   --json                              structured output instead of text
 
 Live tabs (headless Chrome kept alive in the background; runs the page's JS):
-  agent-layer tab <url>               open a live tab (it becomes current)
+  agent-layer tab <url>               open a live tab (it becomes current); answers with the page map
   agent-layer go <url> | back         navigate the current tab
-  agent-layer read [--page N]         what the current tab shows now (long views come in pages)
+  agent-layer map                     the page as regions: fields, actions, lists, links, with refs
+  agent-layer read [ref] [--page N]   the whole page, or one region / control by ref (paged)
   agent-layer click <ref>             click control [ref]
   agent-layer type <ref> <text>       fill [ref]; add --enter to press Enter after
   agent-layer pick <ref> <option>     choose an option in a select
@@ -28,7 +29,7 @@ Live tabs (headless Chrome kept alive in the background; runs the page's JS):
 Sessions: --session <name> (or AGENT_LAYER_SESSION) gives each agent its own
 last page and live tabs. Default is "default". Cookies are shared.`
 
-const LIVE = new Set(['tab', 'go', 'back', 'tabs', 'use', 'read', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
+const LIVE = new Set(['tab', 'go', 'back', 'tabs', 'use', 'map', 'read', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
 
 function fail(msg: string): never {
   console.error(msg)
@@ -108,6 +109,7 @@ async function main() {
     if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: agent-layer ${cmd} <url>`)
     if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)
     if (cmd === 'click' || cmd === 'type' || cmd === 'pick') c.ref = target ?? fail(`usage: agent-layer ${cmd} <ref>`)
+    if (cmd === 'read' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: agent-layer read [ref] [--page N]')
     if (cmd === 'type' || cmd === 'pick') c.text = rest.join(' ')
     if (cmd === 'press') c.key = target ?? fail('usage: agent-layer press <key>')
     const reply = await live(c)

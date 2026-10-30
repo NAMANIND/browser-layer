@@ -67,6 +67,23 @@ page 65% of the text was control names, 62% hidden screen-reader labels.
 **Result:** Flights task 50,022 → 31,349 chars (−37%); Flights page 33.5k → 20.1k (−40%); all corpus
 facts present; 23 tests green. `bench/flights-task.sh` reproduces the task numbers.
 
+## Map first ✅ (31 Oct 2026)
+
+DESIGN §1a: a page opens as a map of its ARIA regions (fields with values, options, actions, headings,
+collections with item count and first item, links; named when few, counted when many). `read <ref>`
+opens one region, `read` the whole page. After an action the answer is the changed lines unless the
+map is smaller (replaces the `render.deltaShare` share rule, which hid small-page results).
+
+**Result:** map vs whole page on the corpus — Flights 2.1k vs 20.2k, Amazon 2.9k vs 22.4k, GitHub 1.5k
+vs 17.5k, HN 0.2k vs 8.8k. Live Flights task including reading the results: 26,977 chars (start of the
+day: 50,022). Navigation steps 10.8k; the results themselves 16.2k, which is the data layer's job.
+
+## Next — Data layer
+
+`get <collection>`: the records behind a page as rows with named columns, sortable and limited.
+Source 1: the API responses the page loaded, fields named by matching their values to text on screen.
+Source 2: the collection's rows when there is no API. Target: "cheapest flight" in a few hundred chars.
+
 ## P2 — Actions and settle
 
 - Actionability with named failure reasons; trusted input for every pointer and keyboard command in

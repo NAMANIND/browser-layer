@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { chromium, type BrowserContext, type CDPSession, type Page } from 'playwright-core'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
 import { newRefs, readTree, type Refs } from './reader.js'
-import { diffLines, paginate, renderText } from './render.js'
+import { diffLines, findRef, paginate, renderMap, renderText } from './render.js'
 import { click, fill, pick } from './act.js'
 import { ping, socketPath } from './client.js'
 import { loadPolicy, type Policy } from './policy.js'
@@ -105,20 +105,48 @@ async function settle(tab: Tab) {
   }
 }
 
-async function render(tab: Tab): Promise<string> {
-  return renderText(await readTree(tab.cdp, tab.refs), new URL(tab.page.url()).origin, { nameChars: policy['render.nameChars'], labelChars: policy['render.labelChars'] })
+const caps = () => ({ nameChars: policy['render.nameChars'], labelChars: policy['render.labelChars'] })
+
+// One read of the page: the tree and its full text.
+async function snapshot(tab: Tab) {
+  const tree = await readTree(tab.cdp, tab.refs)
+  const origin = new URL(tab.page.url()).origin
+  return { tree, origin, text: renderText(tree, origin, caps()) }
 }
 
-async function view(tab: Tab, page = 1, text?: string): Promise<string> {
-  text ??= await render(tab)
-  tab.shown.set(contextOf(text), { doc: tab.doc, text })
+// The full text of what the agent has been shown last, per context; later actions diff against it.
+const remember = (tab: Tab, text: string) => tab.shown.set(contextOf(text), { doc: tab.doc, text })
+
+const header = async (tab: Tab) => {
+  const title = await tab.page.title()
+  return `tab ${tab.id}  ${tab.page.url()}${title ? `  "${title}"` : ''}`
+}
+
+// Opening a page answers with its map (DESIGN §1a); read and read <ref> go deeper.
+async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>): Promise<string> {
+  const { tree, origin, text } = snap ?? await snapshot(tab)
+  remember(tab, text)
+  const map = renderMap(tree, origin, caps(), policy['render.mapFew'])
+  return `${await header(tab)}\n\n${map}\n\n(read <ref> opens a region · read gives the whole page)`
+}
+
+async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<string> {
+  if (text === undefined) {
+    const snap = await snapshot(tab)
+    text = snap.text
+    if (ref === undefined) remember(tab, text)
+    else {
+      const node = findRef(snap.tree, ref)
+      if (!node) throw new Error(`[${ref}] is not on the page — run: agent-layer map`)
+      text = renderText({ block: true, children: [node] }, snap.origin, caps())
+    }
+  }
   const truncated = text.length > policy['render.maxChars']
   if (truncated) text = text.slice(0, text.lastIndexOf('\n', policy['render.maxChars']))
   const pages = paginate(text, policy['render.pageChars'])
   if (page < 1 || page > pages.length) throw new Error(`page ${page} does not exist; this view has ${pages.length}`)
-  const title = await tab.page.title()
-  const head = `tab ${tab.id}  ${tab.page.url()}${title ? `  "${title}"` : ''}${pages.length > 1 ? `  (page ${page} of ${pages.length})` : ''}`
-  const more = page < pages.length ? `\n… more below: agent-layer read --page ${page + 1}` : ''
+  const head = `${await header(tab)}${pages.length > 1 ? `  (page ${page} of ${pages.length})` : ''}`
+  const more = page < pages.length ? `\n… more below: agent-layer read${ref === undefined ? '' : ` ${ref}`} --page ${page + 1}` : ''
   const cut = truncated && page === pages.length ? '\n… (view ceiling reached; the page is larger than this)' : ''
   return `${head}\n\n${pages[page - 1]}${more}${cut}`
 }
@@ -136,18 +164,19 @@ function own(session: string, id: number): Tab {
   return tab
 }
 
-// After an action the agent already holds the page, so it gets the lines that changed. A new document,
-// or a change bigger than render.deltaShare of the page, is answered with the full view instead.
-const contextOf = (text: string) => (text.startsWith('dialog') ? text.slice(0, text.indexOf('\n') >>> 0) : 'page')
+// After an action the agent already holds the page, so it gets the lines that changed: the complete
+// answer to what the action did. A new document, or changes that would cost more than the page's map,
+// are answered with the map instead.
+const contextOf = (text: string) => (/^\[\d+\] dialog/.test(text) ? text.slice(0, text.indexOf('\n') >>> 0) : 'page')
 
 async function changes(tab: Tab): Promise<string> {
-  const text = await render(tab)
-  const before = tab.shown.get(contextOf(text))
-  if (!before || before.doc !== tab.doc) return view(tab, 1, text)
-  const { removed, added } = diffLines(before.text.split('\n'), text.split('\n'))
+  const snap = await snapshot(tab)
+  const before = tab.shown.get(contextOf(snap.text))
+  if (!before || before.doc !== tab.doc) return mapView(tab, snap)
+  const { removed, added } = diffLines(before.text.split('\n'), snap.text.split('\n'))
   const size = [...removed, ...added].reduce((n, l) => n + l.length + 3, 0)
-  if (size > text.length * policy['render.deltaShare']) return view(tab, 1, text)
-  tab.shown.set(contextOf(text), { doc: tab.doc, text })
+  if (size > renderMap(snap.tree, snap.origin, caps(), policy['render.mapFew']).length) return mapView(tab, snap)
+  remember(tab, snap.text)
   const head = `tab ${tab.id}  ${tab.page.url()}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'} (full page: agent-layer read)`
   return [head, '', ...removed.map(l => `- ${l}`), ...added.map(l => `+ ${l}`)].join('\n').trimEnd()
 }
@@ -203,19 +232,19 @@ async function run(c: Command): Promise<string> {
     case 'tab': {
       const tab = await newTab(c.session, c.url ?? 'about:blank')
       await settle(tab)
-      return view(tab)
+      return mapView(tab)
     }
     case 'go': {
       const tab = need(c.session)
       await tab.page.goto(withUrl(c.url!), { waitUntil: 'domcontentloaded', timeout: policy['load.timeoutMs'] })
       await settle(tab)
-      return view(tab)
+      return mapView(tab)
     }
     case 'back': {
       const tab = need(c.session)
       await tab.page.goBack({ waitUntil: 'domcontentloaded' })
       await settle(tab)
-      return view(tab)
+      return mapView(tab)
     }
     case 'tabs': {
       const mine = [...tabs.values()].filter(t => t.session === c.session)
@@ -225,10 +254,12 @@ async function run(c: Command): Promise<string> {
     }
     case 'use': {
       current.set(c.session, own(c.session, c.id!).id)
-      return view(need(c.session))
+      return mapView(need(c.session))
     }
+    case 'map':
+      return mapView(need(c.session))
     case 'read':
-      return view(need(c.session), c.page ?? 1)
+      return view(need(c.session), c.page ?? 1, undefined, c.ref === undefined ? undefined : Number(c.ref))
     case 'click': {
       const tab = need(c.session)
       await act(tab, c.ref, id => click(tab.cdp, id))

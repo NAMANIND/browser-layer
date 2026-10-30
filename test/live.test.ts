@@ -55,6 +55,13 @@ const server = createServer((req, res) => {
       <a href="/airport" aria-label="Chhatrapati Shivaji Maharaj International Airport Mumbai (BOM)"><span>Chhatrapati Shivaji Maharaj International Airport Mumbai</span><span>BOM</span> 15 km away</a>
       <button aria-label="From 6895 Indian rupees. Nonstop flight with IndiGo. Leaves Chhatrapati Shivaji Maharaj International Airport Mumbai at 7:00 AM and arrives at 9:10 AM">Select</button>`)
   }
+  if (req.url === '/regions') {
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<meta charset="utf-8"><title>regions</title>
+      <nav aria-label="Main"><a href="/">Home</a> <a href="/about">About</a></nav>
+      <search><input type="search" aria-label="Search flights"><button>Go</button></search>
+      <main><h2>Results</h2><ul>${Array.from({ length: 12 }, (_, i) => `<li><div>Flight ${i}</div><div>₹${100 + i}</div></li>`).join('')}</ul></main>`)
+  }
   if (req.url === '/watch') {
     // Counts every DOM change that is not its own counter update.
     res.setHeader('content-type', 'text/html')
@@ -114,6 +121,8 @@ function runIn(dir: string, ...args: string[]): Promise<{ code: number; out: str
 }
 
 const run = (...args: string[]) => runIn(home, ...args)
+// Opening answers with the map; these tests check page content, so they read the whole page next.
+const openRead = async (url: string) => { await run('tab', url); return run('read') }
 
 const ref = (out: string, what: RegExp) => {
   const m = out.match(new RegExp(`\\[(\\d+)\\] ${what.source}`))
@@ -138,7 +147,7 @@ test('plain fetch sees an empty shell', async () => {
 })
 
 test('a live tab runs the JS: type, pick a suggestion, click, read the result and the API under it', async () => {
-  let r = await run('tab', base)
+  let r = await openRead(base)
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /Plan a trip/)
   assert.doesNotMatch(r.out, /hidden promo/)
@@ -162,7 +171,7 @@ test('a fast-path login survives live commands, and live tabs see it', async () 
   await run('read')
   let r = await run('open', `${base}/whoami`)
   assert.match(r.out, /fast cookie: yes/)
-  r = await run('tab', `${base}/whoami`)
+  r = await openRead(`${base}/whoami`)
   assert.match(r.out, /fast cookie: yes/)
 })
 
@@ -189,7 +198,7 @@ test('two commands from cold start one daemon, and both tabs live in it', async 
 })
 
 test('the live view: one line per row, aria-hidden text without refs, hidden labels clipped, links only when useful', async () => {
-  const { code, out } = await run('tab', `${base}/view`)
+  const { code, out } = await openRead(`${base}/view`)
   assert.equal(code, 0, out)
   assert.match(out, /^• 7:00 AM – 9:10 AM · IndiGo · ₹6,895$/m)
   assert.match(out, /^• 4:15 AM – 6:25 AM · SpiceJet · ₹7,118$/m)
@@ -206,6 +215,17 @@ test('the live view: one line per row, aria-hidden text without refs, hidden lab
   assert.ok(label && label[1].length === DEFAULTS['render.labelChars'] && label[1].endsWith('…'), out)
 })
 
+test('a page opens as a map of regions; read <ref> opens one region', async () => {
+  const map = await run('tab', `${base}/regions`)
+  assert.match(map.out, /^\[\d+\] navigation "Main"\n  links: \[\d+\] link "Home" · \[\d+\] link "About"$/m)
+  assert.match(map.out, /^\[\d+\] search\n  fields: \[\d+\] searchbox "Search flights"\n  actions: \[\d+\] button "Go"$/m)
+  assert.match(map.out, /^\[\d+\] main\n  headings: Results\n  list of 12: • Flight 0 · ₹100 …$/m)
+  assert.doesNotMatch(map.out, /Flight 5/)
+  const zoom = await run('read', ref(map.out, /main/))
+  assert.match(zoom.out, /Flight 5 · ₹105/)
+  assert.doesNotMatch(zoom.out, /About/)
+})
+
 test('reading never changes the page', async () => {
   await run('tab', `${base}/watch`)
   await run('read')
@@ -214,8 +234,8 @@ test('reading never changes the page', async () => {
   assert.match(r.out, /\[\d+\] link "a link"/)
 })
 
-test('actions answer with what changed; read and navigation give the whole page', async () => {
-  const full = await run('tab', `${base}/delta`)
+test('actions answer with what changed; a new page answers with its map', async () => {
+  const full = await openRead(`${base}/delta`)
   assert.match(full.out, /story 5/)
   const more = await run('click', ref(full.out, /button "More"/))
   assert.match(more.out, /lines gone, \d+ new \(full page: agent-layer read\)/)
@@ -224,7 +244,7 @@ test('actions answer with what changed; read and navigation give the whole page'
   assert.match((await run('read')).out, /story 5[\s\S]*loaded more/)
   const next = await run('click', ref(full.out, /link "next page"/))
   assert.match(next.out, /^tab \d+ .*\/page\/next/)
-  assert.match(next.out, /page next/)
+  assert.match(next.out, /read <ref> opens a region/)
 })
 
 test('a pushState URL change keeps refs and answers with changes', async () => {
@@ -236,7 +256,7 @@ test('a pushState URL change keeps refs and answers with changes', async () => {
 })
 
 test('an open modal dialog is the whole view', async () => {
-  const page = await run('tab', `${base}/modal`)
+  const page = await openRead(`${base}/modal`)
   assert.match(page.out, /background text/)
   const open = await run('click', ref(page.out, /button "Open"/))
   assert.match(open.out, /dialog "Pick a city" — the page behind it is not available/)
@@ -245,7 +265,7 @@ test('an open modal dialog is the whole view', async () => {
 })
 
 test('long views come in pages and every page is reachable', async () => {
-  const first = await run('tab', `${base}/long`)
+  const first = await openRead(`${base}/long`)
   assert.match(first.out, /\(page 1 of (\d+)\)/)
   const total = Number(first.out.match(/\(page 1 of (\d+)\)/)![1])
   assert.ok(total >= 2)
@@ -260,7 +280,8 @@ test('long views come in pages and every page is reachable', async () => {
 
 test('a home dir deeper than the socket path limit still starts the daemon', async () => {
   mkdirSync(deepHome, { recursive: true })
-  const r = await runIn(deepHome, 'tab', `${base}/page/deep`)
+  assert.equal((await runIn(deepHome, 'tab', `${base}/page/deep`)).code, 0)
+  const r = await runIn(deepHome, 'read')
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /page deep/)
 })

@@ -193,7 +193,7 @@ Keys are added when the phase that uses them lands.
 | `render.maxChars` | 400000 | Ceiling on one snapshot |
 | `render.nameChars` | 120 | Cap for names that are on screen, and link paths |
 | `render.labelChars` | 40 | Cap for labels only assistive tech hears |
-| `render.deltaShare` | 0.5 | Above this share of the page changed, an action returns the full view |
+| `render.mapFew` | 8 | In the map, controls are named up to this many per kind, counted above |
 | `network.hide` | tracker list (data file) | Hidden from `net` unless `--all` |
 | `permissions` | deny all | Per-origin grants |
 | `sessions.max` | 8 | Parallel sessions |

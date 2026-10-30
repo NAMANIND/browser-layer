@@ -26,6 +26,10 @@ export const newRefs = (): Refs => ({ byNode: new Map(), byRef: new Map(), next:
 const WIDGETS = new Set(['button', 'checkbox', 'combobox', 'link', 'listbox', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'radio', 'searchbox', 'slider', 'spinbutton', 'switch', 'tab', 'textbox', 'treeitem'])
 // Roles that are one item on screen (a result, a table row): their content reads as one line.
 const ROWS = new Set(['row', 'listitem', 'option', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'treeitem'])
+// ARIA landmarks: the regions a page is made of, as screen-reader users jump between them.
+export const LANDMARKS = new Set(['banner', 'navigation', 'main', 'search', 'complementary', 'contentinfo', 'region', 'form'])
+// Containers whose items are a collection: a list of results, a table of rows, a set of tabs.
+export const COLLECTIONS = new Set(['list', 'table', 'grid', 'treegrid', 'tree', 'menu', 'menubar', 'tablist', 'radiogroup'])
 // CSS outer display types that stay in the line; every other display value starts a new block.
 const INLINE_DISPLAY = /^(inline|contents|ruby)/
 const BOOLEAN_STATES = ['focused', 'disabled', 'selected', 'required', 'readonly', 'busy', 'modal']
@@ -109,6 +113,9 @@ export async function readTree(cdp: CDPSession, refs: Refs): Promise<Node> {
       }]
     }
     if (role === 'heading') return [{ role, level: statesOf(a!).level, block: true, children }]
+    // Landmarks get refs so the agent can zoom into a region.
+    if (LANDMARKS.has(role)) return [{ ref: refFor(backendNodeId[i]), role, name: squash(String(a!.name?.value ?? '')), block: true, children }]
+    if (COLLECTIONS.has(role)) return [{ role, block: true, children }]
     if (ROWS.has(role)) return [{ row: true, block: true, children }]
     return block ? [{ block: true, children }] : children
   }
@@ -116,6 +123,6 @@ export async function readTree(cdp: CDPSession, refs: Refs): Promise<Node> {
   // WAI-ARIA: while a modal dialog is open, content outside it is not available. The view is the dialog.
   const modal = ax.find(n => !n.ignored && n.backendDOMNodeId && n.properties?.some(p => p.name === 'modal' && p.value.value === true))
   const at = modal ? backendNodeId.indexOf(modal.backendDOMNodeId!) : -1
-  if (at >= 0) return { block: true, children: [{ role: 'dialog', name: squash(String(modal!.name?.value ?? '')), block: true, children: walk(at, false, false) }] }
+  if (at >= 0) return { block: true, children: [{ ref: refFor(modal!.backendDOMNodeId!), role: 'dialog', name: squash(String(modal!.name?.value ?? '')), block: true, children: walk(at, false, false) }] }
   return { block: true, children: walk(0, false, false) }
 }

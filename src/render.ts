@@ -1,10 +1,15 @@
-import type { Node } from './reader.js'
+import { COLLECTIONS, LANDMARKS, type Node } from './reader.js'
 
 // Text for the agent: blocks start lines, rows read as one line with ' · ' between their parts,
 // controls inline as [ref] role "name". All shortening happens here, never in the reader.
 const SEP = '\u0001'
 
 export type Caps = { nameChars: number; labelChars: number }
+
+const isRegion = (n: Node) => n.ref !== undefined && (n.role === 'dialog' || LANDMARKS.has(n.role ?? ''))
+const clipTo = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
+const regionLine = (n: Node, caps: Caps) =>
+  `[${n.ref}] ${n.role}${n.name ? ` "${clipTo(n.name, caps.nameChars)}"` : ''}${n.role === 'dialog' ? ' — the page behind it is not available' : ''}`
 
 function control(n: Node, origin: string, caps: Caps): string {
   const clip = (s: string, max = caps.nameChars) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
@@ -35,6 +40,14 @@ export function renderText(root: Node, origin: string, caps: Caps): string {
   }
   const visit = (n: Node, inRow: boolean) => {
     if (n.text !== undefined) { line += n.text; return }
+    if (isRegion(n)) {
+      flush()
+      line = regionLine(n, caps)
+      flush()
+      for (const c of n.children ?? []) visit(c, false)
+      flush()
+      return
+    }
     if (n.ref) {
       if (n.block && !inRow) flush()
       line += control(n, origin, caps)
@@ -50,13 +63,76 @@ export function renderText(root: Node, origin: string, caps: Caps): string {
     }
     if (n.block) flush()
     if (n.role === 'heading') line += `${'#'.repeat(n.level ?? 1)} `
-    if (n.role === 'dialog') { line += `dialog${n.name ? ` "${n.name}"` : ''} — the page behind it is not available`; flush() }
     for (const c of n.children ?? []) visit(c, !!n.row)
     if (n.block) flush()
   }
   visit(root, false)
   flush()
   return lines.join('\n')
+}
+
+// The subtree for a ref (a region, a control), for zooming in.
+export function findRef(n: Node, ref: number): Node | undefined {
+  if (n.ref === ref) return n
+  for (const c of n.children ?? []) {
+    const hit = findRef(c, ref)
+    if (hit) return hit
+  }
+  return undefined
+}
+
+const FIELDS = new Set(['textbox', 'searchbox', 'combobox', 'checkbox', 'radio', 'switch', 'slider', 'spinbutton', 'listbox'])
+
+// The page as regions, the way screen-reader users survey it: per landmark its headings, collections
+// (item count and the first item), fields, actions and links. Named when few, counted when many.
+export function renderMap(root: Node, origin: string, caps: Caps, few: number): string {
+  const out: string[] = []
+  const rowsOf = (n: Node): Node[] => (n.row ? [n] : (n.children ?? []).flatMap(c => (COLLECTIONS.has(c.role ?? '') ? [] : rowsOf(c))))
+  const summarize = (title: string, nodes: Node[]) => {
+    const headings: string[] = []
+    const lists: string[] = []
+    const fields: Node[] = []
+    const actions: Node[] = []
+    const options: Node[] = []
+    const links: Node[] = []
+    const nested: Node[] = []
+    let text = 0
+    const walk = (n: Node) => {
+      if (n.text !== undefined) { text += n.text.trim().length; return }
+      if (isRegion(n)) { nested.push(n); return }
+      if (n.role === 'heading') { headings.push(renderText({ block: true, children: n.children }, origin, caps)); return }
+      if (COLLECTIONS.has(n.role ?? '')) {
+        const rows = rowsOf(n)
+        if (rows.length) {
+          const first = clipTo(renderText({ block: true, children: [rows[0]] }, origin, caps).replace(/\n/g, ' · '), caps.nameChars)
+          lists.push(`${n.role} of ${rows.length}: ${first}${rows.length > 1 ? ' …' : ''}`)
+          return
+        }
+      }
+      if (n.ref) (FIELDS.has(n.role ?? '') ? fields : n.role === 'option' ? options : n.role === 'link' ? links : actions).push(n)
+      for (const c of n.children ?? []) walk(c)
+    }
+    nodes.forEach(walk)
+    const named = (label: string, list: Node[]) => {
+      if (!list.length) return
+      out.push(list.length <= few
+        ? `  ${label}: ${list.map(n => control(n, origin, caps).trim()).join(' · ')}`
+        : `  ${label}: ${list.length}`)
+    }
+    const body = out.length
+    named('fields', fields)
+    named('options', options)
+    named('actions', actions)
+    if (headings.length) out.push(`  headings: ${headings.slice(0, few).join(' · ')}${headings.length > few ? ` … ${headings.length - few} more` : ''}`)
+    lists.slice(0, few).forEach(l => out.push(`  ${l}`))
+    if (lists.length > few) out.push(`  … ${lists.length - few} more collections`)
+    named('links', links)
+    if (text) out.push(`  text: ${text} chars`)
+    if (out.length > body) out.splice(body, 0, title)
+    nested.forEach(r => summarize(regionLine(r, caps), r.children ?? []))
+  }
+  summarize('page (outside any region)', root.children ?? [])
+  return out.join('\n')
 }
 
 // Pages split on line boundaries so no control's line is cut in half.
