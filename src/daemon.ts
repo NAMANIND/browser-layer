@@ -3,7 +3,8 @@
 import { createServer } from 'node:http'
 import { chmodSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { chromium, type BrowserContext, type CDPSession, type Dialog, type Page } from 'playwright-core'
+import { chromium, type BrowserContext, type CDPSession, type Dialog, type Page, type Request } from 'playwright-core'
+import { isTracker } from './trackers.js'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
 import { newRefs, readTree, type Refs } from './reader.js'
 import { diffLines, findRef, paginate, renderMap, renderText } from './render.js'
@@ -17,17 +18,22 @@ const DECORATION = new Set(['image', 'font', 'media'])
 // Animations and transitions finish at once, so pages settle without waiting on motion.
 const MOTION_RATE = 1000
 
-// Analytics and ads calls bury the API the page actually uses; `net --all` still shows them.
-const NOISE = /\/(log|logs|collect|analytics|telemetry|metrics|beacon|pixel|gen_204|ping)(\/|\?|$)|ogads-pa\.|doubleclick|googletagmanager|google-analytics/i
-
-function printable(body: string | null | undefined): string | undefined {
+// Binary bodies (protobuf, gzip) would corrupt the terminal and anything piped after it.
+function printable(body: string | null | undefined, max: number): string | undefined {
   if (!body) return undefined
-  // Binary bodies (protobuf, gzip) would corrupt the terminal and anything piped after it.
-  const bad = body.slice(0, 300).replace(/[\x20-\x7e\t\n\r -￿]/g, '').length
-  return bad > 2 ? `<binary, ${body.length} bytes>` : body.slice(0, 300).replace(/\s+/g, ' ')
+  const bad = body.slice(0, 300).replace(/[\x20-\x7e\t\n\r\u00a0-\uffff]/g, '').length
+  return bad > 2 ? `<binary, ${body.length} bytes>` : body.length > max ? `${body.slice(0, max)}… (${body.length - max} more chars)` : body
 }
 
-type Req = { method: string; url: string; status: number; type: string; kind: string; post?: string }
+// Credentials never reach the agent's context: an LLM transcript is not the place for a session token.
+const SECRET_HEADERS = /^(cookie|set-cookie|authorization|proxy-authorization|x-csrf-token|x-xsrf-token)$/i
+const headerLines = (h: Record<string, string>) =>
+  Object.entries(h).map(([k, v]) => `  ${k}: ${SECRET_HEADERS.test(k) ? '<redacted>' : v}`).join('\n')
+
+// Requests that carry no data for the agent: beacons, 204 No Content, and the tracker list.
+const noise = (r: Req) => r.kind === 'ping' || r.status === 204 || isTracker(r.url)
+
+type Req = { id: number; method: string; url: string; status: number; type: string; kind: string; post?: string; request: Request }
 // shown: the last full text the agent received per context (the page, or a modal dialog by name), so
 // actions answer with what changed even when a dialog opens over the page and closes again.
 // frames: cross-origin frames with their own engine session, and the iframe element that owns each.
@@ -35,7 +41,7 @@ type Req = { method: string; url: string; status: number; type: string; kind: st
 type Frame = { cdp: CDPSession; owner: { scope: string; id: number } }
 type Tab = {
   id: number; session: string; page: Page; cdp: CDPSession; refs: Refs; doc: number; shown: Map<string, { doc: number; text: string }>
-  inflight: number; net: Req[]; frames: Map<string, Frame>; dialog?: Dialog; opened: number[]
+  inflight: number; net: Req[]; netId: number; frames: Map<string, Frame>; dialog?: Dialog; opened: number[]
   downloads: { file: string; size: number; url: string }[]; saving: Promise<void>[]
 }
 export type Command = {
@@ -81,15 +87,17 @@ function track(tab: Tab) {
   page.on('requestfinished', async r => {
     tab.inflight = Math.max(0, tab.inflight - 1)
     const kind = r.resourceType()
-    if (kind !== 'document' && kind !== 'xhr' && kind !== 'fetch') return
+    if (kind !== 'document' && kind !== 'xhr' && kind !== 'fetch' && kind !== 'ping') return
     const res = await r.response().catch(() => null)
     tab.net.push({
+      id: ++tab.netId,
       method: r.method(),
       url: r.url(),
       status: res?.status() ?? 0,
       type: (res?.headers()['content-type'] ?? '').split(';')[0],
       kind,
-      post: printable(r.postData()),
+      post: printable(r.postData(), 300)?.replace(/\s+/g, ' '),
+      request: r,
     })
     if (tab.net.length > policy['network.keep']) tab.net.shift()
   })
@@ -261,7 +269,7 @@ async function setupTab(session: string, page: Page): Promise<Tab> {
   await cdp.send('Accessibility.enable')
   await cdp.send('Animation.enable')
   await cdp.send('Animation.setPlaybackRate', { playbackRate: MOTION_RATE })
-  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(), doc: 0, shown: new Map(), inflight: 0, net: [], frames: new Map(), opened: [], downloads: [], saving: [] }
+  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(), doc: 0, shown: new Map(), inflight: 0, net: [], netId: 0, frames: new Map(), opened: [], downloads: [], saving: [] }
   // A new document can reuse node ids, so old refs are dropped; numbering continues, never reused.
   // Only a new document invalidates node ids. pushState and hash changes (navigatedWithinDocument)
   // keep the same nodes, so refs and the agent's view of the page stay valid.
@@ -447,6 +455,20 @@ async function run(c: Command): Promise<string> {
       else throw new Error('usage: agent-layer dialog accept [text] | dismiss')
       return answer(tab)
     }
+    case 'allow': {
+      // Permissions are denied unless the agent grants them, per site: `allow geolocation 19.07,72.87`.
+      const tab = need(c.session)
+      const perms = (c.text ?? '').split(',').filter(Boolean)
+      if (!perms.length) throw new Error('usage: agent-layer allow <permission>[,permission] [latitude,longitude]')
+      const origin = new URL(tab.page.url()).origin
+      await ctx.grantPermissions(perms, { origin })
+      if (c.dir) {
+        const [latitude, longitude] = c.dir.split(',').map(Number)
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error(`expected latitude,longitude, got "${c.dir}"`)
+        await ctx.setGeolocation({ latitude, longitude })
+      }
+      return `allowed ${perms.join(', ')} for ${origin}${c.dir ? ` at ${c.dir}` : ''}`
+    }
     case 'eval': {
       const tab = need(c.session)
       const { result, exceptionDetails } = await tab.cdp.send('Runtime.evaluate', { expression: c.text ?? '', awaitPromise: true, returnByValue: true, replMode: true })
@@ -455,13 +477,24 @@ async function run(c: Command): Promise<string> {
     }
     case 'net': {
       const tab = need(c.session)
-      const list = c.all ? tab.net : tab.net.filter(r => (r.kind !== 'document' || r.method !== 'GET') && !NOISE.test(r.url))
+      if (c.id !== undefined) {
+        // One request in full: what an agent needs to call the same API itself.
+        const r = tab.net.find(n => n.id === c.id)
+        if (!r) throw new Error(`no request #${c.id} — run: agent-layer net`)
+        const res = await r.request.response().catch(() => null)
+        const body = await res?.text().catch(() => undefined)
+        return [`#${r.id} ${r.method} ${r.url}`, 'request headers:', headerLines(await r.request.allHeaders()),
+          ...(r.request.postData() ? ['request body:', printable(r.request.postData(), policy['network.bodyChars'])!] : []),
+          `response: ${r.status} ${r.type}`, headerLines((await res?.allHeaders()) ?? {}),
+          ...(body ? ['response body:', printable(body, policy['network.bodyChars'])!] : [])].join('\n')
+      }
+      const list = c.all ? tab.net : tab.net.filter(r => (r.kind !== 'document' || r.method !== 'GET') && !noise(r))
       if (!list.length) return 'no requests yet'
       return list.slice(-40).map(r => {
         const u = new URL(r.url)
         const where = u.origin === new URL(tab.page.url()).origin ? `${u.pathname}${u.search}` : `${u.host}${u.pathname}${u.search}`
-        return `${r.method.padEnd(6)} ${String(r.status).padEnd(4)} ${where.slice(0, 120)}  ${r.type}${r.post ? `\n         body: ${r.post}` : ''}`
-      }).join('\n')
+        return `#${String(r.id).padEnd(4)} ${r.method.padEnd(6)} ${String(r.status).padEnd(4)} ${where.slice(0, 120)}  ${r.type}${r.post ? `\n      body: ${r.post}` : ''}`
+      }).join('\n') + '\n(net show <#> for headers and bodies)'
     }
     case 'close': {
       const tab = c.id ? own(c.session, c.id) : need(c.session)

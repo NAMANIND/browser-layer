@@ -20,6 +20,7 @@ export const DEFAULTS = {
   'data.minRepeats': 3,
   'data.minParts': 2,
   'network.keep': 300,
+  'network.bodyChars': 4000,
   'daemon.idleMs': 30 * 60 * 1000,
 }
 

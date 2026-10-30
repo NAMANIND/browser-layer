@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { readPage, type Page, type Verb } from './page.js'
-import { lastPage, request, saveLastPage, type Response } from './session.js'
+import { home, lastPage, request, saveLastPage, type Response } from './session.js'
 import { pageView, verbView } from './view.js'
 import { live } from './client.js'
 import type { Command } from './daemon.js'
@@ -33,14 +33,17 @@ Live tabs (headless Chrome kept alive in the background; runs the page's JS):
   agent-layer dialog accept [text] | dialog dismiss   answer an alert / confirm / prompt
   agent-layer forward | reload
   agent-layer eval <js>               run JavaScript in the page; prints the result as JSON
+  agent-layer allow <perm>[,perm] [lat,lon]   grant geolocation, notifications… to the current site
   Pop-ups open as tabs in the same session and become current; downloads are saved and reported.
-  agent-layer net [--all]             requests the page made (the API under the UI)
+  agent-layer net [--all]             requests the page made (the API under the UI); trackers hidden
+  agent-layer net show <#>            one request in full: headers (secrets redacted) and bodies
   agent-layer tabs | use <id> | close [id] | stop
 
+Profiles: --profile <name> is a separate browser (own Chrome profile, cookies, daemon).
 Sessions: --session <name> (or AGENT_LAYER_SESSION) gives each agent its own
 last page and live tabs. Default is "default". Cookies are shared.`
 
-const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
+const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'allow', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
 
 function fail(msg: string): never {
   console.error(msg)
@@ -117,6 +120,12 @@ async function main() {
   const sort = take('--sort')
   const cols = take('--cols')?.split(',').map(c => c.trim())
   session = take('--session') ?? session
+  // A profile is a separate browser: its own Chrome profile, cookies and daemon, under <home>/profiles.
+  const profile = take('--profile')
+  if (profile !== undefined) {
+    if (!/^[\w.-]+$/.test(profile)) fail('a profile name uses letters, digits, dot, dash or underscore')
+    process.env.AGENT_LAYER_HOME = join(home(), 'profiles', profile)
+  }
   const json = argv.includes('--json')
   const flags = new Set(['--json', '--enter', '--all', '--desc', '--gone'])
   const [cmd, target, ...rest] = argv.filter(a => !flags.has(a))
@@ -125,12 +134,14 @@ async function main() {
     const c: Command = { cmd, session, page, limit, sort, cols, desc: argv.includes('--desc'), gone: argv.includes('--gone'), enter: argv.includes('--enter'), all: argv.includes('--all') }
     if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: agent-layer ${cmd} <url>`)
     if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)
+    if (cmd === 'net' && target) c.id = target === 'show' && /^#?\d+$/.test(rest[0] ?? '') ? Number(rest[0].replace('#', '')) : fail('usage: agent-layer net [--all] | net show <#>')
     if (['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload'].includes(cmd)) c.ref = target ?? fail(`usage: agent-layer ${cmd} <ref>`)
     // The daemon runs elsewhere, so files are resolved against the agent's working directory here.
     if (cmd === 'upload') c.files = rest.map(f => resolve(f))
     if (cmd === 'scroll') [c.ref, c.dir] = target && /^\d+$/.test(target) ? [target, rest[0]] : [undefined, target]
     if (cmd === 'dialog') [c.dir, c.text] = [target, rest.length ? rest.join(' ') : undefined]
     if (cmd === 'wait' || cmd === 'eval') c.text = [target, ...rest].filter(Boolean).join(' ')
+    if (cmd === 'allow') [c.text, c.dir] = [target, rest[0]]
     if (cmd === 'read' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: agent-layer read [ref] [--page N]')
     if (cmd === 'get') c.ref = target && /^\d+$/.test(target) ? target : fail('usage: agent-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b]')
     if (cmd === 'type' || cmd === 'pick') c.text = rest.join(' ')

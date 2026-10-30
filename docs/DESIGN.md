@@ -246,12 +246,13 @@ Keys are added when the phase that uses them lands.
 | `data.rows` | 20 | Records `get` returns when no `--limit` is given |
 | `data.minRepeats` | 3 | Siblings sharing a signature before they count as records |
 | `data.minParts` | 2 | Block-level parts each of those siblings needs |
-| `network.hide` | tracker list (data file) | Hidden from `net` unless `--all` |
-| `permissions` | deny all | Per-origin grants |
+| (data) `src/trackers.ts` | hosts and path segments | With beacons and 204 responses, hidden from `net` unless `--all` |
+| (rule) permissions | denied | Granted per site by `allow` |
 | `sessions.max` | 8 | Parallel sessions |
 | `load.timeoutMs` | 30000 | Navigation timeout |
 | `viewport.width` / `.height` | 1280 / 900 | Layout size; decides responsive variants |
 | `network.keep` | 300 | Requests kept per tab |
+| `network.bodyChars` | 4000 | Body cap in `net show` |
 | `daemon.idleMs` | 1800000 | Idle shutdown |
 
 ## 10. Runtime and storage

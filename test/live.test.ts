@@ -101,6 +101,12 @@ const server = createServer((req, res) => {
     <script>setTimeout(() => b.disabled = false, 800); document.querySelector('[aria-label="Cookie wall"]').style.top = document.querySelectorAll('button')[1].getBoundingClientRect().top - 5 + 'px'</script>`)
   if (req.url === '/busy') return page('busy', `<button onclick="o.textContent = 'pressed'">Press</button><p id="o">idle</p><p id="t">0</p><script>setInterval(() => t.textContent = Date.now(), 50)</script>`)
   if (req.url === '/later') return page('later', `<p>loading</p><script>setTimeout(() => document.body.insertAdjacentHTML('beforeend', '<p>ready now</p>'), 700)</script>`)
+  if (req.url === '/api') return page('api', `<p id="o">loading</p><script>
+    fetch('/api/items', { headers: { authorization: 'Bearer secret-token' } }).then(r => r.json()).then(j => o.textContent = j.items.join(', '))
+    fetch('/collect?event=view'); navigator.sendBeacon('/beacon-in', 'x')</script>`)
+  if (req.url === '/api/items') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ items: ['tea', 'coffee'] })) }
+  if (req.url?.startsWith('/collect') || req.url === '/beacon-in') { res.statusCode = 204; return res.end() }
+  if (req.url === '/where') return page('where', `<button onclick="navigator.geolocation.getCurrentPosition(p => o.textContent = 'at ' + p.coords.latitude, e => o.textContent = 'denied')">Locate</button><p id="o">unknown</p>`)
   if (req.url === '/mouse') return page('mouse', `<button ondblclick="o.textContent = 'double'" oncontextmenu="event.preventDefault(); o.textContent = 'context menu'">Target</button><p id="o">none</p>`)
   if (req.url === '/watch') {
     // Counts every DOM change that is not its own counter update.
@@ -435,6 +441,34 @@ test('scroll brings in lazily loaded rows; hover reveals a menu; wait and eval',
   await run('go', `${base}/page/b`)
   assert.match((await run('back')).out, /\/page\/a/)
   assert.match((await run('forward')).out, /\/page\/b/)
+})
+
+test('net lists the API the page used, hides trackers, and shows one request with secrets redacted', async () => {
+  await openRead(`${base}/api`)
+  const list = (await run('net')).out
+  const item = list.match(/^#(\d+) +GET +200 +\/api\/items +application\/json$/m)
+  assert.ok(item, list)
+  assert.doesNotMatch(list, /collect|beacon-in/)
+  assert.match((await run('net', '--all')).out, /\/collect\?event=view/)
+  const one = (await run('net', 'show', item[1])).out
+  assert.match(one, /authorization: <redacted>/)
+  assert.doesNotMatch(one, /secret-token/)
+  assert.match(one, /response body:\n\{"items":\["tea","coffee"\]\}/)
+})
+
+test('permissions are denied until allowed for the site; geolocation takes coordinates', async () => {
+  const page = await openRead(`${base}/where`)
+  const locate = ref(page.out, /button "Locate"/)
+  assert.match((await run('click', locate)).out, /denied/)
+  assert.match((await run('allow', 'geolocation', '19.07,72.87')).out, /allowed geolocation for http:\/\/127\.0\.0\.1:\d+ at 19\.07,72\.87/)
+  assert.match((await run('click', locate)).out, /at 19\.07/)
+})
+
+test('a profile is a separate browser with its own tabs', async () => {
+  await run('--profile', 'work', 'tab', `${base}/page/work`)
+  assert.match((await run('--profile', 'work', 'tabs')).out, /page\/work/)
+  assert.doesNotMatch((await run('tabs')).out, /page\/work/)
+  await run('--profile', 'work', 'stop')
 })
 
 test('stale refs and missing tabs fail with a clear message', async () => {

@@ -119,8 +119,13 @@ records with named columns. 25 tests green; corpus facts all present. `src/` 1,3
 **Result:** 33 tests green; corpus facts all present; live Google Flights task 12,418 chars with the
 right answer. `src/` 1,551 → 1,822 lines.
 
-Still open from the old P2/P3/P6 lists: HAR recording to disk with redaction, tracker list replacing
-the `NOISE` regex, permissions, profiles, Chrome login import (asks first: it reads the keychain).
+Then (same day): `net` numbers requests and `net show <#>` gives headers (credentials redacted) and
+bodies, which is what an agent needs to call an API itself; trackers are hidden by protocol (beacons,
+204) plus a data file, replacing the `NOISE` regex; `allow <permission> [lat,lon]` grants per site;
+`--profile <name>` is a separate browser. 36 tests green.
+
+Still open: Chrome login import (asks first: it reads the keychain); P4 reveal map and canvas text;
+P5 fast path on parse5 and the HTML form submission algorithm.
 
 ## P2 — Actions and settle (superseded by the section above)
 
