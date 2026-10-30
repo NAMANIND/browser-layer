@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
@@ -41,6 +41,22 @@ const server = createServer((req, res) => {
     res.setHeader('content-type', 'text/html')
     return res.end(`<title>who</title><p>fast cookie: ${/fast=1/.test(req.headers.cookie ?? '') ? 'yes' : 'no'}</p>`)
   }
+  if (req.url === '/view') {
+    res.setHeader('content-type', 'text/html')
+    // Rows are flex like real result lists; the two rows themselves stack, so they stay two lines.
+    return res.end(`<meta charset="utf-8"><title>view</title><style>.row, .time { display: flex; gap: 8px }</style>
+      <div class="row"><div class="time"><span>7:00 AM</span><div>–</div><span>9:10 AM</span></div><div>IndiGo</div><div>₹6,895</div></div>
+      <div class="row"><div class="time"><span>4:15 AM</span><div>–</div><span>6:25 AM</span></div><div>SpiceJet</div><div>₹7,118</div></div>
+      <h2>Stacked</h2><p>first line</p><p>second line</p>
+      <div aria-hidden="true"><p>BOM – DEL</p><button>ghost</button></div>
+      <div inert><p>behind the dialog</p></div>
+      <a href="/vote?id=1"></a> <a href="/about">About us</a> <a href="https://example.org/x">Elsewhere</a>
+      <button aria-label="From 6895 Indian rupees. Nonstop flight with IndiGo. Leaves at seven in the morning">Select</button>`)
+  }
+  if (req.url === '/long') {
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<title>long</title>${Array.from({ length: 600 }, (_, i) => `<p>line ${i} ${'x'.repeat(250)}</p>`).join('')}`)
+  }
   if (req.url?.startsWith('/page/')) {
     res.setHeader('content-type', 'text/html')
     return res.end(`<title>${req.url.slice(6)}</title><p>page ${req.url.slice(6)}</p>`)
@@ -59,14 +75,18 @@ const server = createServer((req, res) => {
   res.end(APP)
 })
 
-const env = { ...process.env, AGENT_LAYER_HOME: mkdtempSync(join(tmpdir(), 'al-')) }
+const home = mkdtempSync(join(tmpdir(), 'al-'))
+// Deep enough that home/daemon.sock passes the ~104-byte Unix socket path limit.
+const deepHome = join(home, 'deep', 'd'.repeat(110))
 
-function run(...args: string[]): Promise<{ code: number; out: string }> {
+function runIn(dir: string, ...args: string[]): Promise<{ code: number; out: string }> {
   return new Promise(resolve => {
-    execFile('npx', ['tsx', 'src/cli.ts', ...args], { env, timeout: 120000 }, (err, stdout, stderr) =>
+    execFile('npx', ['tsx', 'src/cli.ts', ...args], { env: { ...process.env, AGENT_LAYER_HOME: dir }, timeout: 120000 }, (err, stdout, stderr) =>
       resolve({ code: err ? (err as { code?: number }).code ?? 1 : 0, out: stdout + stderr }))
   })
 }
+
+const run = (...args: string[]) => runIn(home, ...args)
 
 const ref = (out: string, what: RegExp) => {
   const m = out.match(new RegExp(`\\[(\\d+)\\] ${what.source}`))
@@ -78,7 +98,12 @@ before(() => new Promise<void>(r => server.listen(0, '127.0.0.1', () => {
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`
   r()
 })))
-after(async () => { await run('stop'); server.close() })
+after(async () => {
+  await run('stop')
+  await runIn(deepHome, 'stop')
+  server.close()
+  rmSync(home, { recursive: true, force: true })
+})
 
 test('plain fetch sees an empty shell', async () => {
   const { out } = await run('open', base)
@@ -134,6 +159,42 @@ test('two commands from cold start one daemon, and both tabs live in it', async 
   const tabs = (await run('--session', 'c', 'tabs')).out
   assert.match(tabs, /page\/one/)
   assert.match(tabs, /page\/two/)
+})
+
+test('the live view: one line per row, screen-reader hiding, short hidden labels, links only when useful', async () => {
+  const { code, out } = await run('tab', `${base}/view`)
+  assert.equal(code, 0, out)
+  assert.match(out, /^7:00 AM – 9:10 AM · IndiGo · ₹6,895$/m)
+  assert.match(out, /^4:15 AM – 6:25 AM · SpiceJet · ₹7,118$/m)
+  assert.match(out, /^Stacked$\n^first line$\n^second line$/m)
+  assert.match(out, /^BOM – DEL$\n^ghost$/m)
+  assert.doesNotMatch(out, /button "ghost"|behind the dialog/)
+  assert.match(out, /link → \/vote\?id=1/)
+  assert.match(out, /link "About us"(?! →)/)
+  assert.match(out, /link "Elsewhere" → example\.org/)
+  const label = out.match(/button "(From 6895[^"]*)"/)
+  assert.ok(label && label[1].length <= 45 && label[1].endsWith('…'), out)
+})
+
+test('long views come in pages and every page is reachable', async () => {
+  const first = await run('tab', `${base}/long`)
+  assert.match(first.out, /\(page 1 of (\d+)\)/)
+  const total = Number(first.out.match(/\(page 1 of (\d+)\)/)![1])
+  assert.ok(total >= 2)
+  assert.match(first.out, /more below: agent-layer read --page 2/)
+  const last = await run('read', '--page', String(total))
+  assert.match(last.out, /line 599 /)
+  assert.doesNotMatch(last.out, /more below/)
+  const past = await run('read', '--page', String(total + 1))
+  assert.equal(past.code, 1)
+  assert.match(past.out, /does not exist/)
+})
+
+test('a home dir deeper than the socket path limit still starts the daemon', async () => {
+  mkdirSync(deepHome, { recursive: true })
+  const r = await runIn(deepHome, 'tab', `${base}/page/deep`)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /page deep/)
 })
 
 test('stale refs and missing tabs fail with a clear message', async () => {

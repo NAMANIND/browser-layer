@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
@@ -73,7 +73,10 @@ before(() => new Promise<void>(r => server.listen(0, '127.0.0.1', () => {
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`
   r()
 })))
-after(() => server.close())
+after(() => {
+  server.close()
+  rmSync(env.AGENT_LAYER_HOME, { recursive: true, force: true })
+})
 
 test('open shows text, links and forms as verbs, without hidden content', async () => {
   const { code, out } = await run('open', `${base}/contact`)

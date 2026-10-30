@@ -17,7 +17,7 @@ Fast path (plain HTTP, no browser):
 Live tabs (headless Chrome kept alive in the background; runs the page's JS):
   agent-layer tab <url>               open a live tab (it becomes current)
   agent-layer go <url> | back         navigate the current tab
-  agent-layer read                    what the current tab shows now
+  agent-layer read [--page N]         what the current tab shows now (long views come in pages)
   agent-layer click <ref>             click control [ref]
   agent-layer type <ref> <text>       fill [ref]; add --enter to press Enter after
   agent-layer pick <ref> <option>     choose an option in a select
@@ -87,6 +87,13 @@ function encode(verb: Verb, args: Record<string, string>): [string, URLSearchPar
 
 async function main() {
   const argv = process.argv.slice(2)
+  let page: number | undefined
+  const pageAt = argv.indexOf('--page')
+  if (pageAt >= 0) {
+    page = Number(argv[pageAt + 1])
+    if (!Number.isInteger(page) || page < 1) fail('usage: --page <number from 1>')
+    argv.splice(pageAt, 2)
+  }
   const at = argv.indexOf('--session')
   if (at >= 0) {
     session = argv[at + 1] ?? fail('usage: --session <name>')
@@ -97,7 +104,7 @@ async function main() {
   const [cmd, target, ...rest] = argv.filter(a => !flags.has(a))
 
   if (LIVE.has(cmd)) {
-    const c: Command = { cmd, session, enter: argv.includes('--enter'), all: argv.includes('--all') }
+    const c: Command = { cmd, session, page, enter: argv.includes('--enter'), all: argv.includes('--all') }
     if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: agent-layer ${cmd} <url>`)
     if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)
     if (cmd === 'click' || cmd === 'type' || cmd === 'pick') c.ref = target ?? fail(`usage: agent-layer ${cmd} <ref>`)

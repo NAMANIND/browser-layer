@@ -2,12 +2,20 @@
 import { request } from 'node:http'
 import { spawn } from 'node:child_process'
 import { closeSync, mkdirSync, openSync, rmSync, statSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { home } from './session.js'
 import type { Command } from './daemon.js'
 
-export const socketPath = () => join(home(), 'daemon.sock')
+// Unix socket paths are capped near 104 bytes on macOS and silently truncated past that,
+// so a deep home dir gets a short, stable path in the temp dir instead.
+export const socketPath = () => {
+  const p = join(home(), 'daemon.sock')
+  if (Buffer.byteLength(p) < 100) return p
+  return join(tmpdir(), `agent-layer-${createHash('sha256').update(home()).digest('hex').slice(0, 12)}.sock`)
+}
 const lockPath = () => join(home(), 'daemon.lock')
 const LOCK_STALE_MS = 30000
 

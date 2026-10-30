@@ -20,11 +20,13 @@ function printable(body: string | null | undefined): string | undefined {
   return bad > 2 ? `<binary, ${body.length} bytes>` : body.slice(0, 300).replace(/\s+/g, ' ')
 }
 const VIEW_CAP = 15000
+// Hard ceiling on one snapshot; past the view cap the rest is reachable with read --page.
+const SNAPSHOT_CAP = 400000
 const NET_CAP = 300
 
 type Req = { method: string; url: string; status: number; type: string; kind: string; post?: string }
 type Tab = { id: number; session: string; page: Page; inflight: number; net: Req[] }
-export type Command = { cmd: string; session: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean }
+export type Command = { cmd: string; session: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean; page?: number }
 
 // Tab ids are unique across the daemon; each session (one agent, one task) has its own current tab.
 const tabs = new Map<number, Tab>()
@@ -98,10 +100,26 @@ async function settle(tab: Tab) {
   }
 }
 
-async function view(tab: Tab): Promise<string> {
-  const snap = await tab.page.evaluate(snapshot, VIEW_CAP)
-  const head = `tab ${tab.id}  ${tab.page.url()}${snap.title ? `  "${snap.title}"` : ''}`
-  return `${head}\n\n${snap.body}${snap.truncated ? '\n… (page continues; cut at the view cap)' : ''}`
+// Splits on line boundaries so a page never cuts a control's line in half.
+function paginate(body: string): string[] {
+  const pages: string[] = []
+  let cur = ''
+  for (const line of body.split('\n')) {
+    if (cur && cur.length + line.length + 1 > VIEW_CAP) { pages.push(cur); cur = '' }
+    cur = cur ? `${cur}\n${line}` : line
+  }
+  if (cur || !pages.length) pages.push(cur)
+  return pages
+}
+
+async function view(tab: Tab, page = 1): Promise<string> {
+  const snap = await tab.page.evaluate(snapshot, SNAPSHOT_CAP)
+  const pages = paginate(snap.body)
+  if (page < 1 || page > pages.length) throw new Error(`page ${page} does not exist; this view has ${pages.length}`)
+  const head = `tab ${tab.id}  ${tab.page.url()}${snap.title ? `  "${snap.title}"` : ''}${pages.length > 1 ? `  (page ${page} of ${pages.length})` : ''}`
+  const more = page < pages.length ? `\n… more below: agent-layer read --page ${page + 1}` : ''
+  const cut = snap.truncated && page === pages.length ? '\n… (snapshot ceiling reached; the page is larger than this)' : ''
+  return `${head}\n\n${pages[page - 1]}${more}${cut}`
 }
 
 function need(session: string): Tab {
@@ -172,7 +190,7 @@ async function run(c: Command): Promise<string> {
       return view(need(c.session))
     }
     case 'read':
-      return view(need(c.session))
+      return view(need(c.session), c.page ?? 1)
     case 'click': {
       const tab = need(c.session)
       await (await ensureRef(tab, c.ref)).click({ timeout: 10000 })
@@ -245,13 +263,15 @@ async function main() {
 
   let queue = Promise.resolve()
   let idle: NodeJS.Timeout
-  const shutdown = async () => {
+  // `stop` answers only after Chrome has exited, so a caller can safely delete the profile next.
+  const shutdown = async (reply?: (text: string) => void) => {
     server.close()
     await ctx.close().catch(() => {})
     rmSync(socketPath(), { force: true })
-    process.exit(0)
+    if (reply) reply('stopped')
+    else process.exit(0)
   }
-  const touch = () => { clearTimeout(idle); idle = setTimeout(shutdown, IDLE_MS) }
+  const touch = () => { clearTimeout(idle); idle = setTimeout(() => void shutdown(), IDLE_MS) }
 
   const server = createServer((req, res) => {
     let body = ''
@@ -259,7 +279,10 @@ async function main() {
     req.on('end', () => {
       touch()
       const c = JSON.parse(body || '{}') as Command
-      if (c.cmd === 'stop') { res.end(JSON.stringify({ ok: true, text: 'stopped' }), () => void shutdown()); return }
+      if (c.cmd === 'stop') {
+        void shutdown(text => res.end(JSON.stringify({ ok: true, text }), () => process.exit(0)))
+        return
+      }
       // One command at a time: two agents clicking into the same tab at once would race.
       queue = queue.then(async () => {
         try {
@@ -275,13 +298,18 @@ async function main() {
     })
   })
   rmSync(socketPath(), { force: true })
+  server.on('error', async err => {
+    console.error(`cannot listen on ${socketPath()}: ${err.message}`)
+    await ctx.close().catch(() => {})
+    process.exit(1)
+  })
   server.listen(socketPath(), () => {
     chmodSync(socketPath(), 0o600)
     touch()
     console.log(`agent-layer daemon on ${socketPath()}`)
   })
-  process.on('SIGTERM', shutdown)
-  process.on('SIGINT', shutdown)
+  process.on('SIGTERM', () => void shutdown())
+  process.on('SIGINT', () => void shutdown())
 }
 
 main().catch(err => {
