@@ -210,8 +210,12 @@ action; the dialog waits for `dialog accept [text]` or `dialog dismiss`.
 
 ### 5.3 Settle contract
 
-Settled when no request is in flight and the DOM has been quiet for `settle.quietMs`, when a dialog is
-waiting, or at `settle.deadlineMs`. Every answer says which (`idle in 412 ms`, `deadline 5000 ms`).
+Settled when every request the command caused has finished and the DOM has been quiet for
+`settle.quietMs`, when a dialog is waiting, or at `settle.deadlineMs`. Every answer says which (`idle in
+412 ms`, `deadline 5000 ms`). The page's standing connections are not the command's doing: requests open
+when it began, and requests that reopen one of their channels (same origin and path, as a long-poll
+reconnects), do not hold it. Measured on Google Sheets, whose DOM is still but whose `bind` channel is
+always open: actions settle in 0.4–1.4 s instead of the 5 s deadline.
 
 ## 6. Browser coverage
 

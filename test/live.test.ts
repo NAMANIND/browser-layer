@@ -153,6 +153,12 @@ const server = createServer((req, res) => {
     <section aria-label="Later" style="height:80px" onmouseup="if (window.held) r.textContent = 'moved card B'">Later column</section><p id="r">nothing moved</p>`)
   if (req.url === '/store') return page('store', `<p>stored</p><script>localStorage.setItem('theme', 'dark'); sessionStorage.setItem('step', '2')</script>`)
   if (req.url === '/leave') return page('leave', `<input aria-label="Draft"><script>addEventListener('beforeunload', e => { e.preventDefault(); e.returnValue = '' })</script>`)
+  if (req.url === '/poll') return void setTimeout(() => res.end('tick'), 1500)
+  if (req.url === '/slow') return void setTimeout(() => res.end('slow data'), 800)
+  if (req.url === '/channel') return page('channel', `<p id="o">ready</p>
+    <button onclick="o.textContent = 'clicked'">Quick</button>
+    <button onclick="fetch('/slow').then(r => r.text()).then(t => o.textContent = 'loaded ' + t)">Load</button>
+    <script>(async function poll() { for (;;) await fetch('/poll').then(r => r.text()) })()</script>`)
   if (req.url === '/mouse') return page('mouse', `<button ondblclick="o.textContent = 'double'" oncontextmenu="event.preventDefault(); o.textContent = 'context menu'">Target</button><p id="o">none</p>`)
   if (req.url === '/watch') {
     // Counts every DOM change that is not its own counter update.
@@ -640,6 +646,16 @@ test('a page that asks before it is left waits for the agent', async () => {
   await run('type', ref(page.out, /textbox "Draft"/), 'unsaved')
   assert.match((await run('go', `${base}/page/after`)).out, /a beforeunload dialog is open/)
   assert.match((await run('dialog', 'accept')).out, /\/page\/after/)
+})
+
+test('a standing long-poll channel does not hold settle; requests the action starts still do', async () => {
+  const page = await openRead(`${base}/channel`)
+  const quick = await run('click', ref(page.out, /button "Quick"/))
+  assert.match(quick.out, /settled: idle in \d+ ms/)
+  assert.match(quick.out, /clicked/)
+  const load = await run('click', ref(page.out, /button "Load"/))
+  assert.match(load.out, /settled: idle in \d+ ms/)
+  assert.match(load.out, /loaded slow data/)
 })
 
 test('stale refs and missing tabs fail with a clear message', async () => {

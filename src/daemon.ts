@@ -96,7 +96,7 @@ type Req = { id: number; method: string; url: string; status: number; type: stri
 type Frame = { cdp: CDPSession; owner: { scope: string; id: number } }
 type Tab = {
   id: number; session: string; page: Page; cdp: CDPSession; refs: Refs; doc: number; shown: Map<string, { doc: number; text: string }>
-  inflight: number; net: Req[]; netId: number; frames: Map<string, Frame>; dialog?: Dialog; opened: number[]
+  pending: Map<Request, number>; standing: Set<string>; net: Req[]; netId: number; frames: Map<string, Frame>; dialog?: Dialog; opened: number[]
   downloads: { file: string; size: number; url: string }[]; saving: Promise<void>[]
 }
 export type Command = {
@@ -137,10 +137,10 @@ async function syncCookies() {
 
 function track(tab: Tab) {
   const { page } = tab
-  page.on('request', r => { if (r.resourceType() !== 'websocket') tab.inflight++ })
-  page.on('requestfailed', () => { tab.inflight = Math.max(0, tab.inflight - 1) })
+  page.on('request', r => { if (r.resourceType() !== 'websocket') tab.pending.set(r, Date.now()) })
+  page.on('requestfailed', r => { tab.pending.delete(r) })
   page.on('requestfinished', async r => {
-    tab.inflight = Math.max(0, tab.inflight - 1)
+    tab.pending.delete(r)
     const kind = r.resourceType()
     if (kind !== 'document' && kind !== 'xhr' && kind !== 'fetch' && kind !== 'ping') return
     const res = await r.response().catch(() => null)
@@ -167,6 +167,17 @@ function track(tab: Tab) {
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
+// The page's standing connections (a long-poll channel, a stream) are not the action's doing. Requests
+// open when a command begins are standing, and so is a request that reopens one of their channels.
+let commandStart = Date.now()
+const channel = (url: string) => { const u = new URL(url); return `${u.origin}${u.pathname}` }
+function beginCommand() {
+  commandStart = Date.now()
+  for (const t of tabs.values()) t.standing = new Set([...t.pending.keys()].map(r => channel(r.url())))
+}
+// Requests the current command caused that are still in flight.
+const caused = (tab: Tab) => [...tab.pending].filter(([r, at]) => at >= commandStart && !tab.standing.has(channel(r.url()))).length
+
 // Settled when no request is in flight and the DOM has been quiet for settle.quietMs; or a dialog is
 // waiting (the page is blocked until it is answered); or the deadline passes. Says which.
 async function settle(tab: Tab, deadline = policy['settle.deadlineMs']): Promise<string> {
@@ -178,7 +189,7 @@ async function settle(tab: Tab, deadline = policy['settle.deadlineMs']): Promise
     if (tab.dialog) return 'dialog'
     // A dialog opening mid-read blocks page scripts, so the read is bounded.
     const muts = await Promise.race([tab.page.evaluate(() => (window as unknown as { __alMut?: number }).__alMut ?? 0).catch(() => -2), sleep(500).then(() => -3)])
-    if (muts !== last || tab.inflight > 0) { last = muts; quietSince = Date.now() }
+    if (muts !== last || caused(tab) > 0) { last = muts; quietSince = Date.now() }
     else if (Date.now() - quietSince >= policy['settle.quietMs']) return `idle in ${Date.now() - start} ms`
     await sleep(100)
   }
@@ -324,7 +335,7 @@ async function setupTab(session: string, page: Page): Promise<Tab> {
   await cdp.send('Accessibility.enable')
   await cdp.send('Animation.enable')
   await cdp.send('Animation.setPlaybackRate', { playbackRate: MOTION_RATE })
-  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(), doc: 0, shown: new Map(), inflight: 0, net: [], netId: 0, frames: new Map(), opened: [], downloads: [], saving: [] }
+  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(), doc: 0, shown: new Map(), pending: new Map(), standing: new Set(), net: [], netId: 0, frames: new Map(), opened: [], downloads: [], saving: [] }
   // A new document can reuse node ids, so old refs are dropped; numbering continues, never reused.
   // Only a new document invalidates node ids. pushState and hash changes (navigatedWithinDocument)
   // keep the same nodes, so refs and the agent's view of the page stay valid.
@@ -423,6 +434,7 @@ async function openRead(tab: Tab, trigger: Node, depth: number, budget: { opens:
 }
 
 async function run(c: Command): Promise<string> {
+  beginCommand()
   switch (c.cmd) {
     case 'tab': {
       const tab = await newTab(c.session, c.url ?? 'about:blank')
