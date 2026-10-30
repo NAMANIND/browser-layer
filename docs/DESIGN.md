@@ -91,13 +91,19 @@ visible facts there (Google Flights' times, airports and prices).
    row role (`row`, `listitem`, `option`, `menuitem*`, `treeitem`) are one line, with ` · ` between
    their blocks. Headings print with their level (`## Title`).
 5. Images are not shown; their alt text is the name of the control they sit in.
-6. Frames, same-origin and cross-origin, are read through their own engine targets and attached under
+6. A control's name gets `render.nameChars` when everything it says is on screen (letters and digits
+   of the name contained in its visible text); otherwise it is a label only assistive tech hears and
+   gets `render.labelChars`.
+7. While a dialog the accessibility tree marks `modal` is open, the view is that dialog (WAI-ARIA:
+   content outside a modal is not available).
+8. Frames, same-origin and cross-origin, are read through their own engine targets and attached under
    their `iframe` node (P3).
-7. Canvas apps: text drawn with `CanvasRenderingContext2D.fillText` is recorded by a document-start
+9. Canvas apps: text drawn with `CanvasRenderingContext2D.fillText` is recorded by a document-start
    hook and attached to the canvas node with positions (P4).
 
-Known gaps: elements made clickable only by a script listener with no ARIA role get no ref; content
-made inert implicitly by a modal `<dialog>` is still shown.
+Known gaps: elements made clickable only by a script listener with no ARIA role get no ref; a popup
+that hides the rest of the page with `aria-hidden` without declaring itself modal makes the whole page
+change (its refs disappear), so the action answers with the full view.
 
 ### 4.3 The reveal map (know before triggering)
 
@@ -114,10 +120,13 @@ Content that only exists after the event fires (rendered or fetched on hover) is
 `hover` / `focus` actions trigger it and return what appeared. Frameworks that delegate events to the
 root are covered by the first three sources; the fourth reports only that the page reacts.
 
-### 4.4 Deltas
+### 4.4 Answers carry only what changed
 
-Every snapshot has a generation. Actions return what changed since the previous generation (added,
-removed, changed nodes by ref). A full read is always available with `read`.
+The agent already holds the page, so an action answers with the lines that changed since the last view
+of the same context (the page, or a modal dialog by name): `- old line` / `+ new line`. A new document
+(`Page.frameNavigated` on the main frame), or a change larger than `render.deltaShare` of the page,
+gets the full view. pushState and hash changes are the same document: refs and the view stay valid.
+`read` always returns the full page.
 
 ## 5. Actions
 
@@ -182,7 +191,9 @@ Keys are added when the phase that uses them lands.
 | `settle.deadlineMs` | 5000 | Max wait after an action |
 | `render.pageChars` | 15000 | Text page size |
 | `render.maxChars` | 400000 | Ceiling on one snapshot |
-| `render.nameChars` | 120 | Name and link-path cap in text only |
+| `render.nameChars` | 120 | Cap for names that are on screen, and link paths |
+| `render.labelChars` | 40 | Cap for labels only assistive tech hears |
+| `render.deltaShare` | 0.5 | Above this share of the page changed, an action returns the full view |
 | `network.hide` | tracker list (data file) | Hidden from `net` unless `--all` |
 | `permissions` | deny all | Per-origin grants |
 | `sessions.max` | 8 | Parallel sessions |

@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { chromium, type BrowserContext, type CDPSession, type Page } from 'playwright-core'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
 import { newRefs, readTree, type Refs } from './reader.js'
-import { paginate, renderText } from './render.js'
+import { diffLines, paginate, renderText } from './render.js'
 import { click, fill, pick } from './act.js'
 import { ping, socketPath } from './client.js'
 import { loadPolicy, type Policy } from './policy.js'
@@ -27,7 +27,9 @@ function printable(body: string | null | undefined): string | undefined {
 }
 
 type Req = { method: string; url: string; status: number; type: string; kind: string; post?: string }
-type Tab = { id: number; session: string; page: Page; cdp: CDPSession; refs: Refs; inflight: number; net: Req[] }
+// shown: the last full text the agent received per context (the page, or a modal dialog by name), so
+// actions answer with what changed even when a dialog opens over the page and closes again.
+type Tab = { id: number; session: string; page: Page; cdp: CDPSession; refs: Refs; doc: number; shown: Map<string, { doc: number; text: string }>; inflight: number; net: Req[] }
 export type Command = { cmd: string; session: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean; page?: number }
 
 // Tab ids are unique across the daemon; each session (one agent, one task) has its own current tab.
@@ -103,8 +105,13 @@ async function settle(tab: Tab) {
   }
 }
 
-async function view(tab: Tab, page = 1): Promise<string> {
-  let text = renderText(await readTree(tab.cdp, tab.refs), new URL(tab.page.url()).origin, policy['render.nameChars'])
+async function render(tab: Tab): Promise<string> {
+  return renderText(await readTree(tab.cdp, tab.refs), new URL(tab.page.url()).origin, { nameChars: policy['render.nameChars'], labelChars: policy['render.labelChars'] })
+}
+
+async function view(tab: Tab, page = 1, text?: string): Promise<string> {
+  text ??= await render(tab)
+  tab.shown.set(contextOf(text), { doc: tab.doc, text })
   const truncated = text.length > policy['render.maxChars']
   if (truncated) text = text.slice(0, text.lastIndexOf('\n', policy['render.maxChars']))
   const pages = paginate(text, policy['render.pageChars'])
@@ -127,6 +134,22 @@ function own(session: string, id: number): Tab {
   if (!tab) throw new Error(`no tab ${id}`)
   if (tab.session !== session) throw new Error(`tab ${id} belongs to session "${tab.session}", not "${session}"`)
   return tab
+}
+
+// After an action the agent already holds the page, so it gets the lines that changed. A new document,
+// or a change bigger than render.deltaShare of the page, is answered with the full view instead.
+const contextOf = (text: string) => (text.startsWith('dialog') ? text.slice(0, text.indexOf('\n') >>> 0) : 'page')
+
+async function changes(tab: Tab): Promise<string> {
+  const text = await render(tab)
+  const before = tab.shown.get(contextOf(text))
+  if (!before || before.doc !== tab.doc) return view(tab, 1, text)
+  const { removed, added } = diffLines(before.text.split('\n'), text.split('\n'))
+  const size = [...removed, ...added].reduce((n, l) => n + l.length + 3, 0)
+  if (size > text.length * policy['render.deltaShare']) return view(tab, 1, text)
+  tab.shown.set(contextOf(text), { doc: tab.doc, text })
+  const head = `tab ${tab.id}  ${tab.page.url()}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'} (full page: agent-layer read)`
+  return [head, '', ...removed.map(l => `- ${l}`), ...added.map(l => `+ ${l}`)].join('\n').trimEnd()
 }
 
 function nodeOf(tab: Tab, ref?: string): number {
@@ -157,10 +180,14 @@ async function newTab(session: string, url: string): Promise<Tab> {
   await cdp.send('Accessibility.enable')
   await cdp.send('Animation.enable')
   await cdp.send('Animation.setPlaybackRate', { playbackRate: MOTION_RATE })
-  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(), inflight: 0, net: [] }
+  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(), doc: 0, shown: new Map(), inflight: 0, net: [] }
   // A new document can reuse node ids, so old refs are dropped; numbering continues, never reused.
-  page.on('framenavigated', f => {
-    if (f !== page.mainFrame()) return
+  // Only a new document invalidates node ids. pushState and hash changes (navigatedWithinDocument)
+  // keep the same nodes, so refs and the agent's view of the page stay valid.
+  await cdp.send('Page.enable')
+  cdp.on('Page.frameNavigated', ({ frame }) => {
+    if (frame.parentId) return
+    tab.doc++
     tab.refs.byNode.clear()
     tab.refs.byRef.clear()
   })
@@ -206,26 +233,26 @@ async function run(c: Command): Promise<string> {
       const tab = need(c.session)
       await act(tab, c.ref, id => click(tab.cdp, id))
       await settle(tab)
-      return view(tab)
+      return changes(tab)
     }
     case 'type': {
       const tab = need(c.session)
       await act(tab, c.ref, id => fill(tab.cdp, id, c.text ?? ''))
       if (c.enter) await tab.page.keyboard.press('Enter')
       await settle(tab)
-      return view(tab)
+      return changes(tab)
     }
     case 'pick': {
       const tab = need(c.session)
       await act(tab, c.ref, id => pick(tab.cdp, id, c.text ?? ''))
       await settle(tab)
-      return view(tab)
+      return changes(tab)
     }
     case 'press': {
       const tab = need(c.session)
       await tab.page.keyboard.press(c.key!)
       await settle(tab)
-      return view(tab)
+      return changes(tab)
     }
     case 'net': {
       const tab = need(c.session)

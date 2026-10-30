@@ -1,8 +1,8 @@
 [
   {
     "page": "hacker-news",
-    "readMsP50": 18,
-    "readMsMax": 37,
+    "readMsP50": 16,
+    "readMsMax": 41,
     "lines": 67,
     "chars": 8806,
     "refs": 228,
@@ -12,10 +12,10 @@
   },
   {
     "page": "github-repo",
-    "readMsP50": 32,
-    "readMsMax": 61,
+    "readMsP50": 31,
+    "readMsMax": 53,
     "lines": 310,
-    "chars": 17304,
+    "chars": 17271,
     "refs": 280,
     "facts": {
       "file and folder rows": 25
@@ -23,10 +23,10 @@
   },
   {
     "page": "google-flights",
-    "readMsP50": 80,
-    "readMsMax": 122,
+    "readMsP50": 79,
+    "readMsMax": 124,
     "lines": 132,
-    "chars": 33516,
+    "chars": 20124,
     "refs": 236,
     "facts": {
       "flight rows with times, airports and price": 61
@@ -34,10 +34,10 @@
   },
   {
     "page": "amazon-search",
-    "readMsP50": 49,
-    "readMsMax": 96,
+    "readMsP50": 50,
+    "readMsMax": 85,
     "lines": 382,
-    "chars": 22914,
+    "chars": 22070,
     "refs": 384,
     "facts": {
       "product rows with price and M.R.P": 16

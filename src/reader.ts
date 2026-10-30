@@ -5,6 +5,8 @@ export type Node = {
   ref?: number
   role?: string
   name?: string
+  // Everything the name says is on screen; otherwise it is a label only assistive tech hears.
+  nameShown?: boolean
   value?: string
   states?: string[]
   url?: string
@@ -70,6 +72,10 @@ export async function readTree(cdp: CDPSession, refs: Refs): Promise<Node> {
     return ref
   }
   const hasRef = (nodes: Node[]): boolean => nodes.some(n => n.ref || (n.children && hasRef(n.children)))
+  const textOf = (nodes: Node[]): string => nodes.map(n => n.text ?? textOf(n.children ?? [])).join('')
+  const squash = (s: string) => s.replace(/\s+/g, ' ').trim()
+  // Content, not formatting: "Airport Mumbai (BOM)" is on screen as "Airport MumbaiBOM 15 km away".
+  const content = (s: string) => s.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase()
 
   // muted: inside aria-hidden (text shows, controls get no ref). unseen: visibility hidden or opacity 0.
   function walk(i: number, muted: boolean, unseen: boolean): Node[] {
@@ -95,8 +101,9 @@ export async function readTree(cdp: CDPSession, refs: Refs): Promise<Node> {
     if (WIDGETS.has(role) && l !== undefined && visibility !== 'hidden') {
       const { states, url } = statesOf(a!)
       const value = a!.value?.value
+      const name = squash(String(a!.name?.value ?? ''))
       return [{
-        ref: refFor(backendNodeId[i]), role, name: String(a!.name?.value ?? '').trim(), states, url, block,
+        ref: refFor(backendNodeId[i]), role, name, nameShown: content(textOf(children)).includes(content(name)), states, url, block,
         value: value === undefined || value === '' ? undefined : String(value),
         children: hasRef(children) ? children : undefined,
       }]
@@ -106,5 +113,9 @@ export async function readTree(cdp: CDPSession, refs: Refs): Promise<Node> {
     return block ? [{ block: true, children }] : children
   }
 
+  // WAI-ARIA: while a modal dialog is open, content outside it is not available. The view is the dialog.
+  const modal = ax.find(n => !n.ignored && n.backendDOMNodeId && n.properties?.some(p => p.name === 'modal' && p.value.value === true))
+  const at = modal ? backendNodeId.indexOf(modal.backendDOMNodeId!) : -1
+  if (at >= 0) return { block: true, children: [{ role: 'dialog', name: squash(String(modal!.name?.value ?? '')), block: true, children: walk(at, false, false) }] }
   return { block: true, children: walk(0, false, false) }
 }

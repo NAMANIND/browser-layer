@@ -6,10 +6,12 @@ import { chromium } from 'playwright-core'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { newRefs, readTree } from '../dist/reader.js'
 import { renderText } from '../dist/render.js'
-import { DEFAULTS } from '../dist/policy.js'
+import { loadPolicy } from '../dist/policy.js'
 import { deterministic } from './deterministic.mjs'
 
 const RUNS = 5
+// The policy in effect (<home>/policy.json over the defaults), so caps can be compared by experiment.
+const DEFAULTS = loadPolicy()
 const corpus = new URL('../test/corpus/', import.meta.url)
 const pages = JSON.parse(readFileSync(new URL('pages.json', corpus), 'utf8'))
 const save = process.argv.includes('--save')
@@ -36,7 +38,7 @@ for (const { name, url, facts = [] } of pages) {
   let body = ''
   for (let i = 0; i < RUNS; i++) {
     const t = performance.now()
-    body = renderText(await readTree(cdp, refs), origin, DEFAULTS['render.nameChars'])
+    body = renderText(await readTree(cdp, refs), origin, { nameChars: DEFAULTS['render.nameChars'], labelChars: DEFAULTS['render.labelChars'] })
     times.push(performance.now() - t)
   }
   await ctx.close()

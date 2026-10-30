@@ -12,6 +12,8 @@ export const DEFAULTS = {
   'render.pageChars': 15000,
   'render.maxChars': 400000,
   'render.nameChars': 120,
+  'render.labelChars': 40,
+  'render.deltaShare': 0.5,
   'network.keep': 300,
   'daemon.idleMs': 30 * 60 * 1000,
 }

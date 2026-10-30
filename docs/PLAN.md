@@ -54,11 +54,24 @@ frame's own engine session.
 Open question: Flights text grew 20.6k → 33.5k chars because `render.nameChars` is 120 (the old
 hard-coded cap was 45). One number trades completeness for tokens.
 
+## Token budget ✅ (31 Oct 2026, pulled forward from P2)
+
+Measured first: on the live Flights task the agent received 50,022 chars over 9 steps; on the Flights
+page 65% of the text was control names, 62% hidden screen-reader labels.
+
+- Actions answer with changed lines only (DESIGN §4.4); the view is per context, so a dialog opening
+  and closing does not resend the page; refs survive pushState navigations.
+- Hidden labels capped at `render.labelChars` (40); names that are on screen keep 120.
+- An open modal dialog is the whole view.
+
+**Result:** Flights task 50,022 → 31,349 chars (−37%); Flights page 33.5k → 20.1k (−40%); all corpus
+facts present; 23 tests green. `bench/flights-task.sh` reproduces the task numbers.
+
 ## P2 — Actions and settle
 
 - Actionability with named failure reasons; trusted input for every pointer and keyboard command in
   DESIGN §6.
-- Settle contract with reported reason; deltas returned by every action.
+- Settle contract with reported reason.
 
 **Exit:** a never-quiet page reports `deadline` within the policy deadline; a fetch page reports
 `idle`; every action on the corpus returns a delta smaller than a full read.

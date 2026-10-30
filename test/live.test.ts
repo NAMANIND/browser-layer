@@ -52,6 +52,7 @@ const server = createServer((req, res) => {
       <div aria-hidden="true"><p>BOM – DEL</p><button>ghost</button></div>
       <div inert><p>behind the dialog</p></div>
       <a href="/vote?id=1"></a> <a href="/about">About us</a> <a href="https://example.org/x">Elsewhere</a>
+      <a href="/airport" aria-label="Chhatrapati Shivaji Maharaj International Airport Mumbai (BOM)"><span>Chhatrapati Shivaji Maharaj International Airport Mumbai</span><span>BOM</span> 15 km away</a>
       <button aria-label="From 6895 Indian rupees. Nonstop flight with IndiGo. Leaves Chhatrapati Shivaji Maharaj International Airport Mumbai at 7:00 AM and arrives at 9:10 AM">Select</button>`)
   }
   if (req.url === '/watch') {
@@ -61,6 +62,23 @@ const server = createServer((req, res) => {
       <script>let n = 0; const out = document.getElementById('n')
       new MutationObserver(ms => { const mine = ms.filter(m => !out.contains(m.target)); if (mine.length) out.textContent = n += mine.length })
         .observe(document, { subtree: true, childList: true, attributes: true, characterData: true })</script>`)
+  }
+  if (req.url === '/delta') {
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<title>delta</title>${Array.from({ length: 30 }, (_, i) => `<p>story ${i}</p>`).join('')}
+      <button onclick="const p = document.createElement('p'); p.textContent = 'loaded more'; document.body.append(p)">More</button>
+      <a href="/page/next">next page</a>`)
+  }
+  if (req.url === '/spa') {
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<title>spa</title>${Array.from({ length: 20 }, (_, i) => `<p>item ${i}</p>`).join('')}
+      <button onclick="history.pushState({}, '', '/spa?step=2'); this.textContent = 'Step 2'">Next</button>`)
+  }
+  if (req.url === '/modal') {
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<title>modal</title><p>background text</p><button>behind</button>
+      <dialog aria-label="Pick a city"><button>Delhi</button></dialog>
+      <button onclick="document.querySelector('dialog').showModal()">Open</button>`)
   }
   if (req.url === '/long') {
     res.setHeader('content-type', 'text/html')
@@ -170,7 +188,7 @@ test('two commands from cold start one daemon, and both tabs live in it', async 
   assert.match(tabs, /page\/two/)
 })
 
-test('the live view: one line per row, aria-hidden text without refs, clipped names, links only when useful', async () => {
+test('the live view: one line per row, aria-hidden text without refs, hidden labels clipped, links only when useful', async () => {
   const { code, out } = await run('tab', `${base}/view`)
   assert.equal(code, 0, out)
   assert.match(out, /^• 7:00 AM – 9:10 AM · IndiGo · ₹6,895$/m)
@@ -181,8 +199,11 @@ test('the live view: one line per row, aria-hidden text without refs, clipped na
   assert.match(out, /link → \/vote\?id=1/)
   assert.match(out, /link "About us"(?! →)/)
   assert.match(out, /link "Elsewhere" → example\.org/)
+  // Its name is on screen inside longer text, only formatted differently: a visible name, never cut.
+  assert.match(out, /link "Chhatrapati Shivaji Maharaj International Airport Mumbai \(BOM\)"/)
   const label = out.match(/button "(From 6895[^"]*)"/)
-  assert.ok(label && label[1].length === DEFAULTS['render.nameChars'] && label[1].endsWith('…'), out)
+  // Its visible text is "Select"; the long name is a hidden label, so it gets the shorter cap.
+  assert.ok(label && label[1].length === DEFAULTS['render.labelChars'] && label[1].endsWith('…'), out)
 })
 
 test('reading never changes the page', async () => {
@@ -191,6 +212,36 @@ test('reading never changes the page', async () => {
   const r = await run('read')
   assert.match(r.out, /mutations: 0/)
   assert.match(r.out, /\[\d+\] link "a link"/)
+})
+
+test('actions answer with what changed; read and navigation give the whole page', async () => {
+  const full = await run('tab', `${base}/delta`)
+  assert.match(full.out, /story 5/)
+  const more = await run('click', ref(full.out, /button "More"/))
+  assert.match(more.out, /lines gone, \d+ new \(full page: agent-layer read\)/)
+  assert.match(more.out, /^\+ loaded more$/m)
+  assert.doesNotMatch(more.out, /story 5/)
+  assert.match((await run('read')).out, /story 5[\s\S]*loaded more/)
+  const next = await run('click', ref(full.out, /link "next page"/))
+  assert.match(next.out, /^tab \d+ .*\/page\/next/)
+  assert.match(next.out, /page next/)
+})
+
+test('a pushState URL change keeps refs and answers with changes', async () => {
+  const page = await run('tab', `${base}/spa`)
+  const next = ref(page.out, /button "Next"/)
+  const step = await run('click', next)
+  assert.match(step.out, /\/spa\?step=2 .*lines gone/)
+  assert.match(step.out, new RegExp(`^\\+ \\[${next}\\] button "Step 2"`, 'm'))
+})
+
+test('an open modal dialog is the whole view', async () => {
+  const page = await run('tab', `${base}/modal`)
+  assert.match(page.out, /background text/)
+  const open = await run('click', ref(page.out, /button "Open"/))
+  assert.match(open.out, /dialog "Pick a city" — the page behind it is not available/)
+  assert.match(open.out, /button "Delhi"/)
+  assert.doesNotMatch(open.out, /background text|button "behind"/)
 })
 
 test('long views come in pages and every page is reachable', async () => {
