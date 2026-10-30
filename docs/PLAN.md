@@ -89,12 +89,20 @@ the header row.
 records with named columns. 25 tests green; corpus facts all present. `src/` 1,352 → 1,493 lines
 (`data.ts` 92 lines; reader, render, CLI and daemon +49).
 
-## Next — Data layer, part 2
+## Data layer, part 2 ✅ (31 Oct 2026)
 
-1. Collections that are not ARIA lists or tables (Amazon's product grid): repeated sibling structure as
-   records, with its thresholds as policy.
-2. The page's own API responses as a record source: spike first on Google Flights' GetShoppingResults,
-   fields located by matching values to the records the page shows.
+1. **Unmarked collections** (DESIGN §4.5): data-region detection with `data.minRepeats` / `data.minParts`;
+   template-not-identity for classes. Amazon's 16 products are records with aligned title and price
+   columns; HN's table and Flights' lists unchanged. 26 tests green.
+2. **The page's own data as a record source — decided against for now**, from a spike:
+   - Google Flights' data on load is embedded in the HTML (`AF_initDataCallback`, 110 KB), not in an API
+     call; it is locatable by matching values (an array of 56 flights and one of 5, as the page shows) but
+     positional, with no field names.
+   - Every framework encodes it differently (`AF_initDataCallback`, `__NEXT_DATA__`, RSC payloads, Apollo
+     state): supporting them is format-by-format code, against DESIGN §1 principle 1.
+   - The standard form, schema.org JSON-LD or microdata, is absent on all five listing pages.
+   - What the page shows is already records; anything else stays reachable by the agent through `net`.
+   - Revisit: schema.org JSON-LD / microdata as named page facts, measured on a detail-page corpus.
 
 ## P2 — Actions and settle
 
