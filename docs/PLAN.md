@@ -14,12 +14,7 @@ Heuristics still in the code, and the phase that removes each:
 
 | Current code | Removed in | Replaced by |
 |---|---|---|
-| `snapshot.ts` `roleOf` / `nameOf` | P1 | Engine accessibility tree |
-| `data-al` attributes written into pages | P1 | `backendNodeId` refs |
-| `isRow` geometry check | P1 | Row roles (`row`, `listitem`, `option`, `menuitem`, `article`) in the renderer |
-| `destOf`, the 45 / 80 name caps | P1 | `render.*` policy, applied in the text renderer only |
-| `aria-hidden` / `inert` handling | P1 | DESIGN §4.2 rules 1–2 |
-| `--blink-settings=imagesEnabled=false` | P1 | `load.block` + `load.motion` policy |
+| ~~`snapshot.ts` `roleOf` / `nameOf`, `isRow`, `destOf`, name caps, `data-al`, blink image flag~~ | P1 ✅ | Reader on DOMSnapshot + accessibility tree, renderer policy, node-id refs, decoration blocked |
 | 400 ms quiet `settle` | P2 | Settle contract, DESIGN §5.3 |
 | `NOISE` regex | P3 | Engine resource types + tracker list data file |
 | `page.ts` form reader, node-html-parser | P5 | parse5 + HTML form submission algorithm |
@@ -38,19 +33,26 @@ Heuristics still in the code, and the phase that removes each:
 **Done:** 16 tests green; every corpus page replays offline with all its facts. `src/` 1,059 → 1,095
 lines (policy loader +35).
 
-## P1 — Reader on the accessibility tree
+## P1 — Reader ✅ (31 Oct 2026)
 
-- `src/reader/`: AX tree + DOMSnapshot → `Node` tree (DESIGN §4.1–4.2), refs from `backendNodeId`,
-  frames attached, `aria-hidden` visible text attached without refs.
-- `src/render/text.ts`: rows by role, controls inline, headings on their own lines, paging,
-  `render.*` policy.
-- Actions resolve refs through `DOM.resolveNode`.
-- Engine loads with `load.block` and `load.motion`.
-- Delete `snapshot.ts` and every P1 row above.
+- `src/reader.ts`: DOMSnapshot + accessibility tree → `Node` tree (DESIGN §4.1–4.2); refs are small
+  numbers mapped to browser node ids. `src/render.ts`: lines by CSS display and row roles, headings,
+  paging, `render.*` policy.
+- `src/act.ts`: click, fill and pick on node ids with trusted input (scroll into view, box, hit test).
+  Playwright locators are gone from actions.
+- Images, fonts and media are never requested; animations play at 1000× and `prefers-reduced-motion`
+  is on.
+- `snapshot.ts` deleted.
 
-**Exit:** on the corpus, every fact in the baseline is still present (each flight row with times,
-airports and price; each HN story with its points line); read p95 under 150 ms; zero DOM writes to
-pages; all tests green.
+**Done:** every corpus fact present (Flights now 61 of 61 rows); read max 121 ms (Flights) against the
+150 ms budget; a test proves reading causes zero DOM mutations; 17 tests green; live Google Flights
+search works end to end. `src/` 1,095 → 1,173 lines (`act.ts` +63: Playwright cannot act on a node id).
+
+Moved: frames to P3, with windows and pop-ups, since acting inside a cross-origin frame needs that
+frame's own engine session.
+
+Open question: Flights text grew 20.6k → 33.5k chars because `render.nameChars` is 120 (the old
+hard-coded cap was 45). One number trades completeness for tokens.
 
 ## P2 — Actions and settle
 
@@ -65,6 +67,7 @@ pages; all tests green.
 
 - Dialogs surfaced and answered; pop-ups and `target=_blank` as tabs; downloads saved and listed;
   `upload`.
+- Frames, same-origin and cross-origin, read and acted in through their own sessions (DESIGN §4.2 rule 6).
 - HAR logging with redaction; tracker list as data; `net show`.
 
 **Exit:** a fixture with `confirm()`, a pop-up OAuth window, a download and an upload passes end to

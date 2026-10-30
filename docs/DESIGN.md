@@ -65,23 +65,39 @@ Each layer depends only on the layers below. The CLI never talks to an engine.
 
 ### 4.1 Sources
 
-- **Structure, roles, names, states:** the engine's accessibility tree (CDP `Accessibility`). The
-  browser already implements the ARIA and HTML mapping specs; we never reimplement them.
-- **Layout and on-screen state:** `DOMSnapshot` (boxes, computed `display`/`visibility`).
-- **Identity:** `backendNodeId`. Refs are `<generation>:<backendNodeId>`; nothing is written into the
-  page.
+Each fact comes from the browser source that is authoritative for it:
+
+- **What is rendered:** `DOMSnapshot` — the DOM in document order, which nodes have a layout box, the
+  rendered text of each text node (and of `::before` / `::after` / `::marker`), computed `display`,
+  `visibility`, `opacity`, and attributes.
+- **What things are:** the accessibility tree (CDP `Accessibility`) — roles, names (Accessible Name
+  Computation), values and states, as the browser maps ARIA and HTML. We never reimplement those specs.
+- **Identity:** the browser's `backendNodeId`. The agent sees small numbers (`[12]`); the daemon maps
+  each to a node id per tab, never reuses a number, and drops the map when the document changes.
+  Nothing is written into the page.
+
+The accessibility tree alone is not enough: it omits the text of `aria-hidden` content, and sites put
+visible facts there (Google Flights' times, airports and prices).
 
 ### 4.2 Rules
 
-1. A node is shown when the accessibility tree does not ignore it and it has a layout box.
-2. Text that is on screen but hidden from assistive tech (`aria-hidden`) is shown as text on its
-   nearest shown ancestor, without a ref. Sites put visible facts there.
-3. Unnamed `generic` / `none` wrappers are flattened into their parent.
-4. Frames, same-origin and cross-origin, are read through their own engine targets and attached under
-   their `iframe` node.
-5. Shadow DOM is covered by the accessibility tree.
-6. Canvas apps: text drawn with `CanvasRenderingContext2D.fillText` is recorded by a document-start
-   hook and attached to the canvas node with positions (the Beacon `canvas-text` approach).
+1. Text is shown when its node has a layout box and no ancestor is `visibility: hidden` or
+   `opacity: 0`.
+2. A control (ARIA widget role) gets a ref when it has a layout box. Its text children are its name
+   and are not repeated, unless they contain other controls.
+3. `aria-hidden="true"` (WAI-ARIA): the subtree's text is shown, its controls get no ref.
+   `inert` (HTML): the subtree is not shown. Both read from the attribute, as the specs define them.
+4. Lines follow CSS: an element whose `display` is not inline-level starts a new line. Elements with a
+   row role (`row`, `listitem`, `option`, `menuitem*`, `treeitem`) are one line, with ` · ` between
+   their blocks. Headings print with their level (`## Title`).
+5. Images are not shown; their alt text is the name of the control they sit in.
+6. Frames, same-origin and cross-origin, are read through their own engine targets and attached under
+   their `iframe` node (P3).
+7. Canvas apps: text drawn with `CanvasRenderingContext2D.fillText` is recorded by a document-start
+   hook and attached to the canvas node with positions (P4).
+
+Known gaps: elements made clickable only by a script listener with no ARIA role get no ref; content
+made inert implicitly by a modal `<dialog>` is still shown.
 
 ### 4.3 The reveal map (know before triggering)
 
@@ -162,18 +178,15 @@ Keys are added when the phase that uses them lands.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `load.block` | image, font, media | Resource types never requested |
-| `load.motion` | off | Animations and transitions disabled |
 | `settle.quietMs` | 400 | DOM quiet window |
 | `settle.deadlineMs` | 5000 | Max wait after an action |
 | `render.pageChars` | 15000 | Text page size |
 | `render.maxChars` | 400000 | Ceiling on one snapshot |
-| `render.nameChars` | 120 | Name cap in text only; JSON is never cut |
+| `render.nameChars` | 120 | Name and link-path cap in text only |
 | `network.hide` | tracker list (data file) | Hidden from `net` unless `--all` |
 | `permissions` | deny all | Per-origin grants |
 | `sessions.max` | 8 | Parallel sessions |
 | `load.timeoutMs` | 30000 | Navigation timeout |
-| `actions.timeoutMs` | 10000 | Wait for a control to become actionable |
 | `viewport.width` / `.height` | 1280 / 900 | Layout size; decides responsive variants |
 | `network.keep` | 300 | Requests kept per tab |
 | `daemon.idleMs` | 1800000 | Idle shutdown |
