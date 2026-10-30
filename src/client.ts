@@ -66,9 +66,11 @@ export async function live(c: Command): Promise<Reply> {
     return await send(c)
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
-    if (code !== 'ENOENT' && code !== 'ECONNREFUSED') throw err
+    // ECONNRESET: the daemon was exiting (just after `stop`); like a missing one, start a fresh one.
+    if (code !== 'ENOENT' && code !== 'ECONNREFUSED' && code !== 'ECONNRESET') throw err
   }
-  if (c.cmd === 'stop') return { ok: true, text: 'daemon was not running' }
+  // Asking about or stopping a browser that is not running must not start one.
+  if (c.cmd === 'stop' || c.cmd === 'state') return { ok: true, text: c.cmd === 'stop' ? 'daemon was not running' : '[]' }
   mkdirSync(home(), { recursive: true })
   const mine = takeLock()
   if (mine) startDaemon()

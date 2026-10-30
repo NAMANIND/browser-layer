@@ -129,6 +129,10 @@ mock keychain as the agent's browser, without which the saved session cannot be 
 importing the person's Chrome cookies (that would copy every signed-in site and read the real keychain).
 37 tests green.
 
+`show` / `hide`: the agent's browser as a visible window a person can watch, or headless; the browser
+restarts and every tab reopens in its session; it refuses to restart if the open tabs cannot be listed.
+38 tests green.
+
 Still open: P4 reveal map and canvas text;
 P5 fast path on parse5 and the HTML form submission algorithm.
 

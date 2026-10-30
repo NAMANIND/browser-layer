@@ -488,6 +488,23 @@ test('a session saved by a normal Chrome on the agent profile carries into the a
   rmSync(dir, { recursive: true, force: true })
 })
 
+test('switching the browser between visible and headless reopens every tab in its session', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'al-show-'))
+  await runIn(dir, 'tab', `${base}/page/one`)
+  await runIn(dir, 'tab', `${base}/page/two`)
+  await runIn(dir, '--session', 'b', 'tab', `${base}/page/three`)
+  await runIn(dir, 'use', '1')
+  // hide restarts headless; show would do the same with a window, which a test should not open.
+  const r = await runIn(dir, 'hide')
+  assert.match(r.out, /headless now\. Reopened:/)
+  const tabs = (await runIn(dir, 'tabs')).out
+  assert.match(tabs, /page\/two/)
+  assert.match(tabs, /^\* \d+ +\S+\/page\/one/m)
+  assert.match((await runIn(dir, '--session', 'b', 'tabs')).out, /page\/three/)
+  await runIn(dir, 'stop')
+  rmSync(dir, { recursive: true, force: true })
+})
+
 test('stale refs and missing tabs fail with a clear message', async () => {
   const none = await run('--session', 'empty', 'read')
   assert.equal(none.code, 1)

@@ -502,6 +502,8 @@ async function run(c: Command): Promise<string> {
       const now = current.get(c.session)
       return now ? `closed tab ${tab.id}; now on tab ${now}` : `closed tab ${tab.id}; no live tabs left in session "${c.session}"`
     }
+    case 'state':
+      return JSON.stringify([...tabs.values()].map(t => ({ session: t.session, url: t.page.url(), current: current.get(t.session) === t.id })))
     case 'ping':
       return 'ok'
     default:
@@ -518,7 +520,8 @@ async function main() {
   policy = loadPolicy()
   ctx = await chromium.launchPersistentContext(join(home(), 'profile'), {
     channel: 'chrome',
-    headless: true,
+    // `agent-layer show` leaves this marker so a person can watch the agent's browser.
+    headless: !existsSync(join(home(), 'visible')),
     viewport: { width: policy['viewport.width'], height: policy['viewport.height'] },
     reducedMotion: 'reduce',
   })

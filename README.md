@@ -26,6 +26,8 @@ node dist/cli.js click 77
 node dist/cli.js read 231                        # one region in full
 node dist/cli.js get 233 --sort c11 --limit 3    # a list or table as records
 node dist/cli.js net
+node dist/cli.js show                            # watch the agent's browser in a window (hide: headless)
+node dist/cli.js login accounts.google.com       # sign in yourself; the agent stays signed in
 node dist/cli.js stop
 ```
 
