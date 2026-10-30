@@ -26,10 +26,15 @@ const PAGE_HOOKS = `(() => {
   window.__alMut = 0
   new MutationObserver(() => { window.__alMut++ }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true })
   const HOVER = new Set(['mouseenter', 'mouseover', 'pointerenter', 'pointerover'])
+  const CLICK = new Set(['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup'])
   window.__alHover = new Set()
+  window.__alClick = new Set()
   const listen = EventTarget.prototype.addEventListener
   EventTarget.prototype.addEventListener = function (type, ...rest) {
-    if (HOVER.has(type) && this instanceof Element && this !== document.documentElement && this !== document.body) window.__alHover.add(this)
+    if (this instanceof Element && this !== document.documentElement && this !== document.body) {
+      if (HOVER.has(type)) window.__alHover.add(this)
+      if (CLICK.has(type)) window.__alClick.add(this)
+    }
     return listen.call(this, type, ...rest)
   }
   const C = globalThis.CanvasRenderingContext2D

@@ -123,7 +123,11 @@ visible facts there (Google Flights' times, airports and prices).
    hook that runs before the page's scripts; `clearRect` forgets what it paints over. It reads as lines
    under the canvas, top to bottom, parts left to right. WebGL and OffscreenCanvas text (Figma) is not.
 
-Known gaps: elements made clickable only by a script listener with no ARIA role get no ref; a popup
+10. An element a script made clickable (click, mousedown, mouseup, pointerdown or pointerup listeners,
+    or the same inline attributes), with no role and no controls inside, gets a ref as `clickable`,
+    named by its text. Listeners on the document or body (event delegation, as React does) mark nothing.
+
+Known gaps: a popup
 that hides the rest of the page with `aria-hidden` without declaring itself modal makes the whole page
 change (its refs disappear), so the action answers with the full view.
 

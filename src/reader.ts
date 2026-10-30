@@ -70,6 +70,7 @@ const BOOLEAN_STATES = ['focused', 'disabled', 'selected', 'required', 'readonly
 const ITEM_TAGS = new Set(['A', 'BUTTON', 'OPTION'])
 const ITEM_ROLES = new Set(['menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'tab', 'link', 'button', 'treeitem'])
 const HOVER_ATTRS = ['onmouseenter', 'onmouseover', 'onpointerenter', 'onpointerover']
+const CLICK_ATTRS = ['onclick', 'onmousedown', 'onmouseup', 'onpointerdown', 'onpointerup']
 
 // Elements a page-side hook collected (see daemon.ts), as backend node ids, each with a value the hook
 // computes for it. The hook runs before the page's own scripts in every document.
@@ -150,8 +151,9 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
   // Text of a subtree whether rendered or not: hidden popups have no layout to read text from.
   const domText = (d: Doc, i: number): string => (d.nodeType[i] === 3 ? str(d.nodeValue[i]) : d.kids[i].map(c => domText(d, c)).join(' '))
   // Page-side hooks: elements listening for hover, and text drawn on canvases (lines, top to bottom).
-  const [hovered, drawn] = await Promise.all([
+  const [hovered, clicked, drawn] = await Promise.all([
     hooked(cdp, 'window.__alHover ? [...window.__alHover].filter(e => e.isConnected) : []', 'function () { return true }', 300),
+    hooked(cdp, 'window.__alClick ? [...window.__alClick].filter(e => e.isConnected) : []', 'function () { return true }', 500),
     hooked(cdp, 'window.__alCanvases ? window.__alCanvases() : []', 'function () { return window.__alCanvasLines(this) }', 50),
   ])
 
@@ -261,6 +263,13 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     if (COLLECTIONS.has(role)) return [{ ref: refFor(backendNodeId[i]), role, block: true, children }]
     if (ROWS.has(role)) return [{ row: true, block: true, children }]
     if (CELLS.has(role)) return [{ cell: true, header: role === 'columnheader', block: true, key, children }]
+    // An element made clickable by a script, with no role and no controls inside: the page never says it is
+    // a button, but it acts as one. It gets a ref, named by its text.
+    const plain = !role || role === 'generic' || role === 'none' || role === 'image' || role === 'StaticText'
+    if (plain && !quiet && l !== undefined && !hidden && (clicked.has(backendNodeId[i]) || CLICK_ATTRS.some(h => attr(i, h) !== undefined)) && !hasRef(children)) {
+      const name = squash(textOf(children)) || squash(attr(i, 'aria-label') ?? attr(i, 'title') ?? '')
+      return [{ ref: refFor(backendNodeId[i]), role: 'clickable', name, nameShown: true, states: hovered.has(backendNodeId[i]) ? ['reacts to hover'] : [], block, key, children: [] }]
+    }
     if (!marked && (!role || role === 'generic' || role === 'none') && block && markRecords(d, i, perKid)) return [{ ref: refFor(backendNodeId[i]), role: 'list', block: true, key, children }]
     return block ? [{ block: true, key, children }] : children
   }

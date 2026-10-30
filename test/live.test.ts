@@ -159,6 +159,10 @@ const server = createServer((req, res) => {
     <button onclick="o.textContent = 'clicked'">Quick</button>
     <button onclick="fetch('/slow').then(r => r.text()).then(t => o.textContent = 'loaded ' + t)">Load</button>
     <script>(async function poll() { for (;;) await fetch('/poll').then(r => r.text()) })()</script>`)
+  if (req.url === '/clicky') return page('clicky', `<div id="a">Open report</div><span onclick="o.textContent = 'inline'">Inline one</span>
+    <div id="w"><button>Real button</button></div><div id="d">Delegated</div><p id="o">none</p>
+    <script>a.addEventListener('click', () => o.textContent = 'report opened'); w.addEventListener('click', () => {})
+      document.addEventListener('click', e => { if (e.target.id === 'd') o.textContent = 'delegated' })</script>`)
   if (req.url === '/mouse') return page('mouse', `<button ondblclick="o.textContent = 'double'" oncontextmenu="event.preventDefault(); o.textContent = 'context menu'">Target</button><p id="o">none</p>`)
   if (req.url === '/watch') {
     // Counts every DOM change that is not its own counter update.
@@ -656,6 +660,15 @@ test('a standing long-poll channel does not hold settle; requests the action sta
   const load = await run('click', ref(page.out, /button "Load"/))
   assert.match(load.out, /settled: idle in \d+ ms/)
   assert.match(load.out, /loaded slow data/)
+})
+
+test('elements made clickable only by a script get refs; wrappers and root listeners do not', async () => {
+  const page = await openRead(`${base}/clicky`)
+  assert.match(page.out, /clickable "Open report"/)
+  assert.match(page.out, /clickable "Inline one"/)
+  assert.match(page.out, /button "Real button"/)
+  assert.doesNotMatch(page.out, /clickable "Real button"|clickable "Delegated"/)
+  assert.match((await run('click', ref(page.out, /clickable "Open report"/))).out, /report opened/)
 })
 
 test('stale refs and missing tabs fail with a clear message', async () => {
