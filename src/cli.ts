@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { readPage, type Page, type Verb } from './page.js'
 import { home, lastPage, request, saveLastPage, type Response } from './session.js'
@@ -41,7 +41,8 @@ Live tabs (headless Chrome kept alive in the background; runs the page's JS):
   agent-layer net show <#>            one request in full: headers (secrets redacted) and bodies
   agent-layer tabs | use <id> | close [id] | stop
 
-Watch: agent-layer show makes the agent's browser a visible window (tabs reopen); hide makes it headless.
+Watch: agent-layer show makes the current browser a visible window to watch (tabs reopen); it is
+headless again after hide, or once that window is closed. The agent's browser is never visible otherwise.
 Sign-in: agent-layer login <url> opens a normal Chrome window on the agent's profile; sign in, quit it,
 and the agent's browser is signed in from then on.
 Profiles: --profile <name> is a separate browser (own Chrome profile, cookies, daemon).
@@ -150,9 +151,8 @@ async function main() {
     if (!state.ok) fail(`could not list the open tabs (${state.error}); run agent-layer stop, then try again`)
     const open = JSON.parse(state.text!) as { session: string; url: string; current: boolean }[]
     await live({ cmd: 'stop', session })
-    mkdirSync(home(), { recursive: true })
-    if (cmd === 'show') writeFileSync(join(home(), 'visible'), '')
-    else rmSync(join(home(), 'visible'), { force: true })
+    // Only the browser started now is visible; the daemon reads this from its environment at launch.
+    process.env.AGENT_LAYER_VISIBLE = cmd === 'show' ? '1' : ''
     const reopened: string[] = []
     for (const t of [...open.filter(t => !t.current), ...open.filter(t => t.current)]) {
       const r = await live({ cmd: 'tab', session: t.session, url: t.url })

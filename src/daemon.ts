@@ -520,8 +520,9 @@ async function main() {
   policy = loadPolicy()
   ctx = await chromium.launchPersistentContext(join(home(), 'profile'), {
     channel: 'chrome',
-    // `agent-layer show` leaves this marker so a person can watch the agent's browser.
-    headless: !existsSync(join(home(), 'visible')),
+    // Headless always, except a browser `agent-layer show` started for a person to watch. Nothing is
+    // remembered: the next browser after this one is headless again.
+    headless: process.env.AGENT_LAYER_VISIBLE !== '1',
     viewport: { width: policy['viewport.width'], height: policy['viewport.height'] },
     reducedMotion: 'reduce',
   })
