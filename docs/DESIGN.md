@@ -253,7 +253,7 @@ always open: actions settle in 0.4–1.4 s instead of the 5 s deadline.
 | Engine | Use | Notes |
 |---|---|---|
 | `chromium` | Default | Installed Chrome, headless. Playwright for lifecycle and actionability, raw CDP for the accessibility tree, DOMSnapshot and network. Images, fonts and media never requested; `prefers-reduced-motion` on and animations/transitions disabled. |
-| `http` | Static pages, forms | parse5 (spec-compliant HTML parsing), HTML-AAM implicit roles, the HTML form submission algorithm. Detects a client-rendered shell and says to use `chromium`. Same commands where they apply; `ENGINE_UNSUPPORTED` otherwise. |
+| `http` | Static pages, forms | parse5 (the HTML parsing algorithm, scripting off so `<noscript>` shows); the same Node tree and renderer as live tabs, with HTML-AAM roles and the accessible-name rules HTML alone can answer; a table that holds a table is layout, as browsers treat it. Forms follow the HTML form submission algorithm: owners (`form="id"`), disabled controls and fieldsets (first legend exempt), the default button as submitter with its `formaction`/`formmethod`/`formenctype`, `dirname`, multi-selects, entries in tree order, CRLF newlines, all three encodings. A page with little text and scripts says it is built by JavaScript and names `tab`. Cookies are shared with the browser through the jar (synced both ways); reading Chrome's own encrypted store was decided against. |
 
 ## 8. Owning the engine (later)
 

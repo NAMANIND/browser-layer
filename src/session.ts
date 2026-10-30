@@ -1,7 +1,10 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { Page } from './page.js'
+import type { Verb } from './html.js'
+
+// What the fast path keeps of the last page: where its links go and its forms.
+export type Saved = { url: string; links: Record<number, string>; verbs: Verb[] }
 
 export type Cookie = { name: string; value: string; domain: string; hostOnly: boolean; path: string; expires?: number; secure?: boolean }
 
@@ -18,8 +21,8 @@ function save(file: string, data: unknown) {
 
 // Each session (one agent, one task) keeps its own last page so two agents never read each other's.
 const lastFile = (session: string) => session === 'default' ? 'last.json' : `last-${session.replace(/[^\w.-]/g, '_')}.json`
-export const lastPage = (session: string) => load<Page | null>(lastFile(session), null)
-export const saveLastPage = (session: string, page: Page) => save(lastFile(session), page)
+export const lastPage = (session: string) => load<Saved | null>(lastFile(session), null)
+export const saveLastPage = (session: string, page: Saved) => save(lastFile(session), page)
 
 // One cookie jar for both paths: what a live tab logs into, plain fetch can use, and back.
 export const loadJar = () => load<Cookie[]>('cookies.json', [])

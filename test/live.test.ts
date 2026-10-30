@@ -163,6 +163,11 @@ const server = createServer((req, res) => {
     <div id="w"><button>Real button</button></div><div id="d">Delegated</div><p id="o">none</p>
     <script>a.addEventListener('click', () => o.textContent = 'report opened'); w.addEventListener('click', () => {})
       document.addEventListener('click', e => { if (e.target.id === 'd') o.textContent = 'delegated' })</script>`)
+  if (req.url === '/parity') return page('parity', `<header><a href="/">Home</a><nav aria-label="Main"><a href="/a">About</a> <a href="/b">Blog</a></nav></header>
+    <main><h1>Title</h1><p>Text with an <a href="/c">inline link</a>.</p>
+    <form aria-label="Signup"><label for="e">Email</label><input id="e" type="email"><label><input type="checkbox" name="t"> Terms</label>
+    <select aria-label="Plan"><option>Free</option><option>Pro</option></select><textarea aria-label="Note"></textarea><button>Join</button></form>
+    <ul><li>One</li><li>Two</li></ul><table><tr><th>Name</th></tr><tr><td>A</td></tr></table></main><footer>© 2026</footer>`)
   if (req.url === '/mouse') return page('mouse', `<button ondblclick="o.textContent = 'double'" oncontextmenu="event.preventDefault(); o.textContent = 'context menu'">Target</button><p id="o">none</p>`)
   if (req.url === '/watch') {
     // Counts every DOM change that is not its own counter update.
@@ -672,6 +677,14 @@ test('elements made clickable only by a script get refs; wrappers and root liste
   assert.match(page.out, /button "Real button"/)
   assert.doesNotMatch(page.out, /clickable "Real button"|clickable "Delegated"/)
   assert.match((await run('click', ref(page.out, /clickable "Open report"/))).out, /report opened/)
+})
+
+test('a static page reads the same over plain HTTP and in a live tab: same roles and names', async () => {
+  const controls = (out: string) => [...out.matchAll(/\[\d+\] ([a-z]+)(?: "([^"]*)")?/g)].map(m => `${m[1]} ${m[2] ?? ''}`).sort()
+  const fast = controls((await run('open', `${base}/parity`)).out)
+  const live = controls((await openRead(`${base}/parity`)).out)
+  assert.ok(fast.length >= 12, fast.join('\n'))
+  assert.deepEqual(fast, live)
 })
 
 test('stale refs and missing tabs fail with a clear message', async () => {

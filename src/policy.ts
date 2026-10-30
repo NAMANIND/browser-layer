@@ -12,6 +12,7 @@ export const DEFAULTS = {
   'actions.timeoutMs': 5000,
   'wait.timeoutMs': 15000,
   'explore.depth': 2,
+  'http.shellChars': 200,
   'explore.max': 40,
   'explore.waitMs': 1500,
   'render.pageChars': 15000,

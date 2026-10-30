@@ -2,9 +2,10 @@
 import { spawn } from 'node:child_process'
 import { rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { readPage, type Page, type Verb } from './page.js'
-import { home, lastPage, request, saveLastPage, type Response } from './session.js'
-import { pageView, verbView } from './view.js'
+import { readHtml, type Field, type Verb } from './html.js'
+import { home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
+import { paginate, renderText } from './render.js'
+import { loadPolicy } from './policy.js'
 import { live } from './client.js'
 import type { Command } from './daemon.js'
 
@@ -12,7 +13,7 @@ const HELP = `agent-layer — websites as text and verbs for agents.
 
 Fast path (plain HTTP, no browser):
   agent-layer open <url>              read a page
-  agent-layer open <N>                follow link [N] from the last page
+  agent-layer open <ref>              follow link [ref] from the last page
   agent-layer do <verb> k=v ...       run a verb from the last page
   agent-layer verbs                   list verbs on the last page
   --json                              structured output instead of text
@@ -73,6 +74,25 @@ function fail(msg: string): never {
 
 let session = process.env.AGENT_LAYER_SESSION || 'default'
 
+const short = (href: string, from: string) => {
+  const u = new URL(href)
+  return u.host === new URL(from).host ? `${u.pathname}${u.search}` : `${u.host}${u.pathname === '/' ? '' : u.pathname}${u.search}`
+}
+
+function fieldLine(f: Field): string {
+  const name = `${f.name}${f.required ? '*' : ''}`
+  const kind = f.multi ? `any of ${f.options!.join(', ')}` : f.options ? f.options.join(' | ') : f.type
+  const extra = [
+    f.label && f.label !== f.name ? `"${f.label}"` : '',
+    f.multi ? (f.value ? `= ${f.value}` : '') : f.type === 'checkbox' ? (f.checked ? 'checked' : 'unchecked') : f.value && !f.options ? `= ${JSON.stringify(f.value)}` : '',
+  ].filter(Boolean).join(' ')
+  return `    ${name.padEnd(16)} ${kind}${extra ? `  ${extra}` : ''}`
+}
+
+// Hidden fields and the submitter are sent as the page set them; the agent sees what it can fill.
+const verbView = (v: Verb, from: string) => [`  ${v.name} → ${v.method} ${short(v.action, from)}`, ...v.fields.filter(f => f.type !== 'hidden' && f.type !== 'submit').map(fieldLine)].join('\n')
+
+// A fetched page reads like a live one: the same tree and renderer, plus its forms as verbs.
 function show(res: Response, json: boolean) {
   if (!/html|xml/.test(res.type) && res.body.trimStart()[0] !== '<') {
     let body = res.body
@@ -80,45 +100,62 @@ function show(res: Response, json: boolean) {
     console.log(json ? JSON.stringify({ url: res.url, status: res.status, type: res.type, body: res.body }) : `${res.url}  [${res.status}]  ${res.type}\n\n${body.slice(0, 8000)}`)
     return
   }
-  const page = readPage(res.body, res.url, res.status)
-  saveLastPage(session, page)
-  console.log(json ? JSON.stringify(page, null, 2) : pageView(page))
+  const page = readHtml(res.body, res.url, res.status)
+  saveLastPage(session, { url: page.url, links: page.links, verbs: page.verbs })
+  if (json) return console.log(JSON.stringify(page, null, 2))
+  const policy = loadPolicy()
+  const text = renderText(page.tree, new URL(page.url).origin, { nameChars: policy['render.nameChars'], labelChars: policy['render.labelChars'] })
+  const [first, ...more] = paginate(text, policy['render.pageChars'])
+  const out = [`${page.url}  [${page.status}]${page.title ? `  "${page.title}"` : ''}`, '', first]
+  if (more.length) out.push(`… ${more.join('\n').length} more chars: agent-layer tab ${page.url} reads it all`)
+  if (page.verbs.length) out.push('', 'verbs:', ...page.verbs.map(v => verbView(v, page.url)))
+  // Little to read but scripts to run: the page is built in the browser, which the fast path never runs.
+  if (text.length < policy['http.shellChars'] && page.scripts) out.push('', `this page builds itself with JavaScript; agent-layer tab ${page.url} runs it`)
+  console.log(out.join('\n').trimEnd())
 }
 
-function needPage(): Page {
+function needPage(): Saved {
   return lastPage(session) ?? fail('no page open yet — run: agent-layer open <url>')
 }
 
-function encode(verb: Verb, args: Record<string, string>): [string, URLSearchParams | FormData] {
+// HTML form submission: the entry list in tree order (fields, dirname, the submitter), newlines as CRLF,
+// then one of the three encodings. GET always sends it urlencoded in the action's query.
+function encode(verb: Verb, args: Record<string, string>): { method: string; body: URLSearchParams | FormData | string; type?: string } {
   const known = new Set(verb.fields.map(f => f.name))
-  const unknown = Object.keys(args).filter(k => !known.has(k) && !(k in verb.hidden))
+  const unknown = Object.keys(args).filter(k => !known.has(k))
   if (unknown.length) fail(`unknown field ${unknown.join(', ')}\n\n${verbView(verb, verb.action)}`)
-
-  const data = verb.enctype === 'multipart/form-data' ? new FormData() : new URLSearchParams()
-  for (const [k, v] of Object.entries(verb.hidden)) data.append(k, args[k] ?? v)
+  const entries: [string, string][] = []
   const missing: string[] = []
   for (const f of verb.fields) {
     const given = args[f.name]
+    if (f.type === 'submit') { entries.push([f.name, f.value]); continue }
     if (f.multi) {
       const picked = (given ?? f.value).split(',').map(s => s.trim()).filter(Boolean)
       const bad = picked.filter(p => !f.options!.includes(p))
       if (bad.length) fail(`${f.name} takes any of: ${f.options!.join(', ')} (comma-separated), not ${bad.join(', ')}`)
-      for (const p of picked) data.append(f.name, p)
+      for (const p of picked) entries.push([f.name, p])
       continue
     }
     if (f.type === 'checkbox') {
       const on = given === undefined ? f.checked : !/^(false|off|no|0)$/i.test(given)
-      if (on) data.append(f.name, given && !/^(true|on|yes|1)$/i.test(given) ? given : f.value)
+      if (on) entries.push([f.name, given && !/^(true|on|yes|1)$/i.test(given) ? given : f.value])
       continue
     }
     const value = given ?? f.value
     if (f.options && given !== undefined && !f.options.includes(given)) fail(`${f.name} must be one of: ${f.options.join(' | ')}`)
     if (f.required && !value) missing.push(f.name)
-    if (value || given !== undefined || f.type !== 'radio') data.append(f.name, value)
+    if (f.type === 'radio' && !value) continue
+    entries.push([f.name, value])
+    if (f.dirname) entries.push([f.dirname, 'ltr'])
   }
   if (missing.length) fail(`missing required ${missing.join(', ')}\n\n${verbView(verb, verb.action)}`)
-  if (verb.submit) data.append(...verb.submit)
-  return [verb.method, data]
+  const crlf = (t: string) => t.replace(/\r\n|\r|\n/g, '\r\n')
+  const list = entries.map(([k, v]) => [crlf(k), crlf(v)] as [string, string])
+  if (verb.method === 'GET' || verb.enctype === 'application/x-www-form-urlencoded') return { method: verb.method, body: new URLSearchParams(list), type: 'application/x-www-form-urlencoded' }
+  if (verb.enctype === 'text/plain') return { method: 'POST', body: list.map(([k, v]) => `${k}=${v}\r\n`).join(''), type: 'text/plain' }
+  const form = new FormData()
+  for (const [k, v] of list) form.append(k, v)
+  return { method: 'POST', body: form }
 }
 
 async function main() {
@@ -220,8 +257,7 @@ async function main() {
   if (cmd === 'open' && target) {
     let url = target
     if (/^\d+$/.test(target)) {
-      const link = needPage().links[Number(target) - 1] ?? fail(`no link [${target}] on the last page`)
-      url = link.href
+      url = needPage().links[Number(target)] ?? fail(`[${target}] is not a link on the last page`)
     } else if (!/^https?:\/\//i.test(target)) url = `https://${target}`
     return show(await request(url), json)
   }
@@ -241,15 +277,14 @@ async function main() {
       if (eq < 1) fail(`expected key=value, got "${pair}"`)
       args[pair.slice(0, eq)] = pair.slice(eq + 1)
     }
-    const [method, data] = encode(verb, args)
+    const { method, body, type } = encode(verb, args)
     if (method === 'GET') {
       const url = new URL(verb.action)
-      url.search = (data as URLSearchParams).toString()
+      url.search = body.toString()
       return show(await request(url.href), json)
     }
-    const body = data instanceof FormData ? data : data.toString()
-    const headers: Record<string, string> = data instanceof FormData ? {} : { 'content-type': 'application/x-www-form-urlencoded' }
-    return show(await request(verb.action, { method, body, headers: { ...headers, referer: page.url, origin: new URL(page.url).origin } }), json)
+    const headers: Record<string, string> = type ? { 'content-type': type } : {}
+    return show(await request(verb.action, { method, body: body instanceof FormData ? body : body.toString(), headers: { ...headers, referer: page.url, origin: new URL(page.url).origin } }), json)
   }
 
   console.log(HELP)

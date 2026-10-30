@@ -156,6 +156,14 @@ Real-use fixes ✅: settle waits for what the command caused, not standing conne
 canvas (rows by line, columns by text start; Sheets' mixed alignment and wrapped cells come out split,
 documented). 48 tests green.
 
+
+P5 ✅: the fast path parses with parse5 and renders through the same tree and renderer as live tabs
+(a static page gives the same roles and names on both engines, tested); forms follow the HTML form
+submission algorithm (conformance test: owners, disabled fieldset with legend exemption, submitter
+overrides, dirname, multi-select, tree order, CRLF, text/plain); JavaScript-built pages say so.
+`page.ts`, `view.ts` and node-html-parser removed. Decided against: reading Chrome's encrypted cookie
+store directly (Chrome internals, not a standard); the two-way jar sync stays. 51 tests green.
+
 Still open:
 P5 fast path on parse5 and the HTML form submission algorithm.
 
