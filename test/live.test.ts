@@ -32,6 +32,19 @@ const APP = `<!doctype html><title>Trip</title><body><div id="app"></div><script
 let base = ''
 let booked = ''
 const server = createServer((req, res) => {
+  if (req.url === '/login') {
+    res.setHeader('set-cookie', 'fast=1; Path=/')
+    res.setHeader('content-type', 'text/html')
+    return res.end('<p>logged in</p>')
+  }
+  if (req.url === '/whoami') {
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<title>who</title><p>fast cookie: ${/fast=1/.test(req.headers.cookie ?? '') ? 'yes' : 'no'}</p>`)
+  }
+  if (req.url?.startsWith('/page/')) {
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<title>${req.url.slice(6)}</title><p>page ${req.url.slice(6)}</p>`)
+  }
   if (req.url === '/api/book') {
     let body = ''
     req.on('data', c => (body += c))
@@ -91,7 +104,43 @@ test('a live tab runs the JS: type, pick a suggestion, click, read the result an
   assert.match(r.out, /POST\s+200\s+\/api\/book\s+application\/json\s+body: \{"city":"Delhi"\}/)
 })
 
+test('a fast-path login survives live commands, and live tabs see it', async () => {
+  await run('tab', `${base}/page/x`)
+  await run('open', `${base}/login`)
+  await run('read')
+  let r = await run('open', `${base}/whoami`)
+  assert.match(r.out, /fast cookie: yes/)
+  r = await run('tab', `${base}/whoami`)
+  assert.match(r.out, /fast cookie: yes/)
+})
+
+test('sessions keep their own tabs and cannot touch each other', async () => {
+  const a = await run('--session', 'a', 'tab', `${base}/page/alpha`)
+  await run('--session', 'b', 'tab', `${base}/page/beta`)
+  const aId = a.out.match(/^tab (\d+)/)![1]
+  assert.match((await run('--session', 'a', 'read')).out, /page alpha/)
+  assert.match((await run('--session', 'b', 'read')).out, /page beta/)
+  assert.doesNotMatch((await run('--session', 'b', 'tabs')).out, /alpha/)
+  const r = await run('--session', 'b', 'use', aId)
+  assert.equal(r.code, 1)
+  assert.match(r.out, /belongs to session "a"/)
+})
+
+test('two commands from cold start one daemon, and both tabs live in it', async () => {
+  await run('stop')
+  const [one, two] = await Promise.all([run('--session', 'c', 'tab', `${base}/page/one`), run('--session', 'c', 'tab', `${base}/page/two`)])
+  assert.equal(one.code, 0, one.out)
+  assert.equal(two.code, 0, two.out)
+  const tabs = (await run('--session', 'c', 'tabs')).out
+  assert.match(tabs, /page\/one/)
+  assert.match(tabs, /page\/two/)
+})
+
 test('stale refs and missing tabs fail with a clear message', async () => {
+  const none = await run('--session', 'empty', 'read')
+  assert.equal(none.code, 1)
+  assert.match(none.out, /no live tab in session "empty"/)
+  await run('tab', `${base}/page/x`)
   const r = await run('click', '9999')
   assert.equal(r.code, 1)
   assert.match(r.out, /\[9999\] is no longer on the page/)

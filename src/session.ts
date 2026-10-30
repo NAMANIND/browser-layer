@@ -16,8 +16,10 @@ function save(file: string, data: unknown) {
   writeFileSync(join(home(), file), JSON.stringify(data, null, 2))
 }
 
-export const lastPage = () => load<Page | null>('last.json', null)
-export const saveLastPage = (page: Page) => save('last.json', page)
+// Each session (one agent, one task) keeps its own last page so two agents never read each other's.
+const lastFile = (session: string) => session === 'default' ? 'last.json' : `last-${session.replace(/[^\w.-]/g, '_')}.json`
+export const lastPage = (session: string) => load<Page | null>(lastFile(session), null)
+export const saveLastPage = (session: string, page: Page) => save(lastFile(session), page)
 
 // One cookie jar for both paths: what a live tab logs into, plain fetch can use, and back.
 export const loadJar = () => load<Cookie[]>('cookies.json', [])

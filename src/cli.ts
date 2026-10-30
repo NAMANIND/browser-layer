@@ -23,7 +23,10 @@ Live tabs (headless Chrome kept alive in the background; runs the page's JS):
   agent-layer pick <ref> <option>     choose an option in a select
   agent-layer press <key>             press a key (Enter, Escape, Tab, ArrowDown…)
   agent-layer net [--all]             requests the page made (the API under the UI)
-  agent-layer tabs | use <id> | close [id] | stop`
+  agent-layer tabs | use <id> | close [id] | stop
+
+Sessions: --session <name> (or AGENT_LAYER_SESSION) gives each agent its own
+last page and live tabs. Default is "default". Cookies are shared.`
 
 const LIVE = new Set(['tab', 'go', 'back', 'tabs', 'use', 'read', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
 
@@ -31,6 +34,8 @@ function fail(msg: string): never {
   console.error(msg)
   process.exit(1)
 }
+
+let session = process.env.AGENT_LAYER_SESSION || 'default'
 
 function show(res: Response, json: boolean) {
   if (!/html|xml/.test(res.type) && res.body.trimStart()[0] !== '<') {
@@ -40,12 +45,12 @@ function show(res: Response, json: boolean) {
     return
   }
   const page = readPage(res.body, res.url, res.status)
-  saveLastPage(page)
+  saveLastPage(session, page)
   console.log(json ? JSON.stringify(page, null, 2) : pageView(page))
 }
 
 function needPage(): Page {
-  return lastPage() ?? fail('no page open yet — run: agent-layer open <url>')
+  return lastPage(session) ?? fail('no page open yet — run: agent-layer open <url>')
 }
 
 function encode(verb: Verb, args: Record<string, string>): [string, URLSearchParams | FormData] {
@@ -82,12 +87,17 @@ function encode(verb: Verb, args: Record<string, string>): [string, URLSearchPar
 
 async function main() {
   const argv = process.argv.slice(2)
+  const at = argv.indexOf('--session')
+  if (at >= 0) {
+    session = argv[at + 1] ?? fail('usage: --session <name>')
+    argv.splice(at, 2)
+  }
   const json = argv.includes('--json')
   const flags = new Set(['--json', '--enter', '--all'])
   const [cmd, target, ...rest] = argv.filter(a => !flags.has(a))
 
   if (LIVE.has(cmd)) {
-    const c: Command = { cmd, enter: argv.includes('--enter'), all: argv.includes('--all') }
+    const c: Command = { cmd, session, enter: argv.includes('--enter'), all: argv.includes('--all') }
     if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: agent-layer ${cmd} <url>`)
     if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)
     if (cmd === 'click' || cmd === 'type' || cmd === 'pick') c.ref = target ?? fail(`usage: agent-layer ${cmd} <ref>`)

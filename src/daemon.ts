@@ -1,13 +1,13 @@
 // The background process that keeps live tabs alive between CLI calls.
 // It owns one headless Chrome, a persistent profile, and a socket the CLI talks to.
 import { createServer } from 'node:http'
-import { rmSync } from 'node:fs'
+import { chmodSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium, type BrowserContext, type Page } from 'playwright-core'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
 import { snapshot } from './snapshot.js'
+import { ping, socketPath } from './client.js'
 
-export const socketPath = () => join(home(), 'daemon.sock')
 
 const IDLE_MS = 30 * 60 * 1000
 // Analytics and ads calls bury the API the page actually uses; `net --all` still shows them.
@@ -23,11 +23,12 @@ const VIEW_CAP = 15000
 const NET_CAP = 300
 
 type Req = { method: string; url: string; status: number; type: string; kind: string; post?: string }
-type Tab = { id: number; page: Page; inflight: number; net: Req[] }
-export type Command = { cmd: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean }
+type Tab = { id: number; session: string; page: Page; inflight: number; net: Req[] }
+export type Command = { cmd: string; session: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean }
 
+// Tab ids are unique across the daemon; each session (one agent, one task) has its own current tab.
 const tabs = new Map<number, Tab>()
-let current = 0
+const current = new Map<string, number>()
 let nextId = 1
 let ctx: BrowserContext
 
@@ -35,6 +36,13 @@ function toBrowser(c: Cookie) {
   return { name: c.name, value: c.value, domain: c.hostOnly ? c.domain : `.${c.domain}`, path: c.path, expires: c.expires ? c.expires / 1000 : -1, secure: !!c.secure }
 }
 
+// Before each command: whatever the fast path logged into since, the browser gets too.
+async function pullCookies() {
+  const jar = loadJar().filter(c => !c.expires || c.expires > Date.now())
+  if (jar.length) await ctx.addCookies(jar.map(toBrowser)).catch(() => {})
+}
+
+// After each command: the browser now holds the jar plus its own changes, so it is the whole truth.
 async function syncCookies() {
   const jar: Cookie[] = (await ctx.cookies()).map(c => ({
     name: c.name,
@@ -69,7 +77,10 @@ function track(tab: Tab) {
   })
   page.on('close', () => {
     tabs.delete(tab.id)
-    if (current === tab.id) current = [...tabs.keys()].pop() ?? 0
+    if (current.get(tab.session) !== tab.id) return
+    const next = [...tabs.values()].filter(t => t.session === tab.session).pop()
+    if (next) current.set(tab.session, next.id)
+    else current.delete(tab.session)
   })
 }
 
@@ -93,9 +104,16 @@ async function view(tab: Tab): Promise<string> {
   return `${head}\n\n${snap.body}${snap.truncated ? '\n… (page continues; cut at the view cap)' : ''}`
 }
 
-function need(): Tab {
-  const tab = tabs.get(current)
-  if (!tab) throw new Error('no live tab — run: agent-layer tab <url>')
+function need(session: string): Tab {
+  const tab = tabs.get(current.get(session) ?? 0)
+  if (!tab) throw new Error(`no live tab in session "${session}" — run: agent-layer tab <url>`)
+  return tab
+}
+
+function own(session: string, id: number): Tab {
+  const tab = tabs.get(id)
+  if (!tab) throw new Error(`no tab ${id}`)
+  if (tab.session !== session) throw new Error(`tab ${id} belongs to session "${tab.session}", not "${session}"`)
   return tab
 }
 
@@ -114,12 +132,12 @@ function withUrl(url: string) {
   return /^[a-z]+:\/\//i.test(url) || url.startsWith('about:') ? url : `https://${url}`
 }
 
-async function newTab(url: string): Promise<Tab> {
+async function newTab(session: string, url: string): Promise<Tab> {
   const page = await ctx.newPage()
-  const tab: Tab = { id: nextId++, page, inflight: 0, net: [] }
+  const tab: Tab = { id: nextId++, session, page, inflight: 0, net: [] }
   tabs.set(tab.id, tab)
   track(tab)
-  current = tab.id
+  current.set(session, tab.id)
   await page.goto(withUrl(url), { waitUntil: 'domcontentloaded', timeout: 30000 })
   return tab
 }
@@ -127,41 +145,42 @@ async function newTab(url: string): Promise<Tab> {
 async function run(c: Command): Promise<string> {
   switch (c.cmd) {
     case 'tab': {
-      const tab = await newTab(c.url ?? 'about:blank')
+      const tab = await newTab(c.session, c.url ?? 'about:blank')
       await settle(tab)
       return view(tab)
     }
     case 'go': {
-      const tab = need()
+      const tab = need(c.session)
       await tab.page.goto(withUrl(c.url!), { waitUntil: 'domcontentloaded', timeout: 30000 })
       await settle(tab)
       return view(tab)
     }
     case 'back': {
-      const tab = need()
+      const tab = need(c.session)
       await tab.page.goBack({ waitUntil: 'domcontentloaded' })
       await settle(tab)
       return view(tab)
     }
-    case 'tabs':
-      if (!tabs.size) return 'no live tabs'
-      return (await Promise.all([...tabs.values()].map(async t =>
-        `${t.id === current ? '*' : ' '} ${t.id}  ${t.page.url()}  "${await t.page.title().catch(() => '')}"`))).join('\n')
+    case 'tabs': {
+      const mine = [...tabs.values()].filter(t => t.session === c.session)
+      if (!mine.length) return `no live tabs in session "${c.session}"`
+      return (await Promise.all(mine.map(async t =>
+        `${t.id === current.get(c.session) ? '*' : ' '} ${t.id}  ${t.page.url()}  "${await t.page.title().catch(() => '')}"`))).join('\n')
+    }
     case 'use': {
-      if (!tabs.has(c.id!)) throw new Error(`no tab ${c.id}`)
-      current = c.id!
-      return view(need())
+      current.set(c.session, own(c.session, c.id!).id)
+      return view(need(c.session))
     }
     case 'read':
-      return view(need())
+      return view(need(c.session))
     case 'click': {
-      const tab = need()
+      const tab = need(c.session)
       await (await ensureRef(tab, c.ref)).click({ timeout: 10000 })
       await settle(tab)
       return view(tab)
     }
     case 'type': {
-      const tab = need()
+      const tab = need(c.session)
       const loc = await ensureRef(tab, c.ref)
       await loc.fill(c.text ?? '', { timeout: 10000 })
       if (c.enter) await loc.press('Enter')
@@ -169,20 +188,20 @@ async function run(c: Command): Promise<string> {
       return view(tab)
     }
     case 'pick': {
-      const tab = need()
+      const tab = need(c.session)
       const loc = await ensureRef(tab, c.ref)
       await loc.selectOption({ label: c.text! }, { timeout: 5000 }).catch(() => loc.selectOption(c.text!, { timeout: 5000 }))
       await settle(tab)
       return view(tab)
     }
     case 'press': {
-      const tab = need()
+      const tab = need(c.session)
       await tab.page.keyboard.press(c.key!)
       await settle(tab)
       return view(tab)
     }
     case 'net': {
-      const tab = need()
+      const tab = need(c.session)
       const list = c.all ? tab.net : tab.net.filter(r => (r.kind !== 'document' || r.method !== 'GET') && !NOISE.test(r.url))
       if (!list.length) return 'no requests yet'
       return list.slice(-40).map(r => {
@@ -192,11 +211,10 @@ async function run(c: Command): Promise<string> {
       }).join('\n')
     }
     case 'close': {
-      const id = c.id ?? current
-      const tab = tabs.get(id)
-      if (!tab) throw new Error(`no tab ${id}`)
+      const tab = c.id ? own(c.session, c.id) : need(c.session)
       await tab.page.close()
-      return tabs.size ? `closed tab ${id}; now on tab ${current}` : `closed tab ${id}; no live tabs left`
+      const now = current.get(c.session)
+      return now ? `closed tab ${tab.id}; now on tab ${now}` : `closed tab ${tab.id}; no live tabs left in session "${c.session}"`
     }
     case 'ping':
       return 'ok'
@@ -206,6 +224,11 @@ async function run(c: Command): Promise<string> {
 }
 
 async function main() {
+  // A second daemon would steal the socket and orphan the first one's tabs.
+  if (await ping()) {
+    console.log('another daemon already answers on the socket; exiting')
+    process.exit(0)
+  }
   ctx = await chromium.launchPersistentContext(join(home(), 'profile'), {
     channel: 'chrome',
     headless: true,
@@ -218,8 +241,6 @@ async function main() {
     window.__alMut = 0;
     new MutationObserver(() => { window.__alMut++ }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
   `)
-  const jar = loadJar()
-  if (jar.length) await ctx.addCookies(jar.map(toBrowser)).catch(() => {})
   for (const p of ctx.pages()) await p.close()
 
   let queue = Promise.resolve()
@@ -242,6 +263,8 @@ async function main() {
       // One command at a time: two agents clicking into the same tab at once would race.
       queue = queue.then(async () => {
         try {
+          c.session ||= 'default'
+          await pullCookies()
           const text = await run(c)
           await syncCookies().catch(() => {})
           res.end(JSON.stringify({ ok: true, text }))
@@ -252,7 +275,11 @@ async function main() {
     })
   })
   rmSync(socketPath(), { force: true })
-  server.listen(socketPath(), () => { touch(); console.log(`agent-layer daemon on ${socketPath()}`) })
+  server.listen(socketPath(), () => {
+    chmodSync(socketPath(), 0o600)
+    touch()
+    console.log(`agent-layer daemon on ${socketPath()}`)
+  })
   process.on('SIGTERM', shutdown)
   process.on('SIGINT', shutdown)
 }
