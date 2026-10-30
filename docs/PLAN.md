@@ -104,7 +104,25 @@ records with named columns. 25 tests green; corpus facts all present. `src/` 1,3
    - What the page shows is already records; anything else stays reachable by the agent through `net`.
    - Revisit: schema.org JSON-LD / microdata as named page facts, measured on a detail-page corpus.
 
-## P2 — Actions and settle
+## P2 + P3 + core commands ✅ (31 Oct 2026)
+
+- Actions wait for readiness with named reasons; every answer says why settling stopped.
+- Frames, same-origin and cross-origin, read and acted in.
+- `alert` / `confirm` / `prompt` wait for `dialog accept|dismiss`; input that opens one ends the action.
+- Pop-ups (`window.open`, `target=_blank`, OAuth) open as tabs in the opener's session and become current.
+- Downloads saved and reported; `upload` through file inputs and file choosers.
+- `scroll` (wheel, top, bottom; lazy rows come back as changes), `hover`, `dblclick`, `rightclick`,
+  `wait [--gone]`, `forward`, `reload`, `eval`.
+- Answers: changed lines; a replaced page answers with the shorter of its text and its map.
+- `npm link` installs the `agent-layer` command.
+
+**Result:** 33 tests green; corpus facts all present; live Google Flights task 12,418 chars with the
+right answer. `src/` 1,551 → 1,822 lines.
+
+Still open from the old P2/P3/P6 lists: HAR recording to disk with redaction, tracker list replacing
+the `NOISE` regex, permissions, profiles, Chrome login import (asks first: it reads the keychain).
+
+## P2 — Actions and settle (superseded by the section above)
 
 - Actionability with named failure reasons; trusted input for every pointer and keyboard command in
   DESIGN §6.

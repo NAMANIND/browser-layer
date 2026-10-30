@@ -3,7 +3,7 @@
 Websites as text and verbs for agents. No browser, no CSS, no paint.
 
 ```bash
-npm install && npm run build
+npm install && npm run build && npm link   # installs the agent-layer command
 node dist/cli.js open example.com                 # read a page
 node dist/cli.js open 3                           # follow link [3] from the last page
 node dist/cli.js verbs                            # forms on the last page, as verbs

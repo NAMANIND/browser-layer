@@ -115,8 +115,10 @@ visible facts there (Google Flights' times, airports and prices).
    gets `render.labelChars`.
 7. While a dialog the accessibility tree marks `modal` is open, the view is that dialog (WAI-ARIA:
    content outside a modal is not available).
-8. Frames, same-origin and cross-origin, are read through their own engine targets and attached under
-   their `iframe` node (P3).
+8. Frames: same-process frames come in the same DOM snapshot as more documents, each with its own
+   accessibility tree; a cross-origin frame in its own process is read through its own engine session.
+   Both are grafted under their `iframe`. Refs carry their frame; pointer input lands at the frame's
+   offset in the page.
 9. Canvas apps: text drawn with `CanvasRenderingContext2D.fillText` is recorded by a document-start
    hook and attached to the canvas node with positions (P4).
 
@@ -142,10 +144,11 @@ root are covered by the first three sources; the fourth reports only that the pa
 ### 4.4 Answers carry only what changed
 
 The agent already holds the page, so an action answers with the lines that changed since the last view
-of the same context (the page, or a modal dialog by name): `- old line` / `+ new line`. A new document
-(`Page.frameNavigated` on the main frame), or a change larger than `render.deltaShare` of the page,
-gets the full view. pushState and hash changes are the same document: refs and the view stay valid.
-`read` always returns the full page.
+of the same context (the page, or a modal dialog by name): `- old line` / `+ new line`, plus why settling
+stopped. When the changed lines are longer than the page itself, the page was replaced: the answer is
+the shorter of its whole text (a small page) and its map (a large one). A new document
+(`Page.frameNavigated` on the main frame) gets the map. pushState and hash changes are the same
+document: refs and the view stay valid. A dialog, a pop-up and finished downloads are reported first.
 
 ### 4.5 Records
 
@@ -176,21 +179,21 @@ Known gap: a field styled differently per row (a "good" vs "average" class) spli
 
 ### 5.1 Actionability
 
-Before acting: attached, has a box, stable across two frames, enabled, and it receives the pointer at
-its center (hit test against layout). Failures name the reason: `hidden`, `disabled`, `covered by
-[ref]`, `detached`. Implemented through the engine adapter (Playwright's actionability model).
+Before pointer input, the target is waited for (up to `actions.timeoutMs`) until it has a box, is
+enabled, has stopped moving, and is the element at its own center (hit test against layout, through
+shadow roots and frames). Failure names the last reason: `it has no box on the page`, `it is disabled`,
+`it is still moving`, `covered by <div> "Cookie wall"`.
 
 ### 5.2 Input
 
-Trusted input through the engine (CDP `Input.*`). Hit testing uses layout, not pixels, so it works with
-painting off.
+Trusted input through the engine (CDP `Input.*`); hit testing uses layout, not pixels. `type` replaces
+a field's content as typing over a selection does. Input that opens `alert`/`confirm`/`prompt` ends the
+action; the dialog waits for `dialog accept [text]` or `dialog dismiss`.
 
 ### 5.3 Settle contract
 
-An action is settled when no navigation is in flight, no document/fetch/XHR request is in flight
-(long-lived WebSocket, EventSource and streamed responses excluded, as classified by the engine), and
-the DOM has been quiet for the policy window — or the policy deadline passes. The result states which
-(`idle`, `deadline`, `navigation`) and how long it took.
+Settled when no request is in flight and the DOM has been quiet for `settle.quietMs`, when a dialog is
+waiting, or at `settle.deadlineMs`. Every answer says which (`idle in 412 ms`, `deadline 5000 ms`).
 
 ## 6. Browser coverage
 
@@ -238,6 +241,8 @@ Keys are added when the phase that uses them lands.
 | `render.nameChars` | 120 | Cap for names that are on screen, and link paths |
 | `render.labelChars` | 40 | Cap for labels only assistive tech hears |
 | `render.mapFew` | 8 | In the map, controls are named up to this many per kind, counted above |
+| `actions.timeoutMs` | 5000 | Wait for a control to be ready before pointer input |
+| `wait.timeoutMs` | 15000 | How long `wait` looks for its text |
 | `data.rows` | 20 | Records `get` returns when no `--limit` is given |
 | `data.minRepeats` | 3 | Siblings sharing a signature before they count as records |
 | `data.minParts` | 2 | Block-level parts each of those siblings needs |
