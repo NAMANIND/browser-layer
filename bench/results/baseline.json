@@ -1,0 +1,57 @@
+[
+  {
+    "page": "hacker-news",
+    "readMsP50": 6,
+    "readMsMax": 21,
+    "lines": 65,
+    "chars": 8800,
+    "refs": 228,
+    "facts": {
+      "story lines with points": 29
+    }
+  },
+  {
+    "page": "github-repo",
+    "readMsP50": 8,
+    "readMsMax": 30,
+    "lines": 212,
+    "chars": 16987,
+    "refs": 258,
+    "facts": {
+      "file and folder rows": 25
+    }
+  },
+  {
+    "page": "google-flights",
+    "readMsP50": 14,
+    "readMsMax": 26,
+    "lines": 224,
+    "chars": 20617,
+    "refs": 233,
+    "facts": {
+      "flight rows with times, airports and price": 60
+    }
+  },
+  {
+    "page": "amazon-search",
+    "readMsP50": 19,
+    "readMsMax": 34,
+    "lines": 416,
+    "chars": 22056,
+    "refs": 381,
+    "facts": {
+      "product rows with price and M.R.P": 16
+    }
+  },
+  {
+    "page": "react-todomvc",
+    "readMsP50": 2,
+    "readMsMax": 8,
+    "lines": 20,
+    "chars": 958,
+    "refs": 12,
+    "facts": {
+      "new todo input": 1
+    }
+  }
+]

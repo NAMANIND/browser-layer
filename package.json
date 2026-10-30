@@ -9,7 +9,9 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/cli.ts",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "measure": "tsc && node bench/measure.mjs",
+    "record": "node bench/record-corpus.mjs"
   },
   "engines": {
     "node": ">=20"

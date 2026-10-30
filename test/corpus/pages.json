@@ -1,0 +1,12 @@
+[
+  { "name": "hacker-news", "url": "https://news.ycombinator.com/",
+    "facts": [{ "label": "story lines with points", "pattern": "\\d+ points by", "min": 29 }] },
+  { "name": "github-repo", "url": "https://github.com/microsoft/playwright",
+    "facts": [{ "label": "file and folder rows", "pattern": "\\((File|Directory)\\)", "min": 25 }] },
+  { "name": "google-flights", "url": "https://www.google.com/travel/flights/search?tfs=CBwQAhoeEgoyMDI2LTExLTIwagcIARIDQk9NcgcIARIDREVMQAFIAXABggELCP___________wGYAQI&hl=en",
+    "facts": [{ "label": "flight rows with times, airports and price", "pattern": "\\d{1,2}:\\d\\d [AP]M – \\d{1,2}:\\d\\d [AP]M.*BOM – DEL.*₹[\\d,]+", "min": 60 }] },
+  { "name": "amazon-search", "url": "https://www.amazon.in/s?k=laptop",
+    "facts": [{ "label": "product rows with price and M.R.P", "pattern": "₹[\\d,]+.*M\\.R\\.P", "min": 16 }] },
+  { "name": "react-todomvc", "url": "https://todomvc.com/examples/react/dist/",
+    "facts": [{ "label": "new todo input", "pattern": "textbox.*New Todo Input", "min": 1 }] }
+]
