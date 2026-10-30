@@ -25,14 +25,18 @@ Heuristics still in the code, and the phase that removes each:
 | `page.ts` form reader, node-html-parser | P5 | parse5 + HTML form submission algorithm |
 | `cookies.json` | P5 | `http` engine uses the browser profile's cookies |
 
-## P0 — Foundations
+## P0 — Foundations ✅ (31 Oct 2026)
 
-- `src/policy/`: defaults file + loader + a test per key.
-- Corpus: save HN, Google Flights results, GitHub repo, Amazon search, TodoMVC, and the local fixtures
-  as MHTML + HAR under `test/corpus/`; a server that replays them offline.
-- `npm run measure`: read time, lines, chars, controls per corpus page → `bench/results/baseline.json`.
+- `src/policy.ts`: every behavior tunable, overridable from `<home>/policy.json`; wrong keys or values
+  are errors. Daemon numbers now come from it.
+- Corpus: HN, Google Flights results, GitHub repo, Amazon search, TodoMVC recorded as HAR under
+  `test/corpus/` (`npm run record`), cookies and auth headers removed, replayed fully offline.
+  `Math.random` is seeded on record and replay so pages rebuild the same request ids.
+- `npm run measure`: reader time, lines, chars, refs, and per-page facts from `pages.json`; exits 1
+  when a fact is missing. Baseline in `bench/results/baseline.json`.
 
-**Exit:** baseline committed; current tests green; corpus pages load offline.
+**Done:** 16 tests green; every corpus page replays offline with all its facts. `src/` 1,059 → 1,095
+lines (policy loader +35).
 
 ## P1 — Reader on the accessibility tree
 

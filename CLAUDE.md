@@ -10,12 +10,13 @@ Read `docs/DESIGN.md` and `docs/PLAN.md` first. Work only on the current phase.
    only rename something. No dead code, no commented-out code.
 3. **Delete before adding.** When a phase replaces something, the old code is removed in the same change.
 4. **Standards, not site cases.** No code that exists because one site behaved a certain way. Rules come
-   from a spec or from `src/policy/` (DESIGN §1, §9). No magic numbers outside policy.
+   from a spec or from `src/policy.ts` (DESIGN §1, §9). Behavior tunables live in policy; platform facts
+   (a socket path limit, a poll interval) are named constants with the reason beside them.
 5. **Use the platform.** If the browser, Node or an existing dependency already does it, use that.
    New dependencies need a reason in the commit message.
 6. **Comments explain why, never what.** Only where the reason is not obvious from the code.
 7. **Test first, measure always.** A behavior change starts with a failing test. Changes to reading or
-   loading report before/after numbers from `bench/` or `npm run measure`.
+   loading report before/after numbers from `npm run measure` (offline corpus, must exit 0).
 8. **Small commits**, each green, each with a message that says what changed and why.
    No Claude attribution in commits or PRs.
 

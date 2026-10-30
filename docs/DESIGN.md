@@ -156,19 +156,27 @@ When many tabs run at once, the 70–220 ms of paint per load becomes a real cos
 raster and compositing removed after layout. It replaces the `chromium` engine behind the same
 adapter; nothing above changes. Decision point: measured CPU per tab at the parallelism we need.
 
-## 9. Policy (one file, documented, tested)
+## 9. Policy (`src/policy.ts`, documented, tested)
+
+Keys are added when the phase that uses them lands.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `load.block` | image, font, media | Resource types never requested |
 | `load.motion` | off | Animations and transitions disabled |
-| `settle.quietMs` | 300 | DOM quiet window |
-| `settle.deadlineMs` | 8000 | Max wait after an action |
+| `settle.quietMs` | 400 | DOM quiet window |
+| `settle.deadlineMs` | 5000 | Max wait after an action |
 | `render.pageChars` | 15000 | Text page size |
+| `render.maxChars` | 400000 | Ceiling on one snapshot |
 | `render.nameChars` | 120 | Name cap in text only; JSON is never cut |
 | `network.hide` | tracker list (data file) | Hidden from `net` unless `--all` |
 | `permissions` | deny all | Per-origin grants |
 | `sessions.max` | 8 | Parallel sessions |
+| `load.timeoutMs` | 30000 | Navigation timeout |
+| `actions.timeoutMs` | 10000 | Wait for a control to become actionable |
+| `viewport.width` / `.height` | 1280 / 900 | Layout size; decides responsive variants |
+| `network.keep` | 300 | Requests kept per tab |
+| `daemon.idleMs` | 1800000 | Idle shutdown |
 
 ## 10. Runtime and storage
 
@@ -181,7 +189,7 @@ adapter; nothing above changes. Decision point: measured CPU per tab at the para
 ## 11. Quality
 
 - Spec conformance tests: accessible names, HTML form submission, ARIA reveal patterns.
-- Recorded corpus (MHTML + HAR of real pages) served offline, so the suite is deterministic.
+- Recorded corpus (HAR of real pages, seeded `Math.random`) replayed offline, so measurements are deterministic.
 - Live checks against real sites on demand (`npm run live`), never blocking the build.
 - Budgets per commit: read p95 under 150 ms on the corpus; no regression in `bench/` numbers.
 - A behavior change lands with a failing test first and before/after numbers.
