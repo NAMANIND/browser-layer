@@ -27,9 +27,10 @@ export type Node = {
   children?: Node[]
 }
 
-// Refs are small numbers the agent types. Each maps to the browser's own node id; numbers are never
-// reused within a tab, so a ref from an old page can only miss, never hit the wrong element.
-export type Refs = { byNode: Map<number, number>; byRef: Map<number, number>; next: number }
+// Refs are small numbers the agent types. Each maps to the browser's own node id within a frame scope
+// ('' for the page and its same-process frames, the frame id for a frame with its own engine session).
+// Numbers are never reused within a tab, so a ref from an old page can only miss, never hit the wrong element.
+export type Refs = { byNode: Map<string, number>; byRef: Map<number, { scope: string; id: number }>; next: number }
 export const newRefs = (): Refs => ({ byNode: new Map(), byRef: new Map(), next: 1 })
 
 // ARIA widget roles: the things a user operates. Everything else is content.
@@ -73,28 +74,57 @@ function statesOf(ax: AXNode): { states: string[]; url?: string; level?: number 
 }
 
 export type Limits = { minRepeats: number; minParts: number }
+// The engine session for a frame that runs in its own process (a cross-origin iframe), given its id and
+// the iframe element that owns it; undefined when the frame cannot be reached.
+export type FrameSession = (frameId: string, owner: { scope: string; id: number }) => Promise<{ cdp: CDPSession; scope: string } | undefined>
 
-export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits): Promise<Node> {
+type Snapshot = Awaited<ReturnType<CDPSession['send']>> & { documents: any[]; strings: string[] }
+
+export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, frameSession?: FrameSession, scope = ''): Promise<Node> {
   const [{ nodes: ax }, snap] = await Promise.all([
     cdp.send('Accessibility.getFullAXTree') as Promise<{ nodes: AXNode[] }>,
-    cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: ['display', 'visibility', 'opacity'] }),
+    cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: ['display', 'visibility', 'opacity'] }) as Promise<Snapshot>,
   ])
-  const axOf = new Map(ax.filter(n => n.backendDOMNodeId).map(n => [n.backendDOMNodeId!, n]))
   const str = (i: number | undefined) => (i === undefined || i < 0 ? '' : snap.strings[i])
-  const doc = snap.documents[0]
-  const { parentIndex = [], nodeType = [], nodeName = [], nodeValue = [], backendNodeId = [], attributes = [] } = doc.nodes
-  const attr = (i: number, name: string) => {
-    const a = attributes[i] ?? []
-    for (let k = 0; k < a.length; k += 2) if (str(a[k]) === name) return str(a[k + 1])
-    return undefined
+  // Same-process frames come in the same snapshot as more documents, each with its own accessibility tree.
+  const frameAx = await Promise.all(snap.documents.slice(1).map(d =>
+    (cdp.send('Accessibility.getFullAXTree', { frameId: str(d.frameId) }) as Promise<{ nodes: AXNode[] }>).then(r => r.nodes, () => [])))
+  const axOf = new Map([ax, ...frameAx].flat().filter(n => n.backendDOMNodeId).map(n => [n.backendDOMNodeId!, n]))
+
+  const docs = snap.documents.map(doc => {
+    const { parentIndex = [], nodeType = [], nodeName = [], nodeValue = [], backendNodeId = [], attributes = [] } = doc.nodes as Record<string, any[]>
+    const kids: number[][] = nodeType.map(() => [])
+    parentIndex.forEach((p: number, i: number) => { if (p >= 0) kids[p].push(i) })
+    const rare = doc.nodes.contentDocumentIndex ?? { index: [], value: [] }
+    return {
+      doc, nodeType, nodeName, nodeValue, backendNodeId, kids,
+      layoutOf: new Map<number, number>(doc.layout.nodeIndex.map((n: number, l: number) => [n, l])),
+      contentDoc: new Map<number, number>(rare.index.map((n: number, k: number) => [n, rare.value[k]])),
+      attr: (i: number, name: string) => {
+        const a = attributes[i] ?? []
+        for (let k = 0; k < a.length; k += 2) if (str(a[k]) === name) return str(a[k + 1])
+        return undefined
+      },
+    }
+  })
+  type Doc = (typeof docs)[number]
+
+  // Frames in their own process (cross-origin iframes): read through their own session, grafted in later.
+  const remote = new Map<number, Node[]>()
+  if (frameSession) {
+    for (const d of docs) {
+      for (let i = 0; i < d.nodeType.length; i++) {
+        if (!/^(IFRAME|FRAME)$/.test(str(d.nodeName[i])) || d.contentDoc.has(i) || !d.layoutOf.has(i)) continue
+        const { node } = await cdp.send('DOM.describeNode', { backendNodeId: d.backendNodeId[i] }).catch(() => ({ node: undefined as any }))
+        const frame = node?.frameId && await frameSession(node.frameId, { scope, id: d.backendNodeId[i] })
+        if (frame) remote.set(d.backendNodeId[i], (await readTree(frame.cdp, refs, limits, frameSession, frame.scope)).children ?? [])
+      }
+    }
   }
-  const kids: number[][] = nodeType.map(() => [])
-  parentIndex.forEach((p, i) => { if (p >= 0) kids[p].push(i) })
-  const layoutOf = new Map(doc.layout.nodeIndex.map((n, l) => [n, l]))
 
   const refFor = (id: number) => {
-    let ref = refs.byNode.get(id)
-    if (!ref) { ref = refs.next++; refs.byNode.set(id, ref); refs.byRef.set(ref, id) }
+    let ref = refs.byNode.get(`${scope}:${id}`)
+    if (!ref) { ref = refs.next++; refs.byNode.set(`${scope}:${id}`, ref); refs.byRef.set(ref, { scope, id }) }
     return ref
   }
   const hasRef = (nodes: Node[]): boolean => nodes.some(n => n.ref || (n.children && hasRef(n.children)))
@@ -106,11 +136,12 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits): Pro
   // muted: inside aria-hidden (text shows, controls get no ref). unseen: visibility hidden or opacity 0.
   // path: this node's place inside the nearest row, for lining records up. marked: inside a collection
   // the page marked up itself, where its own rows win over detected ones.
-  function walk(i: number, muted: boolean, unseen: boolean, path = '', marked = false): Node[] {
-    const l = layoutOf.get(i)
+  function walk(d: Doc, i: number, muted: boolean, unseen: boolean, path = '', marked = false): Node[] {
+    const { doc, nodeType, nodeName, backendNodeId, kids, attr } = d
+    const l = d.layoutOf.get(i)
     if (nodeType[i] === 3) {
       if (l === undefined || unseen) return []
-      const text = str(doc.layout.text[l]) || str(nodeValue[i])
+      const text = str(doc.layout.text[l]) || str(d.nodeValue[i])
       return text ? [{ text }] : []
     }
     // HTML inert: the subtree cannot be used at all. WAI-ARIA aria-hidden: still on screen, so its
@@ -124,7 +155,12 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits): Pro
     const cls = attr(i, 'class')?.trim()
     // Segments are split by a control character and classes by spaces: neither can occur in a class name.
     const key = ROWS.has(role) ? '' : `${path}${SEGMENT}${str(nodeName[i]).toLowerCase()}${cls ? ` ${cls.split(/\s+/).join(' ')}` : ''}`
-    const perKid = kids[i].map(c => walk(c, quiet, hidden, key, marked || COLLECTIONS.has(role)))
+    const inner = marked || COLLECTIONS.has(role)
+    // An iframe's content is its frame's document: in this snapshot, or read through its own session.
+    const frame = d.contentDoc.get(i)
+    const perKid = frame !== undefined ? [walk(docs[frame], 0, quiet, hidden, key, inner)]
+      : remote.has(backendNodeId[i]) ? [remote.get(backendNodeId[i])!]
+      : kids[i].map(c => walk(d, c, quiet, hidden, key, inner))
     const children = perKid.flat()
     // Generated content (::before, ::after, ::marker) is a pseudo element carrying its own layout text,
     // and a field of its own: a bullet or a rank is not part of the text beside it.
@@ -148,15 +184,15 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits): Pro
     if (COLLECTIONS.has(role)) return [{ ref: refFor(backendNodeId[i]), role, block: true, children }]
     if (ROWS.has(role)) return [{ row: true, block: true, children }]
     if (CELLS.has(role)) return [{ cell: true, header: role === 'columnheader', block: true, key, children }]
-    if (!marked && (!role || role === 'generic' || role === 'none') && block && markRecords(i, perKid)) return [{ ref: refFor(backendNodeId[i]), role: 'list', block: true, key, children }]
+    if (!marked && (!role || role === 'generic' || role === 'none') && block && markRecords(d, i, perKid)) return [{ ref: refFor(backendNodeId[i]), role: 'list', block: true, key, children }]
     return block ? [{ block: true, key, children }] : children
   }
 
   // Data-region detection: at least minRepeats element children share a signature (tag and the classes
-  // more than one of them has) and
-  // each has at least minParts block-level parts. A card has a title, a price, a rating; a run of
-  // paragraphs repeats but has no parts, so it is not records. The largest such group is marked.
-  function markRecords(i: number, perKid: Node[][]): boolean {
+  // more than one of them has) and each has at least minParts block-level parts. A card has a title, a
+  // price, a rating; a run of paragraphs repeats but has no parts, so it is not records. The largest
+  // such group is marked.
+  function markRecords(d: Doc, i: number, perKid: Node[][]): boolean {
     // Block-level parts of a node, looking through wrappers: a box whose only content is one box is that box.
     const parts = (n: Node, need: number): number => {
       const boxes: Node[] = []
@@ -165,14 +201,14 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits): Pro
       return boxes.length === 1 && !boxes[0].ref ? parts(boxes[0], need) : Math.min(boxes.length, need)
     }
     // A class only one sibling has (item-3) is that sibling's identity, not its template.
-    const classes = (c: number) => (attr(c, 'class') ?? '').split(/\s+/).filter(Boolean)
+    const classes = (c: number) => (d.attr(c, 'class') ?? '').split(/\s+/).filter(Boolean)
     const siblingsWith = new Map<string, number>()
-    for (const c of kids[i]) for (const t of new Set(classes(c))) siblingsWith.set(t, (siblingsWith.get(t) ?? 0) + 1)
+    for (const c of d.kids[i]) for (const t of new Set(classes(c))) siblingsWith.set(t, (siblingsWith.get(t) ?? 0) + 1)
     const groups = new Map<string, Node[]>()
-    kids[i].forEach((c, k) => {
-      const [only, ...rest] = perKid[k]
-      if (nodeType[c] !== 1 || rest.length || !only?.block || parts(only, limits.minParts) < limits.minParts) return
-      const sig = [str(nodeName[c]), ...classes(c).filter(t => (siblingsWith.get(t) ?? 0) > 1)].join(' ')
+    d.kids[i].forEach((c, k) => {
+      const [only, ...rest] = perKid[k] ?? []
+      if (d.nodeType[c] !== 1 || rest.length || !only?.block || parts(only, limits.minParts) < limits.minParts) return
+      const sig = [str(d.nodeName[c]), ...classes(c).filter(t => (siblingsWith.get(t) ?? 0) > 1)].join(' ')
       groups.set(sig, [...(groups.get(sig) ?? []), only])
     })
     const best = [...groups.values()].sort((a, b) => b.length - a.length)[0]
@@ -183,7 +219,7 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits): Pro
 
   // WAI-ARIA: while a modal dialog is open, content outside it is not available. The view is the dialog.
   const modal = ax.find(n => !n.ignored && n.backendDOMNodeId && n.properties?.some(p => p.name === 'modal' && p.value.value === true))
-  const at = modal ? backendNodeId.indexOf(modal.backendDOMNodeId!) : -1
-  if (at >= 0) return { block: true, children: [{ ref: refFor(modal!.backendDOMNodeId!), role: 'dialog', name: squash(String(modal!.name?.value ?? '')), block: true, children: walk(at, false, false) }] }
-  return { block: true, children: walk(0, false, false) }
+  const at = modal ? docs[0].backendNodeId.indexOf(modal.backendDOMNodeId!) : -1
+  if (at >= 0) return { block: true, children: [{ ref: refFor(modal!.backendDOMNodeId!), role: 'dialog', name: squash(String(modal!.name?.value ?? '')), block: true, children: walk(docs[0], at, false, false) }] }
+  return { block: true, children: walk(docs[0], 0, false, false) }
 }

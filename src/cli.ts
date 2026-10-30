@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolve } from 'node:path'
 import { readPage, type Page, type Verb } from './page.js'
 import { lastPage, request, saveLastPage, type Response } from './session.js'
 import { pageView, verbView } from './view.js'
@@ -24,14 +25,22 @@ Live tabs (headless Chrome kept alive in the background; runs the page's JS):
   agent-layer click <ref>             click control [ref]
   agent-layer type <ref> <text>       fill [ref]; add --enter to press Enter after
   agent-layer pick <ref> <option>     choose an option in a select
-  agent-layer press <key>             press a key (Enter, Escape, Tab, ArrowDown…)
+  agent-layer press <key>             press a key or combo (Enter, Escape, Control+A, Shift+Tab…)
+  agent-layer dblclick | rightclick | hover <ref>
+  agent-layer scroll [ref] [down|up|top|bottom]   wheel or jump; new rows come back as changes
+  agent-layer upload <ref> <file...>  a file input, or a button that opens a file chooser
+  agent-layer wait [--gone] <text>    until the text appears (or is gone)
+  agent-layer dialog accept [text] | dialog dismiss   answer an alert / confirm / prompt
+  agent-layer forward | reload
+  agent-layer eval <js>               run JavaScript in the page; prints the result as JSON
+  Pop-ups open as tabs in the same session and become current; downloads are saved and reported.
   agent-layer net [--all]             requests the page made (the API under the UI)
   agent-layer tabs | use <id> | close [id] | stop
 
 Sessions: --session <name> (or AGENT_LAYER_SESSION) gives each agent its own
 last page and live tabs. Default is "default". Cookies are shared.`
 
-const LIVE = new Set(['tab', 'go', 'back', 'tabs', 'use', 'map', 'read', 'get', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
+const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
 
 function fail(msg: string): never {
   console.error(msg)
@@ -109,14 +118,19 @@ async function main() {
   const cols = take('--cols')?.split(',').map(c => c.trim())
   session = take('--session') ?? session
   const json = argv.includes('--json')
-  const flags = new Set(['--json', '--enter', '--all', '--desc'])
+  const flags = new Set(['--json', '--enter', '--all', '--desc', '--gone'])
   const [cmd, target, ...rest] = argv.filter(a => !flags.has(a))
 
   if (LIVE.has(cmd)) {
-    const c: Command = { cmd, session, page, limit, sort, cols, desc: argv.includes('--desc'), enter: argv.includes('--enter'), all: argv.includes('--all') }
+    const c: Command = { cmd, session, page, limit, sort, cols, desc: argv.includes('--desc'), gone: argv.includes('--gone'), enter: argv.includes('--enter'), all: argv.includes('--all') }
     if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: agent-layer ${cmd} <url>`)
     if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)
-    if (cmd === 'click' || cmd === 'type' || cmd === 'pick') c.ref = target ?? fail(`usage: agent-layer ${cmd} <ref>`)
+    if (['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload'].includes(cmd)) c.ref = target ?? fail(`usage: agent-layer ${cmd} <ref>`)
+    // The daemon runs elsewhere, so files are resolved against the agent's working directory here.
+    if (cmd === 'upload') c.files = rest.map(f => resolve(f))
+    if (cmd === 'scroll') [c.ref, c.dir] = target && /^\d+$/.test(target) ? [target, rest[0]] : [undefined, target]
+    if (cmd === 'dialog') [c.dir, c.text] = [target, rest.length ? rest.join(' ') : undefined]
+    if (cmd === 'wait' || cmd === 'eval') c.text = [target, ...rest].filter(Boolean).join(' ')
     if (cmd === 'read' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: agent-layer read [ref] [--page N]')
     if (cmd === 'get') c.ref = target && /^\d+$/.test(target) ? target : fail('usage: agent-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b]')
     if (cmd === 'type' || cmd === 'pick') c.text = rest.join(' ')

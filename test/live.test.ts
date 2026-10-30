@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
@@ -79,6 +79,29 @@ const server = createServer((req, res) => {
       <div class="grid">${items.map(([n, p], i) => `<div class="card item-${i}"><div class="inner"><h3 class="title">${n}</h3><div class="price">${p}</div></div></div>`).join('')}</div>
       <div class="article">${Array.from({ length: 5 }, (_, i) => `<p class="para">Paragraph ${i} of plain text.</p>`).join('')}</div></main>`)
   }
+  const page = (title: string, body: string) => { res.setHeader('content-type', 'text/html'); res.end(`<meta charset="utf-8"><title>${title}</title>${body}`) }
+  const port = req.headers.host!.split(':')[1]
+  if (req.url === '/frames') return page('frames', `<p>outer</p><iframe src="/inner-same"></iframe><iframe src="http://localhost:${port}/inner-cross"></iframe>`)
+  if (req.url === '/inner-same') return page('same', `<button onclick="this.textContent='same clicked'">Same button</button>`)
+  if (req.url === '/inner-cross') return page('cross', `<input aria-label="Card number"><button onclick="document.querySelector('p').textContent = 'paid ' + document.querySelector('input').value">Pay</button><p>unpaid</p>`)
+  if (req.url === '/dialogs') return page('dialogs', `<p id="r">nothing yet</p>
+    <button onclick="r.textContent = confirm('Delete it?') ? 'deleted' : 'kept'">Delete</button>
+    <button onclick="r.textContent = 'hello ' + prompt('Your name?', 'x')">Name</button>`)
+  if (req.url === '/popup') return page('popup', `<a href="/page/popped" target="_blank">open help</a>`)
+  if (req.url === '/download') return page('download', `<a href="/file.txt">get file</a>`)
+  if (req.url === '/file.txt') { res.setHeader('content-disposition', 'attachment; filename="file.txt"'); return res.end('hello file') }
+  if (req.url === '/upload') return page('upload', `<input type="file" id="f" aria-label="Resume"><p id="o">no resume</p>
+    <button onclick="g.click()">Attach</button><input type="file" id="g" style="display:none"><p id="o2">no attachment</p>
+    <script>f.onchange = () => o.textContent = 'resume ' + f.files[0].name; g.onchange = () => o2.textContent = 'attached ' + g.files[0].name</script>`)
+  if (req.url === '/scroll') return page('scroll', `${Array.from({ length: 20 }, (_, i) => `<p style="height:60px">row ${i}</p>`).join('')}<div id="end">end</div>
+    <script>let n = 20; new IntersectionObserver(es => { if (!es[0].isIntersecting) return; for (let k = 0; k < 5; k++) { const p = document.createElement('p'); p.style.height = '60px'; p.textContent = 'row ' + n++; end.before(p) } }).observe(end)</script>`)
+  if (req.url === '/hover') return page('hover', `<button onmouseenter="s.hidden = false">Products</button><ul id="s" hidden><li><a href="/x">Laptops</a></li></ul>`)
+  if (req.url === '/ready') return page('ready', `<button id="b" disabled onclick="o.textContent = 'go clicked'">Go</button><p id="o">waiting</p>
+    <button onclick="o.textContent = 'never'">Under the wall</button><div style="position:fixed;left:0;right:0;bottom:0;height:300px;background:#fff" aria-label="Cookie wall">wall</div>
+    <script>setTimeout(() => b.disabled = false, 800); document.querySelector('[aria-label="Cookie wall"]').style.top = document.querySelectorAll('button')[1].getBoundingClientRect().top - 5 + 'px'</script>`)
+  if (req.url === '/busy') return page('busy', `<button onclick="o.textContent = 'pressed'">Press</button><p id="o">idle</p><p id="t">0</p><script>setInterval(() => t.textContent = Date.now(), 50)</script>`)
+  if (req.url === '/later') return page('later', `<p>loading</p><script>setTimeout(() => document.body.insertAdjacentHTML('beforeend', '<p>ready now</p>'), 700)</script>`)
+  if (req.url === '/mouse') return page('mouse', `<button ondblclick="o.textContent = 'double'" oncontextmenu="event.preventDefault(); o.textContent = 'context menu'">Target</button><p id="o">none</p>`)
   if (req.url === '/watch') {
     // Counts every DOM change that is not its own counter update.
     res.setHeader('content-type', 'text/html')
@@ -127,6 +150,10 @@ const server = createServer((req, res) => {
 })
 
 const home = mkdtempSync(join(tmpdir(), 'al-'))
+// Short waits so the failure paths (covered, never quiet) are tested in seconds, not the defaults.
+writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'actions.timeoutMs': 1500, 'settle.deadlineMs': 2000, 'wait.timeoutMs': 3000 }))
+const upload = join(home, 'upload-test.txt')
+writeFileSync(upload, 'resume')
 // Deep enough that home/daemon.sock passes the ~104-byte Unix socket path limit.
 const deepHome = join(home, 'deep', 'd'.repeat(110))
 
@@ -289,7 +316,7 @@ test('actions answer with what changed; a new page answers with its map', async 
   const full = await openRead(`${base}/delta`)
   assert.match(full.out, /story 5/)
   const more = await run('click', ref(full.out, /button "More"/))
-  assert.match(more.out, /lines gone, \d+ new \(full page: agent-layer read\)/)
+  assert.match(more.out, /lines gone, \d+ new, settled: idle in \d+ ms \(full page: agent-layer read\)/)
   assert.match(more.out, /^\+ loaded more$/m)
   assert.doesNotMatch(more.out, /story 5/)
   assert.match((await run('read')).out, /story 5[\s\S]*loaded more/)
@@ -335,6 +362,79 @@ test('a home dir deeper than the socket path limit still starts the daemon', asy
   const r = await runIn(deepHome, 'read')
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /page deep/)
+})
+
+test('reads and acts inside same-origin and cross-origin iframes', async () => {
+  await run('tab', `${base}/frames`)
+  const all = await run('read')
+  assert.match(all.out, /button "Same button"/)
+  assert.match(all.out, /textbox "Card number"/)
+  await run('type', ref(all.out, /textbox "Card number"/), '4242')
+  const paid = await run('click', ref(all.out, /button "Pay"/))
+  assert.match(paid.out, /paid 4242/)
+  const same = await run('click', ref(all.out, /button "Same button"/))
+  assert.match(same.out, /button "same clicked"/)
+})
+
+test('actions wait for a control to be ready, and say what blocks one', async () => {
+  const page = await openRead(`${base}/ready`)
+  const go = await run('click', ref(page.out, /button "Go"/))
+  assert.match(go.out, /go clicked/)
+  const wall = await run('click', ref(page.out, /button "Under the wall"/))
+  assert.equal(wall.code, 1)
+  assert.match(wall.out, /cannot act on \[\d+\]: covered by <div> "Cookie wall"/)
+})
+
+test('settle says why it stopped: idle, or the deadline on a page that never goes quiet', async () => {
+  const page = await openRead(`${base}/busy`)
+  const r = await run('click', ref(page.out, /button "Press"/))
+  assert.match(r.out, /settled: deadline 2000 ms/)
+  const quiet = await openRead(`${base}/mouse`)
+  assert.match((await run('dblclick', ref(quiet.out, /button "Target"/))).out, /settled: idle in \d+ ms[\s\S]*double/)
+  assert.match((await run('rightclick', ref(quiet.out, /button "Target"/))).out, /context menu/)
+})
+
+test('confirm and prompt wait for the agent, then the page continues', async () => {
+  const page = await openRead(`${base}/dialogs`)
+  const asked = await run('click', ref(page.out, /button "Delete"/))
+  assert.match(asked.out, /a confirm dialog is open: "Delete it\?"/)
+  assert.match((await run('dialog', 'accept')).out, /^deleted$/m)
+  await run('click', ref(page.out, /button "Name"/))
+  assert.match((await run('dialog', 'accept', 'Naman')).out, /hello Naman/)
+  assert.match((await run('dialog', 'dismiss')).out, /no dialog is open/)
+})
+
+test('a pop-up opens as a tab in the same session and becomes current', async () => {
+  const page = await openRead(`${base}/popup`)
+  const r = await run('click', ref(page.out, /link "open help"/))
+  assert.match(r.out, /opened tab \d+ \(a pop-up of tab \d+\); it is now current/)
+  assert.match(r.out, /\/page\/popped/)
+  assert.match((await run('read')).out, /page popped/)
+})
+
+test('downloads are saved and reported; uploads go through inputs and file choosers', async () => {
+  const dl = await run('click', ref((await openRead(`${base}/download`)).out, /link "get file"/))
+  const saved = dl.out.match(/downloaded (\S+) \(10 bytes\)/)
+  assert.ok(saved, dl.out)
+  assert.equal(readFileSync(saved[1], 'utf8'), 'hello file')
+  const page = await openRead(`${base}/upload`)
+  assert.equal((await run('upload', ref(page.out, /button "Resume"/), upload)).code, 0)
+  assert.equal((await run('upload', ref(page.out, /button "Attach"/), upload)).code, 0)
+  assert.match((await run('read')).out, /resume upload-test\.txt[\s\S]*attached upload-test\.txt/)
+})
+
+test('scroll brings in lazily loaded rows; hover reveals a menu; wait and eval', async () => {
+  await run('tab', `${base}/scroll`)
+  assert.match((await run('scroll', 'bottom')).out, /^\+ row 2[0-4]$/m)
+  const menu = await openRead(`${base}/hover`)
+  assert.match((await run('hover', ref(menu.out, /button "Products"/))).out, /link "Laptops"/)
+  await run('tab', `${base}/later`)
+  assert.match((await run('wait', 'ready now')).out, /ready now|no visible change/)
+  assert.match((await run('eval', 'document.title')).out, /^"later"$/m)
+  await run('go', `${base}/page/a`)
+  await run('go', `${base}/page/b`)
+  assert.match((await run('back')).out, /\/page\/a/)
+  assert.match((await run('forward')).out, /\/page\/b/)
 })
 
 test('stale refs and missing tabs fail with a clear message', async () => {
