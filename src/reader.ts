@@ -7,6 +7,9 @@ export type Node = {
   name?: string
   // Everything the name says is on screen; otherwise it is a label only assistive tech hears.
   nameShown?: boolean
+  // What the control opens that is not on screen yet: items of the element it controls (aria-controls,
+  // aria-owns, popovertarget) or the content of a closed <details>, known before it is triggered.
+  reveals?: string[]
   value?: string
   states?: string[]
   url?: string
@@ -54,6 +57,26 @@ export const isHeaderRow = (row: Node) => { const cells = cellsOf(row); return c
 // CSS outer display types that stay in the line; every other display value starts a new block.
 const INLINE_DISPLAY = /^(inline|contents|ruby)/
 const BOOLEAN_STATES = ['focused', 'disabled', 'selected', 'required', 'readonly', 'busy', 'modal']
+// Inside a hidden popup, the parts that are its items.
+const ITEM_TAGS = new Set(['A', 'BUTTON', 'OPTION'])
+const ITEM_ROLES = new Set(['menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'tab', 'link', 'button', 'treeitem'])
+const HOVER_ATTRS = ['onmouseenter', 'onmouseover', 'onpointerenter', 'onpointerover']
+
+// Elements a page-side hook collected (see daemon.ts), as backend node ids, each with a value the hook
+// computes for it. The hook runs before the page's own scripts in every document.
+async function hooked(cdp: CDPSession, list: string, value: string, cap: number): Promise<Map<number, unknown>> {
+  const out = new Map<number, unknown>()
+  const { result } = await cdp.send('Runtime.evaluate', { expression: `(${list})`, returnByValue: false }).catch(() => ({ result: undefined as any }))
+  if (!result?.objectId) return out
+  const { result: props } = await cdp.send('Runtime.getProperties', { objectId: result.objectId, ownProperties: true })
+  await Promise.all(props.filter(p => /^\d+$/.test(p.name) && p.value?.objectId).slice(0, cap).map(async p => {
+    const { node } = await cdp.send('DOM.describeNode', { objectId: p.value!.objectId! }).catch(() => ({ node: undefined as any }))
+    if (!node) return
+    const r = await cdp.send('Runtime.callFunctionOn', { objectId: p.value!.objectId!, functionDeclaration: value, returnByValue: true }).catch(() => undefined)
+    out.set(node.backendNodeId, r?.result.value)
+  }))
+  return out
+}
 
 type AXNode = { ignored: boolean; role?: { value?: unknown }; name?: { value?: unknown }; value?: { value?: unknown }; properties?: { name: string; value: { value?: unknown } }[]; backendDOMNodeId?: number }
 
@@ -73,7 +96,7 @@ function statesOf(ax: AXNode): { states: string[]; url?: string; level?: number 
   return { states, url, level }
 }
 
-export type Limits = { minRepeats: number; minParts: number }
+export type Limits = { minRepeats: number; minParts: number; revealItems: number }
 // The engine session for a frame that runs in its own process (a cross-origin iframe), given its id and
 // the iframe element that owns it; undefined when the frame cannot be reached.
 export type FrameSession = (frameId: string, owner: { scope: string; id: number }) => Promise<{ cdp: CDPSession; scope: string } | undefined>
@@ -108,6 +131,42 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     }
   })
   type Doc = (typeof docs)[number]
+  const byId = docs.map(d => {
+    const m = new Map<string, number>()
+    for (let i = 0; i < d.nodeType.length; i++) { const id = d.attr(i, 'id'); if (id) m.set(id, i) }
+    return m
+  })
+  // Text of a subtree whether rendered or not: hidden popups have no layout to read text from.
+  const domText = (d: Doc, i: number): string => (d.nodeType[i] === 3 ? str(d.nodeValue[i]) : d.kids[i].map(c => domText(d, c)).join(' '))
+  // Page-side hooks: elements listening for hover, and text drawn on canvases (lines, top to bottom).
+  const [hovered, drawn] = await Promise.all([
+    hooked(cdp, 'window.__alHover ? [...window.__alHover].filter(e => e.isConnected) : []', 'function () { return true }', 300),
+    hooked(cdp, 'window.__alCanvases ? window.__alCanvases() : []', 'function () { return window.__alCanvasLines(this) }', 50),
+  ])
+
+  // What a control reveals that is not on screen: the items of a hidden element it controls, or the
+  // content of the closed <details> its <summary> opens.
+  function revealsOf(d: Doc, i: number, k: number): string[] | undefined {
+    const di = docs.indexOf(d)
+    const targets = ['aria-controls', 'aria-owns', 'popovertarget'].flatMap(a => (d.attr(i, a) ?? '').split(/\s+/)).map(id => byId[di].get(id)).filter((t): t is number => t !== undefined)
+    const parent = d.doc.nodes.parentIndex[i]
+    if (str(d.nodeName[i]) === 'SUMMARY' && str(d.nodeName[parent]) === 'DETAILS' && d.attr(parent, 'open') === undefined) {
+      const rest = squash(d.kids[parent].filter(c => c !== i).map(c => domText(d, c)).join(' '))
+      return rest ? [rest.length > k * 15 ? `${rest.slice(0, k * 15 - 1)}…` : rest] : undefined
+    }
+    const items: string[] = []
+    const collect = (j: number) => {
+      const tag = str(d.nodeName[j])
+      if (ITEM_TAGS.has(tag) || ITEM_ROLES.has(d.attr(j, 'role') ?? '')) {
+        const label = squash(domText(d, j)) || d.attr(j, 'aria-label')
+        if (label && !items.includes(label)) items.push(label)
+        return
+      }
+      d.kids[j].forEach(collect)
+    }
+    for (const t of targets) if (!d.layoutOf.has(t)) collect(t)
+    return items.length ? (items.length > k ? [...items.slice(0, k), `… ${items.length - k} more`] : items) : undefined
+  }
 
   // Frames in their own process (cross-origin iframes): read through their own session, grafted in later.
   const remote = new Map<number, Node[]>()
@@ -151,7 +210,9 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     const a = axOf.get(backendNodeId[i])
     const [display, visibility, opacity] = l === undefined ? [] : doc.layout.styles[l].map(str)
     const hidden = l === undefined ? unseen : visibility === 'hidden' || visibility === 'collapse' || unseen || opacity === '0'
-    const role = !quiet && a && !a.ignored ? String(a.role?.value ?? '') : ''
+    // Chrome names <summary>'s role DisclosureTriangle; to a user it is a button.
+    const raw = !quiet && a && !a.ignored ? String(a.role?.value ?? '') : ''
+    const role = raw === 'DisclosureTriangle' ? 'button' : raw
     const cls = attr(i, 'class')?.trim()
     // Segments are split by a control character and classes by spaces: neither can occur in a class name.
     const key = ROWS.has(role) ? '' : `${path}${SEGMENT}${str(nodeName[i]).toLowerCase()}${cls ? ` ${cls.split(/\s+/).join(' ')}` : ''}`
@@ -162,6 +223,8 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
       : remote.has(backendNodeId[i]) ? [remote.get(backendNodeId[i])!]
       : kids[i].map(c => walk(d, c, quiet, hidden, key, inner))
     const children = perKid.flat()
+    const canvasLines = drawn.get(backendNodeId[i])
+    if (Array.isArray(canvasLines)) children.push(...canvasLines.map(t => ({ block: true, children: [{ text: String(t) }] })))
     // Generated content (::before, ::after, ::marker) is a pseudo element carrying its own layout text,
     // and a field of its own: a bullet or a rank is not part of the text beside it.
     if (str(nodeName[i]).startsWith('::')) return l === undefined || hidden ? [] : [{ key, children: [{ text: str(doc.layout.text[l]) }] }]
@@ -169,10 +232,12 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     const block = l !== undefined && display !== undefined && !INLINE_DISPLAY.test(display)
     if (WIDGETS.has(role) && l !== undefined && visibility !== 'hidden') {
       const { states, url } = statesOf(a!)
+      if (hovered.has(backendNodeId[i]) || HOVER_ATTRS.some(h => attr(i, h) !== undefined)) states.push('reacts to hover')
       const value = a!.value?.value
       const name = squash(String(a!.name?.value ?? ''))
       return [{
         ref: refFor(backendNodeId[i]), role, name, nameShown: content(textOf(children)).includes(content(name)), states, url, block, key,
+        reveals: revealsOf(d, i, limits.revealItems),
         value: value === undefined || value === '' ? undefined : String(value),
         children: hasRef(children) ? children : undefined,
       }]

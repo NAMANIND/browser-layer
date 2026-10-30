@@ -23,7 +23,8 @@ export function control(n: Node, origin: string, caps: Caps): string {
   }
   // A label only assistive tech hears usually repeats what the row shows; it gets less room.
   const name = n.name && clip(n.name, n.nameShown ? caps.nameChars : caps.labelChars)
-  return ` [${n.ref}] ${n.role}${name ? ` "${name}"` : ''}${bits.length ? `  ${bits.join(' ')}` : ''}${dest} `
+  const reveals = n.reveals?.length ? `  reveals: ${n.reveals.map(r => clip(r, caps.labelChars)).join(' · ')}` : ''
+  return ` [${n.ref}] ${n.role}${name ? ` "${name}"` : ''}${bits.length ? `  ${bits.join(' ')}` : ''}${reveals}${dest} `
 }
 
 export function renderText(root: Node, origin: string, caps: Caps): string {

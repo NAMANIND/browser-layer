@@ -15,6 +15,61 @@ import { loadPolicy, type Policy } from './policy.js'
 
 // Decoration the agent never needs; DESIGN §1 principle 3. Never requested.
 const DECORATION = new Set(['image', 'font', 'media'])
+// The most text runs remembered per canvas, and how close (px) runs must be vertically to share a line.
+const CANVAS_RUNS = 5000
+const CANVAS_LINE_PX = 4
+
+// Runs in every document before the page's own scripts. It records, without changing the page: DOM
+// mutations (for settle), elements given hover listeners (the reader marks them "reacts to hover"), and
+// text drawn on 2D canvases with its position, forgetting text a clearRect paints over.
+const PAGE_HOOKS = `(() => {
+  window.__alMut = 0
+  new MutationObserver(() => { window.__alMut++ }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true })
+  const HOVER = new Set(['mouseenter', 'mouseover', 'pointerenter', 'pointerover'])
+  window.__alHover = new Set()
+  const listen = EventTarget.prototype.addEventListener
+  EventTarget.prototype.addEventListener = function (type, ...rest) {
+    if (HOVER.has(type) && this instanceof Element && this !== document.documentElement && this !== document.body) window.__alHover.add(this)
+    return listen.call(this, type, ...rest)
+  }
+  const C = globalThis.CanvasRenderingContext2D
+  if (!C) return
+  const runs = new WeakMap(), canvases = new Set()
+  const at = (ctx, x, y) => { const m = ctx.getTransform(); return [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f] }
+  for (const fn of ['fillText', 'strokeText']) {
+    const draw = C.prototype[fn]
+    C.prototype[fn] = function (text, x, y, ...rest) {
+      try {
+        let m = runs.get(this.canvas)
+        if (!m) { m = new Map(); runs.set(this.canvas, m); canvases.add(this.canvas) }
+        const [px, py] = at(this, x, y)
+        m.set(Math.round(px) + ',' + Math.round(py), [String(text), px, py])
+        if (m.size > ${CANVAS_RUNS}) m.delete(m.keys().next().value)
+      } catch {}
+      return draw.call(this, text, x, y, ...rest)
+    }
+  }
+  const clear = C.prototype.clearRect
+  C.prototype.clearRect = function (x, y, w, h) {
+    try {
+      const m = runs.get(this.canvas)
+      const [x0, y0] = at(this, x, y), [x1, y1] = at(this, x + w, y + h)
+      if (m) for (const [k, [, px, py]] of m) if (px >= Math.min(x0, x1) && px <= Math.max(x0, x1) && py >= Math.min(y0, y1) && py <= Math.max(y0, y1)) m.delete(k)
+    } catch {}
+    return clear.call(this, x, y, w, h)
+  }
+  window.__alCanvases = () => [...canvases].filter(c => c.isConnected && runs.get(c)?.size)
+  // Runs within half a line of each other read as one line, left to right.
+  window.__alCanvasLines = c => {
+    const all = [...runs.get(c).values()].sort((a, b) => a[2] - b[2] || a[1] - b[1])
+    const lines = []
+    for (const [t, x, y] of all) {
+      const last = lines[lines.length - 1]
+      if (last && Math.abs(y - last.y) < ${CANVAS_LINE_PX}) last.parts.push([x, t]); else lines.push({ y, parts: [[x, t]] })
+    }
+    return lines.map(l => l.parts.sort((a, b) => a[0] - b[0]).map(p => p[1]).join(' · '))
+  }
+})()`
 // Animations and transitions finish at once, so pages settle without waiting on motion.
 const MOTION_RATE = 1000
 
@@ -134,7 +189,7 @@ const caps = () => ({ nameChars: policy['render.nameChars'], labelChars: policy[
 
 // One read of the page: the tree and its full text.
 async function snapshot(tab: Tab) {
-  const tree = await readTree(tab.cdp, tab.refs, { minRepeats: policy['data.minRepeats'], minParts: policy['data.minParts'] }, (id, owner) => frameSession(tab, id, owner))
+  const tree = await readTree(tab.cdp, tab.refs, { minRepeats: policy['data.minRepeats'], minParts: policy['data.minParts'], revealItems: policy['render.mapFew'] }, (id, owner) => frameSession(tab, id, owner))
   const origin = new URL(tab.page.url()).origin
   return { tree, origin, text: renderText(tree, origin, caps()) }
 }
@@ -527,10 +582,7 @@ async function main() {
     reducedMotion: 'reduce',
   })
   await ctx.route('**/*', r => (DECORATION.has(r.request().resourceType()) ? r.abort() : r.continue()))
-  await ctx.addInitScript(`
-    window.__alMut = 0;
-    new MutationObserver(() => { window.__alMut++ }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
-  `)
+  await ctx.addInitScript(PAGE_HOOKS)
   for (const p of ctx.pages()) await p.close()
   // A page a site opens (window.open, target=_blank, an OAuth pop-up) joins its opener's session.
   ctx.on('page', async page => {

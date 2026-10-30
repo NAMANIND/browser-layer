@@ -40,7 +40,7 @@ for (const { name, url, facts = [] } of pages) {
   let map = ''
   for (let i = 0; i < RUNS; i++) {
     const t = performance.now()
-    const tree = await readTree(cdp, refs)
+    const tree = await readTree(cdp, refs, { minRepeats: DEFAULTS['data.minRepeats'], minParts: DEFAULTS['data.minParts'], revealItems: DEFAULTS['render.mapFew'] })
     body = renderText(tree, origin, caps)
     times.push(performance.now() - t)
     map = renderMap(tree, origin, caps, DEFAULTS['render.mapFew'])

@@ -119,8 +119,9 @@ visible facts there (Google Flights' times, airports and prices).
    accessibility tree; a cross-origin frame in its own process is read through its own engine session.
    Both are grafted under their `iframe`. Refs carry their frame; pointer input lands at the frame's
    offset in the page.
-9. Canvas apps: text drawn with `CanvasRenderingContext2D.fillText` is recorded by a document-start
-   hook and attached to the canvas node with positions (P4).
+9. Canvas: text drawn with `fillText` / `strokeText` on a 2D canvas is recorded with its position by a
+   hook that runs before the page's scripts; `clearRect` forgets what it paints over. It reads as lines
+   under the canvas, top to bottom, parts left to right. WebGL and OffscreenCanvas text (Figma) is not.
 
 Known gaps: elements made clickable only by a script listener with no ARIA role get no ref; a popup
 that hides the rest of the page with `aria-hidden` without declaring itself modal makes the whole page
@@ -128,18 +129,17 @@ change (its refs disappear), so the action answers with the full view.
 
 ### 4.3 The reveal map (know before triggering)
 
-For each control, what it will reveal, from the strongest source available:
+For each control, what it will open, from the page's own declarations:
 
-| Source | Standard | Reveals |
+| Source | Standard | In the view |
 |---|---|---|
-| `aria-controls`, `aria-owns`, `aria-haspopup`, `aria-expanded` | WAI-ARIA | The popup element, already in the DOM: its items are listed under the control |
-| `<details>` / `<summary>`, `popovertarget`, `<dialog>` | HTML | The hidden content, listed under the trigger |
-| `:hover` / `:focus-within` rules whose target is hidden | CSSOM | The element those rules show, listed under the trigger |
-| `mouseenter` / `mouseover` / `pointerenter` / `focus` listeners | DOM events (document-start hook on `addEventListener`) | Marked "reveals on hover/focus"; content unknown until triggered |
+| `aria-controls`, `aria-owns`, `popovertarget` pointing at an element not on screen | WAI-ARIA, HTML | `reveals: Laptops · Phones …`: that element's items (links, buttons, options, ARIA items), up to `render.mapFew` |
+| `<summary>` of a closed `<details>` | HTML | `reveals:` the details' content |
+| `mouseenter` / `mouseover` / `pointerenter` / `pointerover` listeners, or the same inline attributes | DOM events (a hook that runs before the page's scripts records `addEventListener` calls) | `reacts to hover`: `hover <ref>` will change something |
 
-Content that only exists after the event fires (rendered or fetched on hover) is marked, and the
-`hover` / `focus` actions trigger it and return what appeared. Frameworks that delegate events to the
-root are covered by the first three sources; the fourth reports only that the page reacts.
+Not covered: CSS `:hover` rules (cross-origin stylesheets cannot be read from the page); frameworks that
+put one hover listener on the document root (React) mark nothing; elements that react to hover but are
+not controls get no ref.
 
 ### 4.4 Answers carry only what changed
 

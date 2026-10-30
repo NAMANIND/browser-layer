@@ -133,7 +133,12 @@ importing the person's Chrome cookies (that would copy every signed-in site and 
 restarts and every tab reopens in its session; it refuses to restart if the open tabs cannot be listed.
 38 tests green.
 
-Still open: P4 reveal map and canvas text;
+P4 ✅: controls say what they reveal (aria-controls / aria-owns / popovertarget items, closed
+<details>) and whether they react to hover (listener hook); 2D canvas text reads as lines (Sheets-style
+grids). Live: Amazon's language menu shows its hidden options in the map. 41 tests green. Not covered:
+CSS :hover rules, React's root-delegated listeners, WebGL text (Figma).
+
+Still open:
 P5 fast path on parse5 and the HTML form submission algorithm.
 
 ## P2 — Actions and settle (superseded by the section above)

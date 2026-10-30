@@ -109,6 +109,16 @@ const server = createServer((req, res) => {
   if (req.url === '/where') return page('where', `<button onclick="navigator.geolocation.getCurrentPosition(p => o.textContent = 'at ' + p.coords.latitude, e => o.textContent = 'denied')">Locate</button><p id="o">unknown</p>`)
   if (req.url === '/signin') { res.setHeader('set-cookie', 'sid=signed-in; Path=/; Max-Age=3600'); return page('signin', '<p>signed in</p>') }
   if (req.url === '/who') return page('who', `<p>who: ${/sid=signed-in/.test(req.headers.cookie ?? '') ? 'signed in' : 'anonymous'}</p>`)
+  if (req.url === '/reveal') return page('reveal', `
+    <button aria-haspopup="menu" aria-expanded="false" aria-controls="m">Products</button>
+    <ul id="m" role="menu" hidden><li role="menuitem">Laptops</li><li role="menuitem">Phones</li></ul>
+    <details><summary>Shipping</summary><p>Ships in 2 days, free over ₹500</p></details>
+    <button id="h">Deals</button><button onmouseenter="void 0">Inline hover</button><button>Plain</button>
+    <script>h.addEventListener('mouseenter', () => {})</script>`)
+  if (req.url === '/canvas') return page('canvas', `<canvas id="c" width="400" height="120"></canvas><script>
+    const g = c.getContext('2d'); g.font = '14px sans-serif'
+    g.fillText('stale', 10, 100); g.clearRect(0, 80, 400, 40)
+    g.fillText('Name', 10, 20); g.fillText('Price', 200, 20); g.fillText('Tea', 10, 50); g.fillText('₹40', 200, 50)</script>`)
   if (req.url === '/mouse') return page('mouse', `<button ondblclick="o.textContent = 'double'" oncontextmenu="event.preventDefault(); o.textContent = 'context menu'">Target</button><p id="o">none</p>`)
   if (req.url === '/watch') {
     // Counts every DOM change that is not its own counter update.
@@ -516,6 +526,21 @@ test('when the browser goes away (window closed, crash), the next command starts
   assert.match((await runIn(dir, 'read')).out, /page two/)
   await runIn(dir, 'stop')
   rmSync(dir, { recursive: true, force: true })
+})
+
+test('controls say what they reveal and whether they react to hover, before any trigger', async () => {
+  const out = (await openRead(`${base}/reveal`)).out
+  assert.match(out, /button "Products" collapsed reveals: Laptops · Phones/)
+  assert.match(out, /button "Shipping" collapsed reveals: Ships in 2 days, free over ₹500/)
+  assert.match(out, /button "Deals" reacts to hover/)
+  assert.match(out, /button "Inline hover" reacts to hover/)
+  assert.doesNotMatch(out, /button "Plain" reacts/)
+})
+
+test('text drawn on a canvas reads as lines, and text painted over is forgotten', async () => {
+  const out = (await openRead(`${base}/canvas`)).out
+  assert.match(out, /^Name · Price\nTea · ₹40$/m)
+  assert.doesNotMatch(out, /stale/)
 })
 
 test('stale refs and missing tabs fail with a clear message', async () => {
