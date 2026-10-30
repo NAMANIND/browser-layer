@@ -212,7 +212,7 @@ waiting, or at `settle.deadlineMs`. Every answer says which (`idle in 412 ms`, `
 | Storage | `cookies [--domain]`, `storage local \| session [--origin]`, `eval <js>` |
 | Network | `net [--all]` (HAR entries), `net show <id>` (headers, body) |
 | Permissions | Geolocation, notifications, clipboard: policy grants or denies; prompts reported |
-| Profiles | One persistent profile per name; `--profile`; import cookies from the user's Chrome profile |
+| Profiles and sign-in | `--profile <name>` is a separate browser; `login <url>` opens a normal Chrome window on the agent's profile (no automation attached) for the person to sign in, with the same mock keychain as the agent's browser so the session decrypts |
 
 ## 7. Engines
 

@@ -124,7 +124,12 @@ bodies, which is what an agent needs to call an API itself; trackers are hidden 
 204) plus a data file, replacing the `NOISE` regex; `allow <permission> [lat,lon]` grants per site;
 `--profile <name>` is a separate browser. 36 tests green.
 
-Still open: Chrome login import (asks first: it reads the keychain); P4 reveal map and canvas text;
+`login <url>`: a normal Chrome window on the agent's profile, signed in by the person; it uses the same
+mock keychain as the agent's browser, without which the saved session cannot be decrypted. Chosen over
+importing the person's Chrome cookies (that would copy every signed-in site and read the real keychain).
+37 tests green.
+
+Still open: P4 reveal map and canvas text;
 P5 fast path on parse5 and the HTML form submission algorithm.
 
 ## P2 — Actions and settle (superseded by the section above)

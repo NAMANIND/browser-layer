@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { createServer } from 'node:http'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -107,6 +107,8 @@ const server = createServer((req, res) => {
   if (req.url === '/api/items') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ items: ['tea', 'coffee'] })) }
   if (req.url?.startsWith('/collect') || req.url === '/beacon-in') { res.statusCode = 204; return res.end() }
   if (req.url === '/where') return page('where', `<button onclick="navigator.geolocation.getCurrentPosition(p => o.textContent = 'at ' + p.coords.latitude, e => o.textContent = 'denied')">Locate</button><p id="o">unknown</p>`)
+  if (req.url === '/signin') { res.setHeader('set-cookie', 'sid=signed-in; Path=/; Max-Age=3600'); return page('signin', '<p>signed in</p>') }
+  if (req.url === '/who') return page('who', `<p>who: ${/sid=signed-in/.test(req.headers.cookie ?? '') ? 'signed in' : 'anonymous'}</p>`)
   if (req.url === '/mouse') return page('mouse', `<button ondblclick="o.textContent = 'double'" oncontextmenu="event.preventDefault(); o.textContent = 'context menu'">Target</button><p id="o">none</p>`)
   if (req.url === '/watch') {
     // Counts every DOM change that is not its own counter update.
@@ -469,6 +471,21 @@ test('a profile is a separate browser with its own tabs', async () => {
   assert.match((await run('--profile', 'work', 'tabs')).out, /page\/work/)
   assert.doesNotMatch((await run('tabs')).out, /page\/work/)
   await run('--profile', 'work', 'stop')
+})
+
+test('a session saved by a normal Chrome on the agent profile carries into the agent browser', { skip: process.platform !== 'darwin' }, async () => {
+  // What `agent-layer login` launches, headless here and quit through DevTools instead of by a person.
+  const dir = mkdtempSync(join(tmpdir(), 'al-login-'))
+  const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [`--user-data-dir=${join(dir, 'profile')}`, '--use-mock-keychain', '--no-first-run', '--no-default-browser-check', '--headless=new', '--remote-debugging-port=9335', `${base}/signin`], { stdio: 'ignore' })
+  await new Promise(r => setTimeout(r, 2500))
+  const { chromium } = await import('playwright-core')
+  const browser = await chromium.connectOverCDP('http://127.0.0.1:9335')
+  await (await browser.newBrowserCDPSession()).send('Browser.close').catch(() => {})
+  await new Promise(r => chrome.on('exit', r))
+  await runIn(dir, 'tab', `${base}/who`)
+  assert.match((await runIn(dir, 'read')).out, /who: signed in/)
+  await runIn(dir, 'stop')
+  rmSync(dir, { recursive: true, force: true })
 })
 
 test('stale refs and missing tabs fail with a clear message', async () => {
