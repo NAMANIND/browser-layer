@@ -505,6 +505,19 @@ test('switching the browser between visible and headless reopens every tab in it
   rmSync(dir, { recursive: true, force: true })
 })
 
+test('when the browser goes away (window closed, crash), the next command starts a fresh one', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'al-gone-'))
+  await runIn(dir, 'tab', `${base}/page/one`)
+  // Quit this daemon's Chrome out from under it, as closing the last visible window does.
+  await new Promise(r => execFile('pkill', ['-f', `user-data-dir=${join(dir, 'profile')}`], r))
+  await new Promise(r => setTimeout(r, 1500))
+  const again = await runIn(dir, 'tab', `${base}/page/two`)
+  assert.equal(again.code, 0, again.out)
+  assert.match((await runIn(dir, 'read')).out, /page two/)
+  await runIn(dir, 'stop')
+  rmSync(dir, { recursive: true, force: true })
+})
+
 test('stale refs and missing tabs fail with a clear message', async () => {
   const none = await run('--session', 'empty', 'read')
   assert.equal(none.code, 1)

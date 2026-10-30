@@ -543,7 +543,9 @@ async function main() {
   let queue = Promise.resolve()
   let idle: NodeJS.Timeout
   // `stop` answers only after Chrome has exited, so a caller can safely delete the profile next.
+  let stopping = false
   const shutdown = async (reply?: (text: string) => void) => {
+    stopping = true
     server.close()
     await ctx.close().catch(() => {})
     rmSync(socketPath(), { force: true })
@@ -551,6 +553,13 @@ async function main() {
     else process.exit(0)
   }
   const touch = () => { clearTimeout(idle); idle = setTimeout(() => void shutdown(), policy['daemon.idleMs']) }
+  // The browser went away on its own (a person closed the visible window, Chrome crashed): a daemon
+  // without a browser can only fail, so it exits and the next command starts a fresh one.
+  ctx.on('close', () => {
+    if (stopping) return
+    rmSync(socketPath(), { force: true })
+    process.exit(0)
+  })
 
   const server = createServer((req, res) => {
     let body = ''
