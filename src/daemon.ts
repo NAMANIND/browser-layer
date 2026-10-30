@@ -8,6 +8,7 @@ import { home, loadJar, saveJar, type Cookie } from './session.js'
 import { newRefs, readTree, type Refs } from './reader.js'
 import { diffLines, findRef, paginate, renderMap, renderText } from './render.js'
 import { click, fill, pick } from './act.js'
+import { query, records, toTsv, type Query } from './data.js'
 import { ping, socketPath } from './client.js'
 import { loadPolicy, type Policy } from './policy.js'
 
@@ -30,7 +31,7 @@ type Req = { method: string; url: string; status: number; type: string; kind: st
 // shown: the last full text the agent received per context (the page, or a modal dialog by name), so
 // actions answer with what changed even when a dialog opens over the page and closes again.
 type Tab = { id: number; session: string; page: Page; cdp: CDPSession; refs: Refs; doc: number; shown: Map<string, { doc: number; text: string }>; inflight: number; net: Req[] }
-export type Command = { cmd: string; session: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean; page?: number }
+export type Command = { cmd: string; session: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean; page?: number } & Query
 
 // Tab ids are unique across the daemon; each session (one agent, one task) has its own current tab.
 const tabs = new Map<number, Tab>()
@@ -258,6 +259,19 @@ async function run(c: Command): Promise<string> {
     }
     case 'map':
       return mapView(need(c.session))
+    case 'get': {
+      const tab = need(c.session)
+      const { tree, origin } = await snapshot(tab)
+      const node = findRef(tree, Number(c.ref))
+      if (!node) throw new Error(`[${c.ref}] is not on the page — run: agent-layer map`)
+      const all = records(node, origin, caps())
+      if (!all.rows.length) throw new Error(`[${c.ref}] has no rows; get works on the lists and tables the map shows`)
+      const limit = c.limit ?? policy['data.rows']
+      const out = query(all, { ...c, limit })
+      const what = [c.sort ? `sorted by ${c.sort}${c.desc ? ' descending' : ''}` : '', out.rows.length < all.rows.length ? `first ${out.rows.length}` : ''].filter(Boolean).join(', ')
+      const head = `${await header(tab)}  — [${c.ref}] ${node.role}: ${all.rows.length} records, ${all.columns.length} columns${what ? ` (${what})` : ''}`
+      return `${head}\n\n${toTsv(out)}`
+    }
     case 'read':
       return view(need(c.session), c.page ?? 1, undefined, c.ref === undefined ? undefined : Number(c.ref))
     case 'click': {

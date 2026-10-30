@@ -1,4 +1,4 @@
-import { COLLECTIONS, LANDMARKS, type Node } from './reader.js'
+import { cellsOf, COLLECTIONS, isHeaderRow, LANDMARKS, rowsOf, type Node } from './reader.js'
 
 // Text for the agent: blocks start lines, rows read as one line with ' · ' between their parts,
 // controls inline as [ref] role "name". All shortening happens here, never in the reader.
@@ -11,7 +11,7 @@ const clipTo = (s: string, max: number) => (s.length > max ? `${s.slice(0, max -
 const regionLine = (n: Node, caps: Caps) =>
   `[${n.ref}] ${n.role}${n.name ? ` "${clipTo(n.name, caps.nameChars)}"` : ''}${n.role === 'dialog' ? ' — the page behind it is not available' : ''}`
 
-function control(n: Node, origin: string, caps: Caps): string {
+export function control(n: Node, origin: string, caps: Caps): string {
   const clip = (s: string, max = caps.nameChars) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
   const bits = [n.value === undefined ? '' : `= ${JSON.stringify(clip(n.value))}`, ...(n.states ?? [])].filter(Boolean)
   let dest = ''
@@ -48,7 +48,8 @@ export function renderText(root: Node, origin: string, caps: Caps): string {
       flush()
       return
     }
-    if (n.ref) {
+    // A collection reads as its items; its ref is for the map and `get`.
+    if (n.ref && !COLLECTIONS.has(n.role ?? '')) {
       if (n.block && !inRow) flush()
       line += control(n, origin, caps)
       for (const c of n.children ?? []) visit(c, inRow)
@@ -87,7 +88,6 @@ const FIELDS = new Set(['textbox', 'searchbox', 'combobox', 'checkbox', 'radio',
 // (item count and the first item), fields, actions and links. Named when few, counted when many.
 export function renderMap(root: Node, origin: string, caps: Caps, few: number): string {
   const out: string[] = []
-  const rowsOf = (n: Node): Node[] => (n.row ? [n] : (n.children ?? []).flatMap(c => (COLLECTIONS.has(c.role ?? '') ? [] : rowsOf(c))))
   const summarize = (title: string, nodes: Node[]) => {
     const headings: string[] = []
     const lists: string[] = []
@@ -102,14 +102,18 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number): 
       if (isRegion(n)) { nested.push(n); return }
       if (n.role === 'heading') { headings.push(renderText({ block: true, children: n.children }, origin, caps)); return }
       if (COLLECTIONS.has(n.role ?? '')) {
-        const rows = rowsOf(n)
+        // A table's header row is its schema: counted out of the records, shown as the column names.
+        const all = rowsOf(n)
+        const header = all.find(isHeaderRow)
+        const rows = all.filter(r => r !== header)
         if (rows.length) {
-          const first = clipTo(renderText({ block: true, children: [rows[0]] }, origin, caps).replace(/\n/g, ' · '), caps.nameChars)
-          lists.push(`${n.role} of ${rows.length}: ${first}${rows.length > 1 ? ' …' : ''}`)
+          const line = (r: Node) => clipTo(renderText({ block: true, children: [r] }, origin, caps).replace(/\n/g, ' · '), caps.nameChars)
+          const sample = header ? `columns ${cellsOf(header).map(c => renderText({ block: true, children: c.children }, origin, caps)).join(' · ')}` : `${line(rows[0])}${rows.length > 1 ? ' …' : ''}`
+          lists.push(`[${n.ref}] ${n.role} of ${rows.length}: ${sample}`)
           return
         }
       }
-      if (n.ref) (FIELDS.has(n.role ?? '') ? fields : n.role === 'option' ? options : n.role === 'link' ? links : actions).push(n)
+      if (n.ref && !COLLECTIONS.has(n.role ?? '')) (FIELDS.has(n.role ?? '') ? fields : n.role === 'option' ? options : n.role === 'link' ? links : actions).push(n)
       for (const c of n.children ?? []) walk(c)
     }
     nodes.forEach(walk)

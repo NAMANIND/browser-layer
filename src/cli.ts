@@ -19,6 +19,8 @@ Live tabs (headless Chrome kept alive in the background; runs the page's JS):
   agent-layer go <url> | back         navigate the current tab
   agent-layer map                     the page as regions: fields, actions, lists, links, with refs
   agent-layer read [ref] [--page N]   the whole page, or one region / control by ref (paged)
+  agent-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b]
+                                      a list or table from the map as records (TSV)
   agent-layer click <ref>             click control [ref]
   agent-layer type <ref> <text>       fill [ref]; add --enter to press Enter after
   agent-layer pick <ref> <option>     choose an option in a select
@@ -29,7 +31,7 @@ Live tabs (headless Chrome kept alive in the background; runs the page's JS):
 Sessions: --session <name> (or AGENT_LAYER_SESSION) gives each agent its own
 last page and live tabs. Default is "default". Cookies are shared.`
 
-const LIVE = new Set(['tab', 'go', 'back', 'tabs', 'use', 'map', 'read', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
+const LIVE = new Set(['tab', 'go', 'back', 'tabs', 'use', 'map', 'read', 'get', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
 
 function fail(msg: string): never {
   console.error(msg)
@@ -88,28 +90,35 @@ function encode(verb: Verb, args: Record<string, string>): [string, URLSearchPar
 
 async function main() {
   const argv = process.argv.slice(2)
-  let page: number | undefined
-  const pageAt = argv.indexOf('--page')
-  if (pageAt >= 0) {
-    page = Number(argv[pageAt + 1])
-    if (!Number.isInteger(page) || page < 1) fail('usage: --page <number from 1>')
-    argv.splice(pageAt, 2)
-  }
-  const at = argv.indexOf('--session')
-  if (at >= 0) {
-    session = argv[at + 1] ?? fail('usage: --session <name>')
+  // Flags that carry a value: removed from argv, value returned.
+  const take = (flag: string) => {
+    const at = argv.indexOf(flag)
+    if (at < 0) return undefined
+    const value = argv[at + 1] ?? fail(`usage: ${flag} <value>`)
     argv.splice(at, 2)
+    return value
   }
+  const count = (flag: string) => {
+    const v = take(flag)
+    if (v !== undefined && !/^[1-9]\d*$/.test(v)) fail(`usage: ${flag} <number from 1>`)
+    return v === undefined ? undefined : Number(v)
+  }
+  const page = count('--page')
+  const limit = count('--limit')
+  const sort = take('--sort')
+  const cols = take('--cols')?.split(',').map(c => c.trim())
+  session = take('--session') ?? session
   const json = argv.includes('--json')
-  const flags = new Set(['--json', '--enter', '--all'])
+  const flags = new Set(['--json', '--enter', '--all', '--desc'])
   const [cmd, target, ...rest] = argv.filter(a => !flags.has(a))
 
   if (LIVE.has(cmd)) {
-    const c: Command = { cmd, session, page, enter: argv.includes('--enter'), all: argv.includes('--all') }
+    const c: Command = { cmd, session, page, limit, sort, cols, desc: argv.includes('--desc'), enter: argv.includes('--enter'), all: argv.includes('--all') }
     if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: agent-layer ${cmd} <url>`)
     if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)
     if (cmd === 'click' || cmd === 'type' || cmd === 'pick') c.ref = target ?? fail(`usage: agent-layer ${cmd} <ref>`)
     if (cmd === 'read' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: agent-layer read [ref] [--page N]')
+    if (cmd === 'get') c.ref = target && /^\d+$/.test(target) ? target : fail('usage: agent-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b]')
     if (cmd === 'type' || cmd === 'pick') c.text = rest.join(' ')
     if (cmd === 'press') c.key = target ?? fail('usage: agent-layer press <key>')
     const reply = await live(c)

@@ -19,8 +19,12 @@ O=$($AL click "$(ref 'combobox "Change ticket type')"); step "open trip type" "$
 O=$($AL click "$(ref 'option "One way"')"); step "one way" "$O"
 O=$($AL type "$(ref 'textbox "Departure"')" "Fri, Nov 20" --enter); step "date" "$O"
 O=$($AL click "$(ref 'button "Search"')"); step "search" "$O"
-# The search answers with the map; an agent then opens the results region to see the flights.
-O=$($AL read "$(ref 'main')"); step "read results region" "$O"
-printf '%s\n' "$O" | grep -cE '[0-9]{1,2}:[0-9]{2} [AP]M – [0-9]{1,2}:[0-9]{2} [AP]M.*BOM ?– ?DEL.*₹' | sed 's/^/result rows seen: /'
+# The search answers with the map. The agent looks at the first records of the biggest results list to
+# learn its columns, then asks for the three cheapest, as an agent reading the output would.
+LIST=$(printf '%s\n' "$O" | grep -oE '\[[0-9]+\] list of [0-9]+' | sort -t' ' -k4 -n | tail -1 | grep -oE '^\[[0-9]+' | tr -dc 0-9)
+O=$($AL get "$LIST" --limit 2); step "get first records" "$O"
+PRICE=$(printf '%s\n' "$O" | sed -n 4p | tr '\t' '\n' | grep -n '^₹' | head -1 | cut -d: -f1)
+O=$($AL get "$LIST" --sort "c$PRICE" --limit 3); step "get 3 cheapest" "$O"
+printf '%s\n' "$O" | sed -n '3,6p' | cut -f2-6,"$PRICE" | sed 's/^/  /'
 printf '%-28s %6s chars\n' "TOTAL" "$TOTAL"
 [ -n "$KEEP" ] || $AL stop > /dev/null

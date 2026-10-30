@@ -62,6 +62,14 @@ const server = createServer((req, res) => {
       <search><input type="search" aria-label="Search flights"><button>Go</button></search>
       <main><h2>Results</h2><ul>${Array.from({ length: 12 }, (_, i) => `<li><div>Flight ${i}</div><div>₹${100 + i}</div></li>`).join('')}</ul></main>`)
   }
+  if (req.url === '/data') {
+    // A badge only some rows have, Indian digit grouping, 12-hour times across noon, and a real table.
+    const flights = [['IndiGo', '₹9,500', '11:30 AM'], ['Air India', '₹12,300', '1:05 PM'], ['Vistara', '₹1,05,000', '9:15 AM'], ['Akasa', '₹980', '10:00 PM']]
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<meta charset="utf-8"><title>data</title><main>
+      <ul>${flights.map(([a, p, t], i) => `<li><div class="t">${t}</div>${i === 1 ? '<span class="badge">Best</span>' : ''}<div class="a">${a}</div><div class="p">${p}</div></li>`).join('')}</ul>
+      <table><tr><th>Name</th><th>Size</th></tr><tr><td>a.txt</td><td>10 KB</td></tr><tr><td>b.txt</td><td>2 KB</td></tr></table></main>`)
+  }
   if (req.url === '/watch') {
     // Counts every DOM change that is not its own counter update.
     res.setHeader('content-type', 'text/html')
@@ -219,11 +227,35 @@ test('a page opens as a map of regions; read <ref> opens one region', async () =
   const map = await run('tab', `${base}/regions`)
   assert.match(map.out, /^\[\d+\] navigation "Main"\n  links: \[\d+\] link "Home" · \[\d+\] link "About"$/m)
   assert.match(map.out, /^\[\d+\] search\n  fields: \[\d+\] searchbox "Search flights"\n  actions: \[\d+\] button "Go"$/m)
-  assert.match(map.out, /^\[\d+\] main\n  headings: Results\n  list of 12: • Flight 0 · ₹100 …$/m)
+  assert.match(map.out, /^\[\d+\] main\n  headings: Results\n  \[\d+\] list of 12: • Flight 0 · ₹100 …$/m)
   assert.doesNotMatch(map.out, /Flight 5/)
   const zoom = await run('read', ref(map.out, /main/))
   assert.match(zoom.out, /Flight 5 · ₹105/)
   assert.doesNotMatch(zoom.out, /About/)
+})
+
+test('get turns a list or table into records that line up, sort as numbers, and limit', async () => {
+  const map = await run('tab', `${base}/data`)
+  const list = ref(map.out, /list of 4/)
+  const table = ref(map.out, /table of 2: columns Name · Size/)
+  const all = await run('get', list)
+  assert.match(all.out, /\[\d+\] list: 4 records, 4 columns/)
+  assert.match(all.out, /^c1\tc2\tc3\tc4$/m)
+  // The badge gets its own column; it does not push airline or price out of theirs.
+  assert.match(all.out, /^11:30 AM\tIndiGo\t₹9,500\t$/m)
+  assert.match(all.out, /^1:05 PM\tAir India\t₹12,300\tBest$/m)
+  const cheap = await run('get', list, '--sort', 'c3', '--limit', '2', '--cols', 'c2,c3')
+  assert.match(cheap.out, /sorted by c3, first 2/)
+  assert.match(cheap.out, /^c2\tc3\nAkasa\t₹980\nIndiGo\t₹9,500$/m)
+  const dear = await run('get', list, '--sort', 'c3', '--desc', '--limit', '1', '--cols', 'c3')
+  assert.match(dear.out, /^c3\n₹1,05,000$/m)
+  const late = await run('get', list, '--sort', 'c1', '--desc', '--limit', '1', '--cols', 'c1')
+  assert.match(late.out, /^c1\n10:00 PM$/m)
+  const files = await run('get', table, '--sort', 'Size', '--cols', 'Name')
+  assert.match(files.out, /^c1 Name\nb\.txt\na\.txt$/m)
+  const bad = await run('get', list, '--sort', 'price')
+  assert.equal(bad.code, 1)
+  assert.match(bad.out, /no column "price"; columns are c1, c2, c3, c4/)
 })
 
 test('reading never changes the page', async () => {

@@ -14,6 +14,13 @@ export type Node = {
   text?: string
   block?: boolean
   row?: boolean
+  // A field inside a row (a block, a control, a cell, generated content): its element path from the row
+  // (tags and classes). Rows built from one template share a path for the same field, which is how
+  // records line up into columns.
+  key?: string
+  // A table cell (HTML table model); header marks a column header cell.
+  cell?: boolean
+  header?: boolean
   children?: Node[]
 }
 
@@ -30,6 +37,14 @@ const ROWS = new Set(['row', 'listitem', 'option', 'menuitem', 'menuitemcheckbox
 export const LANDMARKS = new Set(['banner', 'navigation', 'main', 'search', 'complementary', 'contentinfo', 'region', 'form'])
 // Containers whose items are a collection: a list of results, a table of rows, a set of tabs.
 export const COLLECTIONS = new Set(['list', 'table', 'grid', 'treegrid', 'tree', 'menu', 'menubar', 'tablist', 'radiogroup'])
+const CELLS = new Set(['cell', 'gridcell', 'columnheader', 'rowheader'])
+export const TABLES = new Set(['table', 'grid', 'treegrid'])
+
+// The rows of a collection and the cells of a row, not descending into nested collections.
+export const rowsOf = (n: Node): Node[] => (n.row ? [n] : (n.children ?? []).flatMap(c => (COLLECTIONS.has(c.role ?? '') ? [] : rowsOf(c))))
+export const cellsOf = (n: Node): Node[] => (n.cell ? [n] : (n.children ?? []).flatMap(c => (COLLECTIONS.has(c.role ?? '') ? [] : cellsOf(c))))
+// HTML table model: a row whose cells are all column headers names the columns.
+export const isHeaderRow = (row: Node) => { const cells = cellsOf(row); return cells.length > 0 && cells.every(c => c.header) }
 // CSS outer display types that stay in the line; every other display value starts a new block.
 const INLINE_DISPLAY = /^(inline|contents|ruby)/
 const BOOLEAN_STATES = ['focused', 'disabled', 'selected', 'required', 'readonly', 'busy', 'modal']
@@ -82,7 +97,8 @@ export async function readTree(cdp: CDPSession, refs: Refs): Promise<Node> {
   const content = (s: string) => s.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase()
 
   // muted: inside aria-hidden (text shows, controls get no ref). unseen: visibility hidden or opacity 0.
-  function walk(i: number, muted: boolean, unseen: boolean): Node[] {
+  // path: this node's place inside the nearest row, for lining records up.
+  function walk(i: number, muted: boolean, unseen: boolean, path = ''): Node[] {
     const l = layoutOf.get(i)
     if (nodeType[i] === 3) {
       if (l === undefined || unseen) return []
@@ -96,18 +112,21 @@ export async function readTree(cdp: CDPSession, refs: Refs): Promise<Node> {
     const a = axOf.get(backendNodeId[i])
     const [display, visibility, opacity] = l === undefined ? [] : doc.layout.styles[l].map(str)
     const hidden = l === undefined ? unseen : visibility === 'hidden' || visibility === 'collapse' || unseen || opacity === '0'
-    const children = kids[i].flatMap(c => walk(c, quiet, hidden))
-    // Generated content (::before / ::after) is a pseudo element carrying its own layout text.
-    if (str(nodeName[i]).startsWith('::') && l !== undefined && !hidden) children.unshift({ text: str(doc.layout.text[l]) })
-
     const role = !quiet && a && !a.ignored ? String(a.role?.value ?? '') : ''
+    const cls = attr(i, 'class')?.trim()
+    const key = ROWS.has(role) ? '' : `${path}/${str(nodeName[i]).toLowerCase()}${cls ? `.${cls.split(/\s+/).join('.')}` : ''}`
+    const children = kids[i].flatMap(c => walk(c, quiet, hidden, key))
+    // Generated content (::before, ::after, ::marker) is a pseudo element carrying its own layout text,
+    // and a field of its own: a bullet or a rank is not part of the text beside it.
+    if (str(nodeName[i]).startsWith('::')) return l === undefined || hidden ? [] : [{ key, children: [{ text: str(doc.layout.text[l]) }] }]
+
     const block = l !== undefined && display !== undefined && !INLINE_DISPLAY.test(display)
     if (WIDGETS.has(role) && l !== undefined && visibility !== 'hidden') {
       const { states, url } = statesOf(a!)
       const value = a!.value?.value
       const name = squash(String(a!.name?.value ?? ''))
       return [{
-        ref: refFor(backendNodeId[i]), role, name, nameShown: content(textOf(children)).includes(content(name)), states, url, block,
+        ref: refFor(backendNodeId[i]), role, name, nameShown: content(textOf(children)).includes(content(name)), states, url, block, key,
         value: value === undefined || value === '' ? undefined : String(value),
         children: hasRef(children) ? children : undefined,
       }]
@@ -115,9 +134,11 @@ export async function readTree(cdp: CDPSession, refs: Refs): Promise<Node> {
     if (role === 'heading') return [{ role, level: statesOf(a!).level, block: true, children }]
     // Landmarks get refs so the agent can zoom into a region.
     if (LANDMARKS.has(role)) return [{ ref: refFor(backendNodeId[i]), role, name: squash(String(a!.name?.value ?? '')), block: true, children }]
-    if (COLLECTIONS.has(role)) return [{ role, block: true, children }]
+    // Collections get refs so the agent can ask for their records.
+    if (COLLECTIONS.has(role)) return [{ ref: refFor(backendNodeId[i]), role, block: true, children }]
     if (ROWS.has(role)) return [{ row: true, block: true, children }]
-    return block ? [{ block: true, children }] : children
+    if (CELLS.has(role)) return [{ cell: true, header: role === 'columnheader', block: true, key, children }]
+    return block ? [{ block: true, key, children }] : children
   }
 
   // WAI-ARIA: while a modal dialog is open, content outside it is not available. The view is the dialog.
