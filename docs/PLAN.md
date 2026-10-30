@@ -78,11 +78,23 @@ map is smaller (replaces the `render.deltaShare` share rule, which hid small-pag
 vs 17.5k, HN 0.2k vs 8.8k. Live Flights task including reading the results: 26,977 chars (start of the
 day: 50,022). Navigation steps 10.8k; the results themselves 16.2k, which is the data layer's job.
 
-## Next — Data layer
+## Data layer, part 1 ✅ (31 Oct 2026)
 
-`get <collection>`: the records behind a page as rows with named columns, sortable and limited.
-Source 1: the API responses the page loaded, fields named by matching their values to text on screen.
-Source 2: the collection's rows when there is no API. Target: "cheapest flight" in a few hundred chars.
+`get <ref>` (DESIGN §4.5): tables by the HTML table model with header names, lists by field paths,
+numeric sorting, limits, column picks, TSV out. Collections have refs in the map; table counts exclude
+the header row.
+
+**Result:** live Google Flights task, open to "3 cheapest flights", 12,789 chars (start of the day:
+50,022); the answer matches Google's own "cheapest from ₹6,475". GitHub's file table comes out as 25
+records with named columns. 25 tests green; corpus facts all present. `src/` 1,352 → 1,493 lines
+(`data.ts` 92 lines; reader, render, CLI and daemon +49).
+
+## Next — Data layer, part 2
+
+1. Collections that are not ARIA lists or tables (Amazon's product grid): repeated sibling structure as
+   records, with its thresholds as policy.
+2. The page's own API responses as a record source: spike first on Google Flights' GetShoppingResults,
+   fields located by matching values to the records the page shows.
 
 ## P2 — Actions and settle
 

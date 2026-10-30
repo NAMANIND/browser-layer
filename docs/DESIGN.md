@@ -28,6 +28,25 @@ calling an API with `curl` next time). This tool is the browser, not a second ag
 MCP or other agent protocols (the agent has a terminal), learning and replay inside the tool,
 screenshots and vision, cloud or multi-user hosting, anti-bot evasion.
 
+## 1a. How a website reaches an agent
+
+Websites are built for eyes and a mouse; a visual page is a poor fit for an agent, and so is its raw DOM.
+The proven model for using the whole web without seeing it is how blind users browse with a screen
+reader: they never take in a page at once; they ask "what regions are here?", jump to one, list its
+headings and fields, walk a list item by item, and act. It rests on standards every site already ships
+(ARIA landmarks, headings, lists, tables, form controls), and it is the backbone of the agent's view:
+
+| Move | What the agent gets | Command |
+|---|---|---|
+| **Map** | The page as regions, each with its fields (and values), options, actions, headings, collections (record count and first item, or a table's columns) and links; named when few, counted when many. Opening a page answers with the map. | `tab`, `go`, `map` |
+| **Zoom** | One region, collection or control in full text. | `read <ref>` |
+| **Whole page** | Everything, paged. | `read` |
+| **Act** | Fill, pick, click by ref; the answer is what changed (§4.4). | `type`, `pick`, `click`, `press` |
+| **Data** | A list or table as records (TSV): sorted as numbers, limited, column-picked (§4.5). | `get <ref>` |
+
+The agent decides how deep to go. The tool never decides for it what matters; it makes every level cheap
+to reach.
+
 ## 2. Evidence this design rests on
 
 From `bench/RESULTS.md` (five live sites, 31 Oct 2026):
@@ -128,6 +147,23 @@ of the same context (the page, or a modal dialog by name): `- old line` / `+ new
 gets the full view. pushState and hash changes are the same document: refs and the view stay valid.
 `read` always returns the full page.
 
+### 4.5 Records
+
+`get <ref>` turns a collection into records:
+
+- **Tables** (`table`, `grid`, `treegrid`) follow the HTML table model: a column is a cell position; the
+  first row of column headers names the columns.
+- **Lists** have no column model. The reader marks a row's fields (blocks, controls, cells, generated
+  content such as a bullet or a rank), each with its element path from the row (tags and classes). Rows
+  built from one template share a path for the same field, so a field's path is its column, and an
+  optional part (a badge) gets its own column instead of shifting the others. Columns whose every value
+  is punctuation only are dropped. Columns are `c1…cN`; no names are invented.
+- **Sorting** uses the standard collator with numeric ordering, after removing digit-group separators
+  and turning 12-hour times into 24-hour ones. Empty values sort last.
+
+Known gaps: results that are not in an ARIA list or table (Amazon's product grid) are not a collection
+yet; a field styled differently per row (a "good" vs "average" class) splits into two columns.
+
 ## 5. Actions
 
 ### 5.1 Actionability
@@ -194,6 +230,7 @@ Keys are added when the phase that uses them lands.
 | `render.nameChars` | 120 | Cap for names that are on screen, and link paths |
 | `render.labelChars` | 40 | Cap for labels only assistive tech hears |
 | `render.mapFew` | 8 | In the map, controls are named up to this many per kind, counted above |
+| `data.rows` | 20 | Records `get` returns when no `--limit` is given |
 | `network.hide` | tracker list (data file) | Hidden from `net` unless `--all` |
 | `permissions` | deny all | Per-origin grants |
 | `sessions.max` | 8 | Parallel sessions |
