@@ -1,101 +1,97 @@
 # agent-layer — build plan
 
-Goes with [DESIGN.md](DESIGN.md). Each phase ends green and measured before the next starts.
-Every phase lands as small commits; each behavior change comes with a failing test first.
+Goes with [DESIGN.md](DESIGN.md). Engine decision: **headless Chrome now, own no-paint build later**.
+Each phase ends green and measured before the next one starts. Behavior changes land with a failing
+test first and before/after numbers.
 
 ## Where we are (31 Oct 2026)
 
-Working: fast path (`open`, `do`, `verbs`), live tabs over a daemon (`tab`, `read`, `click`, `type`,
-`pick`, `press`, `net`), sessions, shared cookies, paging. 13 tests green.
+Working: `open` / `do` / `verbs` over plain HTTP; live tabs over a daemon (`tab`, `read`, `click`,
+`type`, `pick`, `press`, `go`, `back`, `net`); sessions; paging. 13 tests green. Benchmarks in
+`bench/`.
 
-Built on heuristics that this plan removes:
+Heuristics still in the code, and the phase that removes each:
 
-| Current code | Replaced in | By |
+| Current code | Removed in | Replaced by |
 |---|---|---|
 | `snapshot.ts` `roleOf` / `nameOf` | P1 | Engine accessibility tree |
 | `data-al` attributes written into pages | P1 | `backendNodeId` refs |
-| `isRow` box-geometry row detection | P1 | Semantic roles (`row`, `listitem`, …) in the text renderer |
-| `destOf` "show link when useful", 45/80 name caps | P1 | Renderer policy (`render.*`), JSON never cut |
-| `aria-hidden` / `inert` special cases | P1 | DESIGN §4.2 rules 1, 2, 4 |
-| `NOISE` regex in `daemon.ts` | P3 | Engine resource types + bundled tracker list |
-| 400 ms quiet `settle` | P2 | Settle contract (DESIGN §5.3) |
-| `page.ts` form reader | P4 | HTML form submission algorithm on parse5 |
-| `cookies.json` copy between engines | P2 | One store through the engine, encrypted export |
-| Ad-hoc CLI ↔ daemon JSON | P0 | JSON-RPC protocol |
+| `isRow` geometry check | P1 | Row roles (`row`, `listitem`, `option`, `menuitem`, `article`) in the renderer |
+| `destOf`, the 45 / 80 name caps | P1 | `render.*` policy, applied in the text renderer only |
+| `aria-hidden` / `inert` handling | P1 | DESIGN §4.2 rules 1–2 |
+| `--blink-settings=imagesEnabled=false` | P1 | `load.block` + `load.motion` policy |
+| 400 ms quiet `settle` | P2 | Settle contract, DESIGN §5.3 |
+| `NOISE` regex | P3 | Engine resource types + tracker list data file |
+| `page.ts` form reader, node-html-parser | P5 | parse5 + HTML form submission algorithm |
+| `cookies.json` | P5 | `http` engine uses the browser profile's cookies |
 
-## P0 — Protocol skeleton
+## P0 — Foundations
 
-- `src/protocol/`: TS types from DESIGN §3, JSON Schema generated from them, error codes.
-- Daemon speaks JSON-RPC 2.0 with `initialize`. CLI becomes an adapter over it; command names stay.
-- Corpus: record HN, Google Flights (results), GitHub repo page, the local fixtures as MHTML + HAR
-  under `test/corpus/`, with a loader that serves them offline.
-- Measurement script: `npm run measure` prints snapshot ms, lines, chars per corpus page.
+- `src/policy/`: defaults file + loader + a test per key.
+- Corpus: save HN, Google Flights results, GitHub repo, Amazon search, TodoMVC, and the local fixtures
+  as MHTML + HAR under `test/corpus/`; a server that replays them offline.
+- `npm run measure`: read time, lines, chars, controls per corpus page → `bench/results/baseline.json`.
 
-**Exit:** all current tests pass through the protocol; `measure` produces a baseline file in-repo.
+**Exit:** baseline committed; current tests green; corpus pages load offline.
 
-## P1 — Semantic layer on the accessibility tree
+## P1 — Reader on the accessibility tree
 
-- `src/semantic/`: AX tree + DOMSnapshot → `Node` (DESIGN §4.1, §4.2). Refs are `generation:backendNodeId`.
-- `src/render/text.ts`: rows by role, controls inline, headings own lines, paging, `render.*` policy.
-- Actions resolve refs through `DOM.resolveNode` from `backendNodeId`.
-- Delete `snapshot.ts` and every row in the table above marked P1.
+- `src/reader/`: AX tree + DOMSnapshot → `Node` tree (DESIGN §4.1–4.2), refs from `backendNodeId`,
+  frames attached, `aria-hidden` visible text attached without refs.
+- `src/render/text.ts`: rows by role, controls inline, headings on their own lines, paging,
+  `render.*` policy.
+- Actions resolve refs through `DOM.resolveNode`.
+- Engine loads with `load.block` and `load.motion`.
+- Delete `snapshot.ts` and every P1 row above.
 
-**Exit:** corpus snapshots are at least as complete as the baseline (every flight row with airports and
-price, every HN story with its points line), p95 under 150 ms, zero writes to page DOM, all tests green.
+**Exit:** on the corpus, every fact in the baseline is still present (each flight row with times,
+airports and price; each HN story with its points line); read p95 under 150 ms; zero DOM writes to
+pages; all tests green.
 
-## P2 — Actions and the settle contract
+## P2 — Actions and settle
 
-- Actionability via the engine adapter; `NOT_ACTIONABLE` reasons.
-- Settle contract with reported reason; policy file `src/policy/defaults.json` with tests per key.
-- Responses carry the snapshot delta, not a full re-read.
-- Cookie store: `http` engine reads/writes through the Chromium profile store; encrypted export via
-  OS keychain key; `cookies.json` removed.
+- Actionability with named failure reasons; trusted input for every pointer and keyboard command in
+  DESIGN §6.
+- Settle contract with reported reason; deltas returned by every action.
 
-**Exit:** a test page that never goes quiet returns `settled.reason = deadline` in `deadlineMs`; a
-fetch-driven page returns `idle`; deltas are smaller than full snapshots on every corpus action.
+**Exit:** a never-quiet page reports `deadline` within the policy deadline; a fetch page reports
+`idle`; every action on the corpus returns a delta smaller than a full read.
 
-## P3 — Recorder
+## P3 — Events, windows, files, network
 
-- HAR 1.2 recording per target, initiator + causing action, redaction before disk, rotation.
-- Classification by resource type + bundled tracker list; `network.list` filters on it.
+- Dialogs surfaced and answered; pop-ups and `target=_blank` as tabs; downloads saved and listed;
+  `upload`.
+- HAR logging with redaction; tracker list as data; `net show`.
 
-**Exit:** Google Flights search recording opens in a standard HAR viewer; no `Cookie` /
-`Authorization` values on disk; tracker filter has zero hand-written patterns.
+**Exit:** a fixture with `confirm()`, a pop-up OAuth window, a download and an upload passes end to
+end; no secrets in any file on disk.
 
-## P4 — HTTP engine on the specs
+## P4 — Reveal map
 
-- parse5; HTML-AAM implicit roles for snapshot nodes; form submission algorithm for verbs.
-- Client-rendered shell detection → error that names the `chromium` engine.
-- Conformance tests from the form submission spec cases.
+- ARIA and HTML reveal sources; CSSOM `:hover` / `:focus-within` analysis; document-start listener
+  hook; `hover` / `focus` return what appeared.
+- Canvas text hook.
 
-**Exit:** form conformance cases pass; corpus HTML pages produce the same node roles as the
-`chromium` engine for static content.
+**Exit:** fixtures for each source (ARIA menu, `<details>`, CSS hover menu, JS hover menu, render-on-
+hover menu) show their items before any trigger, or are marked when they cannot be known; a canvas
+fixture's drawn text is readable.
 
-## P5 — Compiler and replay
+## P5 — The `http` engine on the specs
 
-- Dataflow analysis over recordings (DESIGN §7.3); Route format with JSON Schema; route store.
-- `replay` engine with response shape validation and fallback.
-- First routes: Google Flights search, Hacker News front page, the local booking fixture.
+- parse5, HTML-AAM roles, the form submission algorithm, shell detection, cookies through the browser
+  profile.
 
-**Exit:** Flights search by route returns the same results as the live run; replay p95 under 500 ms;
-a deliberately broken route falls back to live and recompiles.
+**Exit:** form-submission conformance cases pass; static corpus pages give the same roles and names on
+both engines.
 
-## P6 — Adapters and packaging
+## P6 — Coverage and hardening
 
-- MCP server: tools map 1:1 to protocol methods, generated from the schema.
-- TypeScript SDK from the same schema.
-- `npx agent-layer` install path; Chrome / headless-shell detection with a clear message.
+- Remaining DESIGN §6 commands: frames, storage, `eval`, permissions, profiles, Chrome cookie import.
+- Live checks (`npm run live`) on the five benchmark sites plus a logged-in Gmail task.
 
-**Exit:** Claude Code completes the Flights task through MCP with no CLI involved.
+**Exit:** every row in DESIGN §6 has a passing test; live checks green.
 
-## P7 — Hardening
+## Later — own the engine
 
-- Policy-gated irreversible actions (`POLICY_DENIED` / `confirm`).
-- Structured logs, `runtime.trace`.
-- Live canaries on a schedule; budgets tracked per commit.
-
-**Exit:** canaries green for a week; security checklist in DESIGN §11 verified by tests.
-
-## Not on this plan
-
-Chromium fork or a no-paint build, cloud hosting, multi-user, vision, anti-bot evasion.
+`chrome-headless-shell`, then a build with paint, raster and compositing removed after layout.
+Starts when measured CPU per tab at our target parallelism says the 70–220 ms per load matters.
