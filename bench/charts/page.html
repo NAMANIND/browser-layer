@@ -53,6 +53,8 @@ section { display: grid; gap: 18px; }
 .bar b { font: 400 0.82rem var(--mono); color: var(--fg-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ratio-head { font-size: 0.8rem; color: var(--fg-3); text-align: right; }
 .note { font-size: 0.85rem; color: var(--fg-3); }
+.figure { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.figure svg { display: block; }
 details { border-top: 1px solid var(--line); padding-top: 10px; }
 summary { cursor: pointer; color: var(--fg-2); font-size: 0.92rem; }
 .tablebox { overflow-x: auto; margin-top: 10px; }
@@ -90,6 +92,14 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
   </header>
 
   <div class="tiles" id="tiles"></div>
+
+  <section>
+    <div class="eyebrow">Every run · model claude-sonnet-5-thinking-high, run by cursor-agent</div>
+    <h2>Tokens for every run, per tool</h2>
+    <p>Each dot is one run of one task; the line is each tool's median and the number above a column is its total. The first chart is web-agent-bench (10 tasks, 3 runs each); the second is our own eight tasks with playwright-cli added.</p>
+    <div class="figure">__RUNS_AB__</div>
+    <div class="figure">__RUNS_THREE__</div>
+  </section>
 
   <section>
     <div class="eyebrow">web-agent-bench · 10 tasks · 3 runs each</div>

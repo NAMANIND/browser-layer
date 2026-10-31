@@ -70,6 +70,41 @@ function headline({ title, subtitle, source, tiles }) {
   return out.join('\n')
 }
 
+// Tools across, tokens up: every run a dot, each tool's median a line, its total above the column.
+function strip({ title, subtitle, model, source, tools, runs }) {
+  const W = 1200, H = 820, left = 120, right = 48, top = 230, bottom = 120
+  const max = Math.max(...tools.flatMap(t => runs(t)))
+  const raw = max / 5, mag = 10 ** Math.floor(Math.log10(raw))
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw)
+  const ceil = Math.ceil(max / step) * step
+  const y = v => top + (H - top - bottom) * (1 - v / ceil)
+  const band = (W - left - right) / tools.length
+  const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" ${FONT}>`,
+    `<rect width="${W}" height="${H}" fill="${INK.surface}"/>`,
+    `<text x="48" y="64" font-size="30" font-weight="700" fill="${INK.primary}">${esc(title)}</text>`,
+    `<text x="48" y="98" font-size="18" fill="${INK.secondary}">${esc(subtitle)}</text>`,
+    `<rect x="48" y="118" width="${model.length * 9.6 + 28}" height="34" rx="17" fill="none" stroke="${INK.grid}" stroke-width="1.5"/>`,
+    `<text x="62" y="141" font-size="16" fill="${INK.primary}"><tspan font-weight="600">Model</tspan> ${esc(model)}</text>`,
+    `<text transform="translate(40 ${(top + H - bottom) / 2}) rotate(-90)" font-size="15" text-anchor="middle" fill="${INK.muted}">Tokens per run</text>`]
+  for (let v = 0; v <= ceil; v += step) {
+    out.push(`<line x1="${left}" x2="${W - right}" y1="${y(v)}" y2="${y(v)}" stroke="${INK.grid}" stroke-width="1"/>`,
+      `<text x="${left - 12}" y="${y(v) + 5}" font-size="14" text-anchor="end" fill="${INK.muted}">${v ? k(v) : '0'}</text>`)
+  }
+  tools.forEach((tool, i) => {
+    const cx = left + band * (i + 0.5), vals = runs(tool), m = median(vals), total = vals.reduce((a, b) => a + b, 0)
+    // Dots spread across the column by the golden ratio, so runs with equal values stay visible.
+    vals.forEach((v, j) => out.push(`<circle cx="${cx + (((j * 0.618) % 1) - 0.5) * band * 0.5}" cy="${y(v)}" r="6" fill="${COLOR[tool]}" stroke="${INK.surface}" stroke-width="2"><title>${tool}: ${k(v)}</title></circle>`))
+    out.push(`<line x1="${cx - band * 0.3}" x2="${cx + band * 0.3}" y1="${y(m)}" y2="${y(m)}" stroke="${INK.primary}" stroke-width="2.5" stroke-linecap="round"/>`,
+      `<text x="${cx + band * 0.3}" y="${y(m) - 10}" font-size="15" font-weight="600" text-anchor="end" fill="${INK.primary}">median ${k(m)}</text>`,
+      `<text x="${cx}" y="${top - 46}" font-size="26" font-weight="700" text-anchor="middle" fill="${INK.primary}">${k(total)}</text>`,
+      `<text x="${cx}" y="${top - 22}" font-size="14" text-anchor="middle" fill="${INK.muted}">total over ${vals.length} runs</text>`,
+      `<rect x="${cx - 60}" y="${H - bottom + 28}" width="12" height="12" rx="3" fill="${COLOR[tool]}"/>`,
+      `<text x="${cx - 42}" y="${H - bottom + 39}" font-size="17" font-weight="600" fill="${INK.primary}">${tool}</text>`)
+  })
+  out.push(`<text x="48" y="${H - 28}" font-size="14" fill="${INK.muted}">${esc(source)}</text>`, '</svg>')
+  return out.join('\n')
+}
+
 // web-agent-bench: medians of 3 runs per task.
 const wab = rows('web-agent-bench.jsonl')
 const wabTasks = [...new Set(wab.map(r => `${r.suite}/${r.scenario}`))].map(key => ({ key, label: key.split('/')[1] }))
@@ -118,13 +153,26 @@ charts['three-tools-tokens'] = bars({
   value: (t, tool) => own.get(`${t.key}|${tool}`).tokens,
 })
 
+const MODEL = 'claude-sonnet-5-thinking-high, run by cursor-agent'
+charts['runs-agent-browser'] = strip({
+  title: 'Every run, agent-layer vs agent-browser', subtitle: '30 runs each: 10 web-agent-bench tasks × 3. Each dot is one run; lower is better. Both passed 30/30.',
+  model: MODEL, source: wabSource, tools: two, runs: tool => wab.filter(r => r.tool === tool).map(r => r.total),
+})
+charts['runs-three-tools'] = strip({
+  title: 'Every run, three browser CLIs', subtitle: '8 tasks, one run each. Each dot is one task; lower is better. All passed 8/8.',
+  model: MODEL, source: 'agent-layer benchmark: 6 local apps + Hacker News + GitHub · agent-browser 0.41.0, playwright-cli 0.1.22',
+  tools: three, runs: tool => ownTasks.map(t => own.get(`${t.key}|${tool}`).tokens),
+})
+
 // The results page: page.html with the same data filled in (medians per task, totals over all runs).
 const pageData = {
   wab: wabTasks.map(t => ({ suite: t.key.split('/')[0], task: t.label, ...Object.fromEntries(two.map(tool => { const r = wabRuns(t, tool); return [tool, { tokens: median(r.map(x => x.total)), steps: median(r.map(x => x.steps)), s: Math.round(median(r.map(x => x.ms)) / 1000) }] })) })),
   own: ownTasks.map(t => ({ task: t.key, ...Object.fromEntries(three.map(tool => { const r = own.get(`${t.key}|${tool}`); return [tool, { tokens: r.tokens, steps: r.turns, s: Math.round(r.ms / 1000) }] })) })),
   totals: Object.fromEntries(two.map(tool => [tool, { tokens: wabSum(tool, r => r.total), steps: wabSum(tool, r => r.steps), s: Math.round(wabSum(tool, r => r.ms) / 1000) }])),
 }
-writeFileSync(`${dir}results.html`, readFileSync(`${dir}page.html`, 'utf8').replace('__DATA__', JSON.stringify(pageData)))
+const inline = svg => svg.replace(/ width="\d+" height="\d+"/, ' width="100%" height="auto" role="img"')
+writeFileSync(`${dir}results.html`, readFileSync(`${dir}page.html`, 'utf8').replace('__DATA__', JSON.stringify(pageData))
+  .replace('__RUNS_AB__', inline(charts['runs-agent-browser'])).replace('__RUNS_THREE__', inline(charts['runs-three-tools'])))
 
 const browser = await chromium.launch({ channel: 'chrome' })
 const page = await browser.newPage({ deviceScaleFactor: 2 })

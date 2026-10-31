@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="820" viewBox="0 0 1200 820" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif">
+<rect width="1200" height="820" fill="#fcfcfb"/>
+<text x="48" y="64" font-size="30" font-weight="700" fill="#0b0b0b">Every run, agent-layer vs agent-browser</text>
+<text x="48" y="98" font-size="18" fill="#52514e">30 runs each: 10 web-agent-bench tasks × 3. Each dot is one run; lower is better. Both passed 30/30.</text>
+<rect x="48" y="118" width="508" height="34" rx="17" fill="none" stroke="#e7e6e2" stroke-width="1.5"/>
+<text x="62" y="141" font-size="16" fill="#0b0b0b"><tspan font-weight="600">Model</tspan> claude-sonnet-5-thinking-high, run by cursor-agent</text>
+<text transform="translate(40 465) rotate(-90)" font-size="15" text-anchor="middle" fill="#8a8984">Tokens per run</text>
+<line x1="120" x2="1152" y1="700" y2="700" stroke="#e7e6e2" stroke-width="1"/>
+<text x="108" y="705" font-size="14" text-anchor="end" fill="#8a8984">0</text>
+<line x1="120" x2="1152" y1="582.5" y2="582.5" stroke="#e7e6e2" stroke-width="1"/>
+<text x="108" y="587.5" font-size="14" text-anchor="end" fill="#8a8984">500k</text>
+<line x1="120" x2="1152" y1="465" y2="465" stroke="#e7e6e2" stroke-width="1"/>
+<text x="108" y="470" font-size="14" text-anchor="end" fill="#8a8984">1.0M</text>
+<line x1="120" x2="1152" y1="347.5" y2="347.5" stroke="#e7e6e2" stroke-width="1"/>
+<text x="108" y="352.5" font-size="14" text-anchor="end" fill="#8a8984">1.5M</text>
+<line x1="120" x2="1152" y1="230" y2="230" stroke="#e7e6e2" stroke-width="1"/>
+<text x="108" y="235" font-size="14" text-anchor="end" fill="#8a8984">2.0M</text>
+<circle cx="249" cy="683.85691" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 69k</title></circle>
+<circle cx="408.444" cy="683.85691" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 69k</title></circle>
+<circle cx="309.888" cy="683.85879" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 69k</title></circle>
+<circle cx="469.332" cy="683.9010900000001" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 69k</title></circle>
+<circle cx="370.776" cy="683.839755" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 69k</title></circle>
+<circle cx="272.21999999999997" cy="683.88558" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 69k</title></circle>
+<circle cx="431.66400000000004" cy="674.994355" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 106k</title></circle>
+<circle cx="333.1079999999999" cy="675.142405" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 106k</title></circle>
+<circle cx="492.552" cy="675.0039899999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 106k</title></circle>
+<circle cx="393.9960000000001" cy="683.9090799999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 68k</title></circle>
+<circle cx="295.43999999999994" cy="683.91284" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 68k</title></circle>
+<circle cx="454.884" cy="683.92882" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 68k</title></circle>
+<circle cx="356.3280000000001" cy="657.3453850000001" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 182k</title></circle>
+<circle cx="257.77200000000016" cy="661.2870399999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 165k</title></circle>
+<circle cx="417.2159999999998" cy="657.531975" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 181k</title></circle>
+<circle cx="318.6599999999999" cy="683.95749" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 68k</title></circle>
+<circle cx="478.104" cy="683.9410399999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 68k</title></circle>
+<circle cx="379.54800000000006" cy="683.95749" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 68k</title></circle>
+<circle cx="280.99200000000013" cy="679.699995" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 86k</title></circle>
+<circle cx="440.43599999999975" cy="679.722555" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 86k</title></circle>
+<circle cx="341.8799999999999" cy="679.699995" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 86k</title></circle>
+<circle cx="501.32399999999996" cy="656.905935" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 183k</title></circle>
+<circle cx="402.76800000000003" cy="657.216135" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 182k</title></circle>
+<circle cx="304.2120000000001" cy="657.23329" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 182k</title></circle>
+<circle cx="463.6560000000002" cy="626.6040949999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 312k</title></circle>
+<circle cx="365.0999999999998" cy="634.206345" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 280k</title></circle>
+<circle cx="266.5440000000003" cy="633.827055" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 282k</title></circle>
+<circle cx="425.988" cy="666.49323" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 143k</title></circle>
+<circle cx="327.4319999999996" cy="670.761535" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 124k</title></circle>
+<circle cx="486.87600000000015" cy="670.94084" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 124k</title></circle>
+<line x1="223.20000000000002" x2="532.8" y1="675.142405" y2="675.142405" stroke="#0b0b0b" stroke-width="2.5" stroke-linecap="round"/>
+<text x="532.8" y="665.142405" font-size="15" font-weight="600" text-anchor="end" fill="#0b0b0b">median 106k</text>
+<text x="378" y="184" font-size="26" font-weight="700" text-anchor="middle" fill="#0b0b0b">3.7M</text>
+<text x="378" y="208" font-size="14" text-anchor="middle" fill="#8a8984">total over 30 runs</text>
+<rect x="318" y="728" width="12" height="12" rx="3" fill="#2a78d6"/>
+<text x="336" y="739" font-size="17" font-weight="600" fill="#0b0b0b">agent-layer</text>
+<circle cx="765" cy="609.2519299999999" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 386k</title></circle>
+<circle cx="924.444" cy="625.3585949999999" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 318k</title></circle>
+<circle cx="825.888" cy="642.696895" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 244k</title></circle>
+<circle cx="985.332" cy="633.775355" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 282k</title></circle>
+<circle cx="886.776" cy="645.2513449999999" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 233k</title></circle>
+<circle cx="788.22" cy="657.393795" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 181k</title></circle>
+<circle cx="947.664" cy="637.399995" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 266k</title></circle>
+<circle cx="849.108" cy="603.56399" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 410k</title></circle>
+<circle cx="1008.552" cy="579.4739050000001" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 513k</title></circle>
+<circle cx="909.9960000000001" cy="643.63102" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 240k</title></circle>
+<circle cx="811.4399999999999" cy="524.5847200000001" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 746k</title></circle>
+<circle cx="970.884" cy="647.54565" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 223k</title></circle>
+<circle cx="872.3280000000001" cy="603.1898699999999" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 412k</title></circle>
+<circle cx="773.7720000000002" cy="568.04045" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 562k</title></circle>
+<circle cx="933.2159999999998" cy="536.816235" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 694k</title></circle>
+<circle cx="834.6599999999999" cy="657.425755" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 181k</title></circle>
+<circle cx="994.1039999999999" cy="644.1322749999999" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 238k</title></circle>
+<circle cx="895.548" cy="657.64501" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 180k</title></circle>
+<circle cx="796.9920000000002" cy="631.404675" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 292k</title></circle>
+<circle cx="956.4359999999998" cy="605.3377700000001" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 403k</title></circle>
+<circle cx="857.8799999999999" cy="654.1153099999999" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 195k</title></circle>
+<circle cx="1017.324" cy="588.425525" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 475k</title></circle>
+<circle cx="918.768" cy="587.4589699999999" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 479k</title></circle>
+<circle cx="820.2120000000001" cy="566.5984900000001" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 568k</title></circle>
+<circle cx="979.6560000000002" cy="455.05715" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 1.0M</title></circle>
+<circle cx="881.0999999999998" cy="300.648755" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 1.7M</title></circle>
+<circle cx="782.5440000000003" cy="583.4682" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 496k</title></circle>
+<circle cx="941.9879999999999" cy="647.815195" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 222k</title></circle>
+<circle cx="843.4319999999996" cy="641.679345" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 248k</title></circle>
+<circle cx="1002.8760000000002" cy="608.576775" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 389k</title></circle>
+<line x1="739.2" x2="1048.8" y1="609.2519299999999" y2="609.2519299999999" stroke="#0b0b0b" stroke-width="2.5" stroke-linecap="round"/>
+<text x="1048.8" y="599.2519299999999" font-size="15" font-weight="600" text-anchor="end" fill="#0b0b0b">median 386k</text>
+<text x="894" y="184" font-size="26" font-weight="700" text-anchor="middle" fill="#0b0b0b">12.8M</text>
+<text x="894" y="208" font-size="14" text-anchor="middle" fill="#8a8984">total over 30 runs</text>
+<rect x="834" y="728" width="12" height="12" rx="3" fill="#eb6834"/>
+<text x="852" y="739" font-size="17" font-weight="600" fill="#0b0b0b">agent-browser</text>
+<text x="48" y="792" font-size="14" fill="#8a8984">web-agent-bench suites (controlled, scroll, dynamic, hard) · cursor-agent, claude-sonnet-5-thinking-high · 3 runs per task, both tools 30/30 passed</text>
+</svg>

@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="820" viewBox="0 0 1200 820" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif">
+<rect width="1200" height="820" fill="#fcfcfb"/>
+<text x="48" y="64" font-size="30" font-weight="700" fill="#0b0b0b">Every run, three browser CLIs</text>
+<text x="48" y="98" font-size="18" fill="#52514e">8 tasks, one run each. Each dot is one task; lower is better. All passed 8/8.</text>
+<rect x="48" y="118" width="508" height="34" rx="17" fill="none" stroke="#e7e6e2" stroke-width="1.5"/>
+<text x="62" y="141" font-size="16" fill="#0b0b0b"><tspan font-weight="600">Model</tspan> claude-sonnet-5-thinking-high, run by cursor-agent</text>
+<text transform="translate(40 465) rotate(-90)" font-size="15" text-anchor="middle" fill="#8a8984">Tokens per run</text>
+<line x1="120" x2="1152" y1="700" y2="700" stroke="#e7e6e2" stroke-width="1"/>
+<text x="108" y="705" font-size="14" text-anchor="end" fill="#8a8984">0</text>
+<line x1="120" x2="1152" y1="606" y2="606" stroke="#e7e6e2" stroke-width="1"/>
+<text x="108" y="611" font-size="14" text-anchor="end" fill="#8a8984">200k</text>
+<line x1="120" x2="1152" y1="512" y2="512" stroke="#e7e6e2" stroke-width="1"/>
+<text x="108" y="517" font-size="14" text-anchor="end" fill="#8a8984">400k</text>
+<line x1="120" x2="1152" y1="418" y2="418" stroke="#e7e6e2" stroke-width="1"/>
+<text x="108" y="423" font-size="14" text-anchor="end" fill="#8a8984">600k</text>
+<line x1="120" x2="1152" y1="324" y2="324" stroke="#e7e6e2" stroke-width="1"/>
+<text x="108" y="329" font-size="14" text-anchor="end" fill="#8a8984">800k</text>
+<line x1="120" x2="1152" y1="230" y2="230" stroke="#e7e6e2" stroke-width="1"/>
+<text x="108" y="235" font-size="14" text-anchor="end" fill="#8a8984">1.0M</text>
+<circle cx="206" cy="649.1727900000001" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 108k</title></circle>
+<circle cx="312.296" cy="562.99406" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 292k</title></circle>
+<circle cx="246.59199999999998" cy="650.94093" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 104k</title></circle>
+<circle cx="352.88800000000003" cy="597.26458" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 219k</title></circle>
+<circle cx="287.18399999999997" cy="650.4074800000001" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 106k</title></circle>
+<circle cx="221.47999999999996" cy="656.52359" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 93k</title></circle>
+<circle cx="327.776" cy="674.55467" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 54k</title></circle>
+<circle cx="262.07199999999995" cy="675.55342" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 52k</title></circle>
+<line x1="188.8" x2="395.2" y1="650.4074800000001" y2="650.4074800000001" stroke="#0b0b0b" stroke-width="2.5" stroke-linecap="round"/>
+<text x="395.2" y="640.4074800000001" font-size="15" font-weight="600" text-anchor="end" fill="#0b0b0b">median 106k</text>
+<text x="292" y="184" font-size="26" font-weight="700" text-anchor="middle" fill="#0b0b0b">1.0M</text>
+<text x="292" y="208" font-size="14" text-anchor="middle" fill="#8a8984">total over 8 runs</text>
+<rect x="232" y="728" width="12" height="12" rx="3" fill="#2a78d6"/>
+<text x="250" y="739" font-size="17" font-weight="600" fill="#0b0b0b">agent-layer</text>
+<circle cx="550" cy="631.65119" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 145k</title></circle>
+<circle cx="656.296" cy="267.0501" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 921k</title></circle>
+<circle cx="590.592" cy="623.81441" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 162k</title></circle>
+<circle cx="696.888" cy="565.37085" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 286k</title></circle>
+<circle cx="631.184" cy="623.61137" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 163k</title></circle>
+<circle cx="565.48" cy="635.6772100000001" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 137k</title></circle>
+<circle cx="671.7760000000001" cy="657.3475000000001" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 91k</title></circle>
+<circle cx="606.0719999999999" cy="670.36086" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 63k</title></circle>
+<line x1="532.8" x2="739.2" y1="623.81441" y2="623.81441" stroke="#0b0b0b" stroke-width="2.5" stroke-linecap="round"/>
+<text x="739.2" y="613.81441" font-size="15" font-weight="600" text-anchor="end" fill="#0b0b0b">median 162k</text>
+<text x="636" y="184" font-size="26" font-weight="700" text-anchor="middle" fill="#0b0b0b">2.0M</text>
+<text x="636" y="208" font-size="14" text-anchor="middle" fill="#8a8984">total over 8 runs</text>
+<rect x="576" y="728" width="12" height="12" rx="3" fill="#eb6834"/>
+<text x="594" y="739" font-size="17" font-weight="600" fill="#0b0b0b">agent-browser</text>
+<circle cx="894" cy="651.4231500000001" r="6" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>playwright-cli: 103k</title></circle>
+<circle cx="1000.296" cy="462.00751" r="6" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>playwright-cli: 506k</title></circle>
+<circle cx="934.592" cy="518.94613" r="6" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>playwright-cli: 385k</title></circle>
+<circle cx="1040.888" cy="584.22866" r="6" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>playwright-cli: 246k</title></circle>
+<circle cx="975.184" cy="570.0656799999999" r="6" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>playwright-cli: 276k</title></circle>
+<circle cx="909.48" cy="629.1785199999999" r="6" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>playwright-cli: 151k</title></circle>
+<circle cx="1015.7760000000001" cy="630.34318" r="6" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>playwright-cli: 148k</title></circle>
+<circle cx="950.0719999999999" cy="656.78538" r="6" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>playwright-cli: 92k</title></circle>
+<line x1="876.8" x2="1083.2" y1="584.22866" y2="584.22866" stroke="#0b0b0b" stroke-width="2.5" stroke-linecap="round"/>
+<text x="1083.2" y="574.22866" font-size="15" font-weight="600" text-anchor="end" fill="#0b0b0b">median 246k</text>
+<text x="980" y="184" font-size="26" font-weight="700" text-anchor="middle" fill="#0b0b0b">1.9M</text>
+<text x="980" y="208" font-size="14" text-anchor="middle" fill="#8a8984">total over 8 runs</text>
+<rect x="920" y="728" width="12" height="12" rx="3" fill="#1baf7a"/>
+<text x="938" y="739" font-size="17" font-weight="600" fill="#0b0b0b">playwright-cli</text>
+<text x="48" y="792" font-size="14" fill="#8a8984">agent-layer benchmark: 6 local apps + Hacker News + GitHub · agent-browser 0.41.0, playwright-cli 0.1.22</text>
+</svg>
