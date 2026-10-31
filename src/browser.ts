@@ -33,4 +33,6 @@ export function findBrowser(): { path: string } | { error: string } {
 
 // The cookie store the agent's browser uses: Playwright launches Chromium with these on every platform,
 // so a window `login` opens must too, or the session it saves cannot be decrypted and is dropped.
-export const PROFILE_FLAGS = ['--password-store=basic', '--use-mock-keychain']
+// Chromium will not start as root on Linux with its sandbox on (containers, root shells); Playwright
+// turns it off for the agent's browser, and a window `login` opens as root needs the same.
+export const PROFILE_FLAGS = ['--password-store=basic', '--use-mock-keychain', ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])]

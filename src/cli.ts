@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { rmSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { readFileSync, rmSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { readHtml, type Field, type Verb } from './html.js'
 import { home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
 import { paginate, renderText } from './render.js'
@@ -194,7 +194,9 @@ async function main() {
   if (cmd === 'install') {
     // Playwright's own installer, for the Chromium build this playwright-core drives. --with-deps (Linux)
     // also installs the system libraries it needs, through the package manager, so it asks for sudo.
-    const cli = createRequire(import.meta.url).resolve('playwright-core/cli.js')
+    // The installer is the package's bin, which its exports do not expose; package.json names it.
+    const pkg = createRequire(import.meta.url).resolve('playwright-core/package.json')
+    const cli = join(dirname(pkg), (JSON.parse(readFileSync(pkg, 'utf8')) as { bin: Record<string, string> }).bin['playwright-core'])
     const code = await new Promise<number | null>(done => spawn(process.execPath, [cli, 'install', 'chromium', ...(argv.includes('--with-deps') ? ['--with-deps'] : [])], { stdio: 'inherit' }).on('exit', done))
     if (code) process.exit(code)
     return console.log(`Installed. The agent's browser: ${(findBrowser() as { path: string }).path}`)
