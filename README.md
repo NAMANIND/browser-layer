@@ -9,7 +9,7 @@ agent-browser and used 3.4× fewer tokens ([benchmarks](bench/RESULTS.md)).
 
 ## Install
 
-Needs Node.js 20 or newer, on macOS, Linux or Windows.
+Needs Node.js 22 or newer, on macOS, Linux or Windows.
 
 ```bash
 npm install -g agent-layer
@@ -58,7 +58,7 @@ npm run build
 npm test          # unit and live tests; the live tests drive the browser agent-layer finds
 ```
 
-CI runs the build and every test on Linux, macOS and Windows with Node 20 and 22.
+CI runs the build and every test on Linux, macOS and Windows with Node 22 and 24.
 
 ## License
 
