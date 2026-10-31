@@ -1,4 +1,4 @@
-<title>agent-layer Benchmarks</title>
+<title>browser-layer Benchmarks</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -87,8 +87,8 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
 <div class="wrap">
   <header>
     <div class="eyebrow">Benchmarks · October 2026</div>
-    <h1>agent-layer finishes the same browser tasks in half the steps</h1>
-    <p>Same model, same prompts, same answer checks. Only the browser tool changes. The agent runs each tool from its terminal, as <span class="cmd">agent-layer</span>, <span class="cmd">agent-browser</span> or <span class="cmd">playwright-cli</span>, and every answer is checked automatically.</p>
+    <h1>browser-layer finishes the same browser tasks in half the steps</h1>
+    <p>Same model, same prompts, same answer checks. Only the browser tool changes. The agent runs each tool from its terminal, as <span class="cmd">browser-layer</span>, <span class="cmd">agent-browser</span> or <span class="cmd">playwright-cli</span>, and every answer is checked automatically.</p>
   </header>
 
   <div class="tiles" id="tiles"></div>
@@ -124,14 +124,14 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
   <section>
     <div class="eyebrow">Example · login task · run 1 of 3</div>
     <h2>What the agent actually ran</h2>
-    <p>The task: open the login page, sign in as <span class="cmd">demo</span> / <span class="cmd">s3cret</span>, and report the access code on the dashboard. These are the real commands from the benchmark, with long outputs shortened. agent-layer opens the page as a map of its controls, and each action answers with what changed, so the code arrives in the reply to the click itself.</p>
+    <p>The task: open the login page, sign in as <span class="cmd">demo</span> / <span class="cmd">s3cret</span>, and report the access code on the dashboard. These are the real commands from the benchmark, with long outputs shortened. browser-layer opens the page as a map of its controls, and each action answers with what changed, so the code arrives in the reply to the click itself.</p>
     <div class="compare">
       <div class="term">
-        <div class="term-head"><strong><i class="sw" style="background:var(--s-layer)"></i>agent-layer</strong><span>3 steps · 69k tokens · 12 s</span></div>
+        <div class="term-head"><strong><i class="sw" style="background:var(--s-layer)"></i>browser-layer</strong><span>3 steps · 69k tokens · 12 s</span></div>
         <ol class="steps">
-          <li><div><div class="c">$ agent-layer help</div><pre class="out">agent-layer — websites as text and verbs for agents.
+          <li><div><div class="c">$ browser-layer help</div><pre class="out">browser-layer — websites as text and verbs for agents.
 …</pre></div></li>
-          <li><div><div class="c">$ agent-layer tab http://127.0.0.1:63413/login</div><pre class="out">tab 1  …/login  "Acme bench site"
+          <li><div><div class="c">$ browser-layer tab http://127.0.0.1:63413/login</div><pre class="out">tab 1  …/login  "Acme bench site"
 
 [4] navigation
   links: [1] link "Login" · [2] link "Shop" · [3] link "Todos"
@@ -140,7 +140,7 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
 [8] form
   fields: [5] textbox "Username" · [6] textbox "Password"
   actions: [7] button "Sign in"</pre></div></li>
-          <li><div><div class="c">$ agent-layer type 5 demo &amp;&amp; agent-layer type 6 s3cret &amp;&amp; agent-layer click 7</div><pre class="out">— 1 lines gone, 1 new, settled: idle in 409 ms
+          <li><div><div class="c">$ browser-layer type 5 demo &amp;&amp; browser-layer type 6 s3cret &amp;&amp; browser-layer click 7</div><pre class="out">— 1 lines gone, 1 new, settled: idle in 409 ms
 + [5] textbox "Username" = "demo" focused
 — 2 lines gone, 2 new, settled: idle in 410 ms
 + [6] textbox "Password" = "••••••" focused
@@ -189,15 +189,15 @@ Your access code is: ALPHA-LPHPAT</pre></div></li>
   <section>
     <div class="eyebrow">How it was run</div>
     <h2>Setup and limits</h2>
-    <p>The model is claude-sonnet-5-thinking-high. Versions: agent-browser 0.41.0, playwright-cli 0.1.22. web-agent-bench's own prompts, answer checks, per-tool guides and command rules are used unchanged. Its rules forbid in-page JavaScript, network capture, cookies and storage, so agent-layer's matching commands and its plain-HTTP fast path were blocked too. A step costs about the same with either tool (22k vs 29k tokens, mostly the agent's own prompt resent each step), so the gap comes from the number of steps. The tasks are small fixture sites with 3 runs each; on our two live sites the gap was smaller (1.2–1.7×).</p>
+    <p>The model is claude-sonnet-5-thinking-high. Versions: agent-browser 0.41.0, playwright-cli 0.1.22. web-agent-bench's own prompts, answer checks, per-tool guides and command rules are used unchanged. Its rules forbid in-page JavaScript, network capture, cookies and storage, so browser-layer's matching commands and its plain-HTTP fast path were blocked too. A step costs about the same with either tool (22k vs 29k tokens, mostly the agent's own prompt resent each step), so the gap comes from the number of steps. The tasks are small fixture sites with 3 runs each; on our two live sites the gap was smaller (1.2–1.7×).</p>
   </section>
 </div>
 <div id="tip" hidden></div>
 
 <script>
 const DATA = __DATA__;
-const NAMES = { 'agent-layer': 'agent-layer', 'agent-browser': 'agent-browser', 'playwright-cli': 'playwright-cli' };
-const VAR = { 'agent-layer': '--s-layer', 'agent-browser': '--s-browser', 'playwright-cli': '--s-pw' };
+const NAMES = { 'browser-layer': 'browser-layer', 'agent-browser': 'agent-browser', 'playwright-cli': 'playwright-cli' };
+const VAR = { 'browser-layer': '--s-layer', 'agent-browser': '--s-browser', 'playwright-cli': '--s-pw' };
 const MEASURES = {
   tokens: { label: 'Tokens', fmt: v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : Math.round(v / 1000) + 'k' },
   steps: { label: 'Steps', fmt: v => String(v) },
@@ -208,7 +208,7 @@ const showTip = (e, text) => { tip.textContent = text; tip.hidden = false; tip.s
 const hideTip = () => { tip.hidden = true; };
 
 function tiles() {
-  const a = 'agent-layer', b = 'agent-browser';
+  const a = 'browser-layer', b = 'agent-browser';
   const t = [
     ['tokens', 'fewer tokens', v => MEASURES.tokens.fmt(v)],
     ['steps', 'fewer steps', v => v + ' tool calls'],
@@ -228,7 +228,7 @@ function chart(id, rows, tools, label) {
   const draw = () => {
     const m = MEASURES[measure];
     const max = Math.max(...rows.flatMap(r => tools.map(t => r[t][measure])));
-    const head = `<div class="row"><div></div><div></div><div class="ratio-head">${tools.slice(1).map(t => NAMES[t]).join(' · ')}<br>vs agent-layer</div></div>`;
+    const head = `<div class="row"><div></div><div></div><div class="ratio-head">${tools.slice(1).map(t => NAMES[t]).join(' · ')}<br>vs browser-layer</div></div>`;
     document.getElementById(id + '-chart').innerHTML = head + rows.map(r => {
       const bars = tools.map(t => `<div class="bar" data-tip="${label(r)} · ${NAMES[t]}: ${m.fmt(r[t][measure])} ${m.label.toLowerCase()}"><i style="width:calc(${(r[t][measure] / max) * 100}% - 6ch);background:var(${VAR[t]})"></i><b>${m.fmt(r[t][measure])}</b></div>`).join('');
       const ratios = tools.slice(1).map(t => (r[t][measure] / r[tools[0]][measure]).toFixed(1) + '×').join(' · ');
@@ -250,6 +250,6 @@ function chart(id, rows, tools, label) {
 }
 
 tiles();
-chart('wab', DATA.wab, ['agent-layer', 'agent-browser'], r => r.task);
-chart('own', DATA.own, ['agent-layer', 'agent-browser', 'playwright-cli'], r => r.task);
+chart('wab', DATA.wab, ['browser-layer', 'agent-browser'], r => r.task);
+chart('own', DATA.own, ['browser-layer', 'agent-browser', 'playwright-cli'], r => r.task);
 </script>

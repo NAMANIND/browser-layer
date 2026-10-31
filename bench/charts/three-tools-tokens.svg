@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="890" viewBox="0 0 1200 890" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif">
 <rect width="1200" height="890" fill="#fcfcfb"/>
 <text x="48" y="64" font-size="30" font-weight="700" fill="#0b0b0b">Three browser CLIs, eight tasks</text>
-<text x="48" y="98" font-size="18" fill="#52514e">Tokens per task, one run each. Lower is better. All passed 8/8. Totals: agent-layer 1.0M, agent-browser 2.0M, playwright-cli 1.9M.</text>
-<rect x="48" y="116" width="14" height="14" rx="3" fill="#2a78d6"/><text x="70" y="128" font-size="16" fill="#52514e">agent-layer</text>
-<rect x="191" y="116" width="14" height="14" rx="3" fill="#eb6834"/><text x="213" y="128" font-size="16" fill="#52514e">agent-browser</text>
-<rect x="352" y="116" width="14" height="14" rx="3" fill="#1baf7a"/><text x="374" y="128" font-size="16" fill="#52514e">playwright-cli</text>
-<text x="892" y="140" font-size="14" text-anchor="end" fill="#8a8984">agent-browser</text><text x="892" y="158" font-size="14" text-anchor="end" fill="#8a8984">vs agent-layer</text>
-<text x="1022" y="140" font-size="14" text-anchor="end" fill="#8a8984">playwright-cli</text><text x="1022" y="158" font-size="14" text-anchor="end" fill="#8a8984">vs agent-layer</text>
+<text x="48" y="98" font-size="18" fill="#52514e">Tokens per task, one run each. Lower is better. All passed 8/8. Totals: browser-layer 1.0M, agent-browser 2.0M, playwright-cli 1.9M.</text>
+<rect x="48" y="116" width="14" height="14" rx="3" fill="#2a78d6"/><text x="70" y="128" font-size="16" fill="#52514e">browser-layer</text>
+<rect x="209" y="116" width="14" height="14" rx="3" fill="#eb6834"/><text x="231" y="128" font-size="16" fill="#52514e">agent-browser</text>
+<rect x="370" y="116" width="14" height="14" rx="3" fill="#1baf7a"/><text x="392" y="128" font-size="16" fill="#52514e">playwright-cli</text>
+<text x="892" y="140" font-size="14" text-anchor="end" fill="#8a8984">agent-browser</text><text x="892" y="158" font-size="14" text-anchor="end" fill="#8a8984">vs browser-layer</text>
+<text x="1022" y="140" font-size="14" text-anchor="end" fill="#8a8984">playwright-cli</text><text x="1022" y="158" font-size="14" text-anchor="end" fill="#8a8984">vs browser-layer</text>
 <text x="194" y="206" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">shop</text>
-<path d="M210,170 h59.6294125948522 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-59.6294125948522 z" fill="#2a78d6"><title>agent-layer: 108k</title></path>
+<path d="M210,170 h59.6294125948522 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-59.6294125948522 z" fill="#2a78d6"><title>browser-layer: 108k</title></path>
 <text x="281.62941259485217" y="184" font-size="14" fill="#52514e">108k</text>
 <path d="M210,190 h81.56429974923195 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-81.56429974923195 z" fill="#eb6834"><title>agent-browser: 145k</title></path>
 <text x="303.56429974923196" y="204" font-size="14" fill="#52514e">145k</text>
@@ -17,7 +17,7 @@
 <text x="892" y="206" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.3×</text>
 <text x="1022" y="206" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.0×</text>
 <text x="194" y="288" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">flights</text>
-<path d="M210,252 h167.51457819946373 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-167.51457819946373 z" fill="#2a78d6"><title>agent-layer: 292k</title></path>
+<path d="M210,252 h167.51457819946373 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-167.51457819946373 z" fill="#2a78d6"><title>browser-layer: 292k</title></path>
 <text x="389.5145781994637" y="266" font-size="14" fill="#52514e">292k</text>
 <path d="M210,272 h538 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-538 z" fill="#eb6834"><title>agent-browser: 921k</title></path>
 <text x="760" y="286" font-size="14" fill="#52514e">921k</text>
@@ -26,7 +26,7 @@
 <text x="892" y="288" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">3.2×</text>
 <text x="1022" y="288" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.7×</text>
 <text x="194" y="370" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">reports</text>
-<path d="M210,334 h57.415918885764846 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-57.415918885764846 z" fill="#2a78d6"><title>agent-layer: 104k</title></path>
+<path d="M210,334 h57.415918885764846 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-57.415918885764846 z" fill="#2a78d6"><title>browser-layer: 104k</title></path>
 <text x="279.4159188857648" y="348" font-size="14" fill="#52514e">104k</text>
 <path d="M210,354 h91.3749839877547 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-91.3749839877547 z" fill="#eb6834"><title>agent-browser: 162k</title></path>
 <text x="313.3749839877547" y="368" font-size="14" fill="#52514e">162k</text>
@@ -35,7 +35,7 @@
 <text x="892" y="370" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.6×</text>
 <text x="1022" y="370" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">3.7×</text>
 <text x="194" y="452" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">orders</text>
-<path d="M210,416 h124.6121041718684 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-124.6121041718684 z" fill="#2a78d6"><title>agent-layer: 219k</title></path>
+<path d="M210,416 h124.6121041718684 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-124.6121041718684 z" fill="#2a78d6"><title>browser-layer: 219k</title></path>
 <text x="346.6121041718684" y="430" font-size="14" fill="#52514e">219k</text>
 <path d="M210,436 h164.53912958520144 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-164.53912958520144 z" fill="#eb6834"><title>agent-browser: 286k</title></path>
 <text x="386.5391295852014" y="450" font-size="14" fill="#52514e">286k</text>
@@ -44,7 +44,7 @@
 <text x="892" y="452" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.3×</text>
 <text x="1022" y="452" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.1×</text>
 <text x="194" y="534" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">signup</text>
-<path d="M210,498 h58.08373264435446 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-58.08373264435446 z" fill="#2a78d6"><title>agent-layer: 106k</title></path>
+<path d="M210,498 h58.08373264435446 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-58.08373264435446 z" fill="#2a78d6"><title>browser-layer: 106k</title></path>
 <text x="280.0837326443545" y="512" font-size="14" fill="#52514e">106k</text>
 <path d="M210,518 h91.62916508353507 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-91.62916508353507 z" fill="#eb6834"><title>agent-browser: 163k</title></path>
 <text x="313.6291650835351" y="532" font-size="14" fill="#52514e">163k</text>
@@ -53,7 +53,7 @@
 <text x="892" y="534" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.5×</text>
 <text x="1022" y="534" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.6×</text>
 <text x="194" y="616" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">settings</text>
-<path d="M210,580 h50.427115516137086 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-50.427115516137086 z" fill="#2a78d6"><title>agent-layer: 93k</title></path>
+<path d="M210,580 h50.427115516137086 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-50.427115516137086 z" fill="#2a78d6"><title>browser-layer: 93k</title></path>
 <text x="272.42711551613706" y="594" font-size="14" fill="#52514e">93k</text>
 <path d="M210,600 h76.52421811392034 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-76.52421811392034 z" fill="#eb6834"><title>agent-browser: 137k</title></path>
 <text x="298.52421811392037" y="614" font-size="14" fill="#52514e">137k</text>
@@ -62,7 +62,7 @@
 <text x="892" y="616" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.5×</text>
 <text x="1022" y="616" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.6×</text>
 <text x="194" y="698" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">hn</text>
-<path d="M210,662 h27.85442209364178 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-27.85442209364178 z" fill="#2a78d6"><title>agent-layer: 54k</title></path>
+<path d="M210,662 h27.85442209364178 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-27.85442209364178 z" fill="#2a78d6"><title>browser-layer: 54k</title></path>
 <text x="249.85442209364177" y="676" font-size="14" fill="#52514e">54k</text>
 <path d="M210,682 h49.39568157886166 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-49.39568157886166 z" fill="#eb6834"><title>agent-browser: 91k</title></path>
 <text x="271.3956815788617" y="696" font-size="14" fill="#52514e">91k</text>
@@ -71,7 +71,7 @@
 <text x="892" y="698" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.7×</text>
 <text x="1022" y="698" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.7×</text>
 <text x="194" y="780" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">github</text>
-<path d="M210,744 h26.60410999055549 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-26.60410999055549 z" fill="#2a78d6"><title>agent-layer: 52k</title></path>
+<path d="M210,744 h26.60410999055549 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-26.60410999055549 z" fill="#2a78d6"><title>browser-layer: 52k</title></path>
 <text x="248.6041099905555" y="758" font-size="14" fill="#52514e">52k</text>
 <path d="M210,764 h33.10455616227189 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-33.10455616227189 z" fill="#eb6834"><title>agent-browser: 63k</title></path>
 <text x="255.10455616227188" y="778" font-size="14" fill="#52514e">63k</text>
@@ -79,5 +79,5 @@
 <text x="272.09938664958696" y="798" font-size="14" fill="#52514e">92k</text>
 <text x="892" y="780" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.2×</text>
 <text x="1022" y="780" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.8×</text>
-<text x="48" y="862" font-size="14" fill="#8a8984">agent-layer benchmark: 6 local apps + Hacker News + GitHub · claude-sonnet-5-thinking-high · agent-browser 0.41.0, playwright-cli 0.1.22</text>
+<text x="48" y="862" font-size="14" fill="#8a8984">browser-layer benchmark: 6 local apps + Hacker News + GitHub · claude-sonnet-5-thinking-high · agent-browser 0.41.0, playwright-cli 0.1.22</text>
 </svg>

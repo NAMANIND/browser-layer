@@ -1,4 +1,4 @@
-<title>agent-layer Benchmarks</title>
+<title>browser-layer Benchmarks</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -87,8 +87,8 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
 <div class="wrap">
   <header>
     <div class="eyebrow">Benchmarks · October 2026</div>
-    <h1>agent-layer finishes the same browser tasks in half the steps</h1>
-    <p>Same model, same prompts, same answer checks. Only the browser tool changes. The agent runs each tool from its terminal, as <span class="cmd">agent-layer</span>, <span class="cmd">agent-browser</span> or <span class="cmd">playwright-cli</span>, and every answer is checked automatically.</p>
+    <h1>browser-layer finishes the same browser tasks in half the steps</h1>
+    <p>Same model, same prompts, same answer checks. Only the browser tool changes. The agent runs each tool from its terminal, as <span class="cmd">browser-layer</span>, <span class="cmd">agent-browser</span> or <span class="cmd">playwright-cli</span>, and every answer is checked automatically.</p>
   </header>
 
   <div class="tiles" id="tiles"></div>
@@ -99,7 +99,7 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
     <p>Each dot is one run of one task; the line is each tool's median and the number above a column is its total. The first chart is web-agent-bench (10 tasks, 3 runs each); the second is our own eight tasks with playwright-cli added.</p>
     <div class="figure"><svg xmlns="http://www.w3.org/2000/svg" width="100%" height="auto" role="img" viewBox="0 0 1200 820" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif">
 <rect width="1200" height="820" fill="#fcfcfb"/>
-<text x="48" y="64" font-size="30" font-weight="700" fill="#0b0b0b">Every run, agent-layer vs agent-browser</text>
+<text x="48" y="64" font-size="30" font-weight="700" fill="#0b0b0b">Every run, browser-layer vs agent-browser</text>
 <text x="48" y="98" font-size="18" fill="#52514e">30 runs each: 10 web-agent-bench tasks × 3. Each dot is one run; lower is better. Both passed 30/30.</text>
 <rect x="48" y="118" width="306.4" height="34" rx="17" fill="none" stroke="#e7e6e2" stroke-width="1.5"/>
 <text x="62" y="141" font-size="16" fill="#0b0b0b"><tspan font-weight="600">Model</tspan> claude-sonnet-5-thinking-high</text>
@@ -114,42 +114,42 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
 <text x="108" y="352.5" font-size="14" text-anchor="end" fill="#8a8984">1.5M</text>
 <line x1="120" x2="1152" y1="230" y2="230" stroke="#e7e6e2" stroke-width="1"/>
 <text x="108" y="235" font-size="14" text-anchor="end" fill="#8a8984">2.0M</text>
-<circle cx="249" cy="683.85691" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 69k</title></circle>
-<circle cx="408.444" cy="683.85691" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 69k</title></circle>
-<circle cx="309.888" cy="683.85879" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 69k</title></circle>
-<circle cx="469.332" cy="683.9010900000001" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 69k</title></circle>
-<circle cx="370.776" cy="683.839755" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 69k</title></circle>
-<circle cx="272.21999999999997" cy="683.88558" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 69k</title></circle>
-<circle cx="431.66400000000004" cy="674.994355" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 106k</title></circle>
-<circle cx="333.1079999999999" cy="675.142405" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 106k</title></circle>
-<circle cx="492.552" cy="675.0039899999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 106k</title></circle>
-<circle cx="393.9960000000001" cy="683.9090799999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 68k</title></circle>
-<circle cx="295.43999999999994" cy="683.91284" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 68k</title></circle>
-<circle cx="454.884" cy="683.92882" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 68k</title></circle>
-<circle cx="356.3280000000001" cy="657.3453850000001" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 182k</title></circle>
-<circle cx="257.77200000000016" cy="661.2870399999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 165k</title></circle>
-<circle cx="417.2159999999998" cy="657.531975" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 181k</title></circle>
-<circle cx="318.6599999999999" cy="683.95749" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 68k</title></circle>
-<circle cx="478.104" cy="683.9410399999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 68k</title></circle>
-<circle cx="379.54800000000006" cy="683.95749" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 68k</title></circle>
-<circle cx="280.99200000000013" cy="679.699995" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 86k</title></circle>
-<circle cx="440.43599999999975" cy="679.722555" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 86k</title></circle>
-<circle cx="341.8799999999999" cy="679.699995" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 86k</title></circle>
-<circle cx="501.32399999999996" cy="656.905935" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 183k</title></circle>
-<circle cx="402.76800000000003" cy="657.216135" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 182k</title></circle>
-<circle cx="304.2120000000001" cy="657.23329" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 182k</title></circle>
-<circle cx="463.6560000000002" cy="626.6040949999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 312k</title></circle>
-<circle cx="365.0999999999998" cy="634.206345" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 280k</title></circle>
-<circle cx="266.5440000000003" cy="633.827055" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 282k</title></circle>
-<circle cx="425.988" cy="666.49323" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 143k</title></circle>
-<circle cx="327.4319999999996" cy="670.761535" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 124k</title></circle>
-<circle cx="486.87600000000015" cy="670.94084" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 124k</title></circle>
+<circle cx="249" cy="683.85691" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 69k</title></circle>
+<circle cx="408.444" cy="683.85691" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 69k</title></circle>
+<circle cx="309.888" cy="683.85879" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 69k</title></circle>
+<circle cx="469.332" cy="683.9010900000001" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 69k</title></circle>
+<circle cx="370.776" cy="683.839755" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 69k</title></circle>
+<circle cx="272.21999999999997" cy="683.88558" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 69k</title></circle>
+<circle cx="431.66400000000004" cy="674.994355" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 106k</title></circle>
+<circle cx="333.1079999999999" cy="675.142405" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 106k</title></circle>
+<circle cx="492.552" cy="675.0039899999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 106k</title></circle>
+<circle cx="393.9960000000001" cy="683.9090799999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 68k</title></circle>
+<circle cx="295.43999999999994" cy="683.91284" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 68k</title></circle>
+<circle cx="454.884" cy="683.92882" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 68k</title></circle>
+<circle cx="356.3280000000001" cy="657.3453850000001" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 182k</title></circle>
+<circle cx="257.77200000000016" cy="661.2870399999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 165k</title></circle>
+<circle cx="417.2159999999998" cy="657.531975" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 181k</title></circle>
+<circle cx="318.6599999999999" cy="683.95749" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 68k</title></circle>
+<circle cx="478.104" cy="683.9410399999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 68k</title></circle>
+<circle cx="379.54800000000006" cy="683.95749" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 68k</title></circle>
+<circle cx="280.99200000000013" cy="679.699995" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 86k</title></circle>
+<circle cx="440.43599999999975" cy="679.722555" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 86k</title></circle>
+<circle cx="341.8799999999999" cy="679.699995" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 86k</title></circle>
+<circle cx="501.32399999999996" cy="656.905935" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 183k</title></circle>
+<circle cx="402.76800000000003" cy="657.216135" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 182k</title></circle>
+<circle cx="304.2120000000001" cy="657.23329" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 182k</title></circle>
+<circle cx="463.6560000000002" cy="626.6040949999999" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 312k</title></circle>
+<circle cx="365.0999999999998" cy="634.206345" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 280k</title></circle>
+<circle cx="266.5440000000003" cy="633.827055" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 282k</title></circle>
+<circle cx="425.988" cy="666.49323" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 143k</title></circle>
+<circle cx="327.4319999999996" cy="670.761535" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 124k</title></circle>
+<circle cx="486.87600000000015" cy="670.94084" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 124k</title></circle>
 <line x1="223.20000000000002" x2="532.8" y1="675.142405" y2="675.142405" stroke="#0b0b0b" stroke-width="2.5" stroke-linecap="round"/>
 <text x="532.8" y="665.142405" font-size="15" font-weight="600" text-anchor="end" fill="#0b0b0b">median 106k</text>
 <text x="378" y="184" font-size="26" font-weight="700" text-anchor="middle" fill="#0b0b0b">3.7M</text>
 <text x="378" y="208" font-size="14" text-anchor="middle" fill="#8a8984">total over 30 runs</text>
 <rect x="318" y="728" width="12" height="12" rx="3" fill="#2a78d6"/>
-<text x="336" y="739" font-size="17" font-weight="600" fill="#0b0b0b">agent-layer</text>
+<text x="336" y="739" font-size="17" font-weight="600" fill="#0b0b0b">browser-layer</text>
 <circle cx="765" cy="609.2519299999999" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 386k</title></circle>
 <circle cx="924.444" cy="625.3585949999999" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 318k</title></circle>
 <circle cx="825.888" cy="642.696895" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 244k</title></circle>
@@ -207,20 +207,20 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
 <text x="108" y="329" font-size="14" text-anchor="end" fill="#8a8984">800k</text>
 <line x1="120" x2="1152" y1="230" y2="230" stroke="#e7e6e2" stroke-width="1"/>
 <text x="108" y="235" font-size="14" text-anchor="end" fill="#8a8984">1.0M</text>
-<circle cx="206" cy="649.1727900000001" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 108k</title></circle>
-<circle cx="312.296" cy="562.99406" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 292k</title></circle>
-<circle cx="246.59199999999998" cy="650.94093" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 104k</title></circle>
-<circle cx="352.88800000000003" cy="597.26458" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 219k</title></circle>
-<circle cx="287.18399999999997" cy="650.4074800000001" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 106k</title></circle>
-<circle cx="221.47999999999996" cy="656.52359" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 93k</title></circle>
-<circle cx="327.776" cy="674.55467" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 54k</title></circle>
-<circle cx="262.07199999999995" cy="675.55342" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>agent-layer: 52k</title></circle>
+<circle cx="206" cy="649.1727900000001" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 108k</title></circle>
+<circle cx="312.296" cy="562.99406" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 292k</title></circle>
+<circle cx="246.59199999999998" cy="650.94093" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 104k</title></circle>
+<circle cx="352.88800000000003" cy="597.26458" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 219k</title></circle>
+<circle cx="287.18399999999997" cy="650.4074800000001" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 106k</title></circle>
+<circle cx="221.47999999999996" cy="656.52359" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 93k</title></circle>
+<circle cx="327.776" cy="674.55467" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 54k</title></circle>
+<circle cx="262.07199999999995" cy="675.55342" r="6" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>browser-layer: 52k</title></circle>
 <line x1="188.8" x2="395.2" y1="650.4074800000001" y2="650.4074800000001" stroke="#0b0b0b" stroke-width="2.5" stroke-linecap="round"/>
 <text x="395.2" y="640.4074800000001" font-size="15" font-weight="600" text-anchor="end" fill="#0b0b0b">median 106k</text>
 <text x="292" y="184" font-size="26" font-weight="700" text-anchor="middle" fill="#0b0b0b">1.0M</text>
 <text x="292" y="208" font-size="14" text-anchor="middle" fill="#8a8984">total over 8 runs</text>
 <rect x="232" y="728" width="12" height="12" rx="3" fill="#2a78d6"/>
-<text x="250" y="739" font-size="17" font-weight="600" fill="#0b0b0b">agent-layer</text>
+<text x="250" y="739" font-size="17" font-weight="600" fill="#0b0b0b">browser-layer</text>
 <circle cx="550" cy="631.65119" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 145k</title></circle>
 <circle cx="656.296" cy="267.0501" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 921k</title></circle>
 <circle cx="590.592" cy="623.81441" r="6" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>agent-browser: 162k</title></circle>
@@ -249,7 +249,7 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
 <text x="980" y="208" font-size="14" text-anchor="middle" fill="#8a8984">total over 8 runs</text>
 <rect x="920" y="728" width="12" height="12" rx="3" fill="#1baf7a"/>
 <text x="938" y="739" font-size="17" font-weight="600" fill="#0b0b0b">playwright-cli</text>
-<text x="48" y="792" font-size="14" fill="#8a8984">agent-layer benchmark: 6 local apps + Hacker News + GitHub · agent-browser 0.41.0, playwright-cli 0.1.22</text>
+<text x="48" y="792" font-size="14" fill="#8a8984">browser-layer benchmark: 6 local apps + Hacker News + GitHub · agent-browser 0.41.0, playwright-cli 0.1.22</text>
 </svg></div>
   </section>
 
@@ -276,14 +276,14 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
   <section>
     <div class="eyebrow">Example · login task · run 1 of 3</div>
     <h2>What the agent actually ran</h2>
-    <p>The task: open the login page, sign in as <span class="cmd">demo</span> / <span class="cmd">s3cret</span>, and report the access code on the dashboard. These are the real commands from the benchmark, with long outputs shortened. agent-layer opens the page as a map of its controls, and each action answers with what changed, so the code arrives in the reply to the click itself.</p>
+    <p>The task: open the login page, sign in as <span class="cmd">demo</span> / <span class="cmd">s3cret</span>, and report the access code on the dashboard. These are the real commands from the benchmark, with long outputs shortened. browser-layer opens the page as a map of its controls, and each action answers with what changed, so the code arrives in the reply to the click itself.</p>
     <div class="compare">
       <div class="term">
-        <div class="term-head"><strong><i class="sw" style="background:var(--s-layer)"></i>agent-layer</strong><span>3 steps · 69k tokens · 12 s</span></div>
+        <div class="term-head"><strong><i class="sw" style="background:var(--s-layer)"></i>browser-layer</strong><span>3 steps · 69k tokens · 12 s</span></div>
         <ol class="steps">
-          <li><div><div class="c">$ agent-layer help</div><pre class="out">agent-layer — websites as text and verbs for agents.
+          <li><div><div class="c">$ browser-layer help</div><pre class="out">browser-layer — websites as text and verbs for agents.
 …</pre></div></li>
-          <li><div><div class="c">$ agent-layer tab http://127.0.0.1:63413/login</div><pre class="out">tab 1  …/login  "Acme bench site"
+          <li><div><div class="c">$ browser-layer tab http://127.0.0.1:63413/login</div><pre class="out">tab 1  …/login  "Acme bench site"
 
 [4] navigation
   links: [1] link "Login" · [2] link "Shop" · [3] link "Todos"
@@ -292,7 +292,7 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
 [8] form
   fields: [5] textbox "Username" · [6] textbox "Password"
   actions: [7] button "Sign in"</pre></div></li>
-          <li><div><div class="c">$ agent-layer type 5 demo &amp;&amp; agent-layer type 6 s3cret &amp;&amp; agent-layer click 7</div><pre class="out">— 1 lines gone, 1 new, settled: idle in 409 ms
+          <li><div><div class="c">$ browser-layer type 5 demo &amp;&amp; browser-layer type 6 s3cret &amp;&amp; browser-layer click 7</div><pre class="out">— 1 lines gone, 1 new, settled: idle in 409 ms
 + [5] textbox "Username" = "demo" focused
 — 2 lines gone, 2 new, settled: idle in 410 ms
 + [6] textbox "Password" = "••••••" focused
@@ -341,15 +341,15 @@ Your access code is: ALPHA-LPHPAT</pre></div></li>
   <section>
     <div class="eyebrow">How it was run</div>
     <h2>Setup and limits</h2>
-    <p>The model is claude-sonnet-5-thinking-high. Versions: agent-browser 0.41.0, playwright-cli 0.1.22. web-agent-bench's own prompts, answer checks, per-tool guides and command rules are used unchanged. Its rules forbid in-page JavaScript, network capture, cookies and storage, so agent-layer's matching commands and its plain-HTTP fast path were blocked too. A step costs about the same with either tool (22k vs 29k tokens, mostly the agent's own prompt resent each step), so the gap comes from the number of steps. The tasks are small fixture sites with 3 runs each; on our two live sites the gap was smaller (1.2–1.7×).</p>
+    <p>The model is claude-sonnet-5-thinking-high. Versions: agent-browser 0.41.0, playwright-cli 0.1.22. web-agent-bench's own prompts, answer checks, per-tool guides and command rules are used unchanged. Its rules forbid in-page JavaScript, network capture, cookies and storage, so browser-layer's matching commands and its plain-HTTP fast path were blocked too. A step costs about the same with either tool (22k vs 29k tokens, mostly the agent's own prompt resent each step), so the gap comes from the number of steps. The tasks are small fixture sites with 3 runs each; on our two live sites the gap was smaller (1.2–1.7×).</p>
   </section>
 </div>
 <div id="tip" hidden></div>
 
 <script>
-const DATA = {"wab":[{"suite":"controlled","task":"login","agent-layer":{"tokens":68694,"steps":3,"s":12},"agent-browser":{"tokens":317623,"steps":12,"s":59}},{"suite":"controlled","task":"shop-filter","agent-layer":{"tokens":68572,"steps":3,"s":11},"agent-browser":{"tokens":232973,"steps":7,"s":37}},{"suite":"controlled","task":"todos","agent-layer":{"tokens":106366,"steps":5,"s":21},"agent-browser":{"tokens":410366,"steps":11,"s":56}},{"suite":"scroll","task":"scroll-bottom","agent-layer":{"tokens":68456,"steps":3,"s":10},"agent-browser":{"tokens":239868,"steps":9,"s":38}},{"suite":"scroll","task":"load-more","agent-layer":{"tokens":180715,"steps":9,"s":32},"agent-browser":{"tokens":561530,"steps":20,"s":71}},{"suite":"dynamic","task":"wait-for-value","agent-layer":{"tokens":68266,"steps":3,"s":13},"agent-browser":{"tokens":181167,"steps":7,"s":29}},{"suite":"dynamic","task":"poll-status","agent-layer":{"tokens":86383,"steps":4,"s":14},"agent-browser":{"tokens":291895,"steps":11,"s":46}},{"suite":"hard","task":"multi-step-form","agent-layer":{"tokens":182059,"steps":9,"s":24},"agent-browser":{"tokens":478898,"steps":13,"s":53}},{"suite":"hard","task":"paginated-search","agent-layer":{"tokens":281587,"steps":13,"s":47},"agent-browser":{"tokens":1042310,"steps":26,"s":87}},{"suite":"hard","task":"modal-trap","agent-layer":{"tokens":124419,"steps":6,"s":24},"agent-browser":{"tokens":248173,"steps":9,"s":35}}],"own":[{"task":"shop","agent-layer":{"tokens":108143,"steps":5,"s":32},"agent-browser":{"tokens":145423,"steps":5,"s":48},"playwright-cli":{"tokens":103355,"steps":4,"s":30}},{"task":"flights","agent-layer":{"tokens":291502,"steps":14,"s":49},"agent-browser":{"tokens":921170,"steps":27,"s":131},"playwright-cli":{"tokens":506367,"steps":22,"s":51}},{"task":"reports","agent-layer":{"tokens":104381,"steps":5,"s":26},"agent-browser":{"tokens":162097,"steps":6,"s":36},"playwright-cli":{"tokens":385221,"steps":18,"s":70}},{"task":"orders","agent-layer":{"tokens":218586,"steps":10,"s":31},"agent-browser":{"tokens":286445,"steps":10,"s":48},"playwright-cli":{"tokens":246322,"steps":9,"s":46}},{"task":"signup","agent-layer":{"tokens":105516,"steps":5,"s":17},"agent-browser":{"tokens":162529,"steps":6,"s":29},"playwright-cli":{"tokens":276456,"steps":13,"s":29}},{"task":"settings","agent-layer":{"tokens":92503,"steps":4,"s":15},"agent-browser":{"tokens":136857,"steps":5,"s":28},"playwright-cli":{"tokens":150684,"steps":7,"s":19}},{"task":"hn","agent-layer":{"tokens":54139,"steps":2,"s":10},"agent-browser":{"tokens":90750,"steps":3,"s":16},"playwright-cli":{"tokens":148206,"steps":6,"s":35}},{"task":"github","agent-layer":{"tokens":52014,"steps":2,"s":13},"agent-browser":{"tokens":63062,"steps":2,"s":12},"playwright-cli":{"tokens":91946,"steps":4,"s":12}}],"totals":{"agent-layer":{"tokens":3738630,"steps":176,"s":652},"agent-browser":{"tokens":12818030,"steps":391,"s":1670}}};
-const NAMES = { 'agent-layer': 'agent-layer', 'agent-browser': 'agent-browser', 'playwright-cli': 'playwright-cli' };
-const VAR = { 'agent-layer': '--s-layer', 'agent-browser': '--s-browser', 'playwright-cli': '--s-pw' };
+const DATA = {"wab":[{"suite":"controlled","task":"login","browser-layer":{"tokens":68694,"steps":3,"s":12},"agent-browser":{"tokens":317623,"steps":12,"s":59}},{"suite":"controlled","task":"shop-filter","browser-layer":{"tokens":68572,"steps":3,"s":11},"agent-browser":{"tokens":232973,"steps":7,"s":37}},{"suite":"controlled","task":"todos","browser-layer":{"tokens":106366,"steps":5,"s":21},"agent-browser":{"tokens":410366,"steps":11,"s":56}},{"suite":"scroll","task":"scroll-bottom","browser-layer":{"tokens":68456,"steps":3,"s":10},"agent-browser":{"tokens":239868,"steps":9,"s":38}},{"suite":"scroll","task":"load-more","browser-layer":{"tokens":180715,"steps":9,"s":32},"agent-browser":{"tokens":561530,"steps":20,"s":71}},{"suite":"dynamic","task":"wait-for-value","browser-layer":{"tokens":68266,"steps":3,"s":13},"agent-browser":{"tokens":181167,"steps":7,"s":29}},{"suite":"dynamic","task":"poll-status","browser-layer":{"tokens":86383,"steps":4,"s":14},"agent-browser":{"tokens":291895,"steps":11,"s":46}},{"suite":"hard","task":"multi-step-form","browser-layer":{"tokens":182059,"steps":9,"s":24},"agent-browser":{"tokens":478898,"steps":13,"s":53}},{"suite":"hard","task":"paginated-search","browser-layer":{"tokens":281587,"steps":13,"s":47},"agent-browser":{"tokens":1042310,"steps":26,"s":87}},{"suite":"hard","task":"modal-trap","browser-layer":{"tokens":124419,"steps":6,"s":24},"agent-browser":{"tokens":248173,"steps":9,"s":35}}],"own":[{"task":"shop","browser-layer":{"tokens":108143,"steps":5,"s":32},"agent-browser":{"tokens":145423,"steps":5,"s":48},"playwright-cli":{"tokens":103355,"steps":4,"s":30}},{"task":"flights","browser-layer":{"tokens":291502,"steps":14,"s":49},"agent-browser":{"tokens":921170,"steps":27,"s":131},"playwright-cli":{"tokens":506367,"steps":22,"s":51}},{"task":"reports","browser-layer":{"tokens":104381,"steps":5,"s":26},"agent-browser":{"tokens":162097,"steps":6,"s":36},"playwright-cli":{"tokens":385221,"steps":18,"s":70}},{"task":"orders","browser-layer":{"tokens":218586,"steps":10,"s":31},"agent-browser":{"tokens":286445,"steps":10,"s":48},"playwright-cli":{"tokens":246322,"steps":9,"s":46}},{"task":"signup","browser-layer":{"tokens":105516,"steps":5,"s":17},"agent-browser":{"tokens":162529,"steps":6,"s":29},"playwright-cli":{"tokens":276456,"steps":13,"s":29}},{"task":"settings","browser-layer":{"tokens":92503,"steps":4,"s":15},"agent-browser":{"tokens":136857,"steps":5,"s":28},"playwright-cli":{"tokens":150684,"steps":7,"s":19}},{"task":"hn","browser-layer":{"tokens":54139,"steps":2,"s":10},"agent-browser":{"tokens":90750,"steps":3,"s":16},"playwright-cli":{"tokens":148206,"steps":6,"s":35}},{"task":"github","browser-layer":{"tokens":52014,"steps":2,"s":13},"agent-browser":{"tokens":63062,"steps":2,"s":12},"playwright-cli":{"tokens":91946,"steps":4,"s":12}}],"totals":{"browser-layer":{"tokens":3738630,"steps":176,"s":652},"agent-browser":{"tokens":12818030,"steps":391,"s":1670}}};
+const NAMES = { 'browser-layer': 'browser-layer', 'agent-browser': 'agent-browser', 'playwright-cli': 'playwright-cli' };
+const VAR = { 'browser-layer': '--s-layer', 'agent-browser': '--s-browser', 'playwright-cli': '--s-pw' };
 const MEASURES = {
   tokens: { label: 'Tokens', fmt: v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : Math.round(v / 1000) + 'k' },
   steps: { label: 'Steps', fmt: v => String(v) },
@@ -360,7 +360,7 @@ const showTip = (e, text) => { tip.textContent = text; tip.hidden = false; tip.s
 const hideTip = () => { tip.hidden = true; };
 
 function tiles() {
-  const a = 'agent-layer', b = 'agent-browser';
+  const a = 'browser-layer', b = 'agent-browser';
   const t = [
     ['tokens', 'fewer tokens', v => MEASURES.tokens.fmt(v)],
     ['steps', 'fewer steps', v => v + ' tool calls'],
@@ -380,7 +380,7 @@ function chart(id, rows, tools, label) {
   const draw = () => {
     const m = MEASURES[measure];
     const max = Math.max(...rows.flatMap(r => tools.map(t => r[t][measure])));
-    const head = `<div class="row"><div></div><div></div><div class="ratio-head">${tools.slice(1).map(t => NAMES[t]).join(' · ')}<br>vs agent-layer</div></div>`;
+    const head = `<div class="row"><div></div><div></div><div class="ratio-head">${tools.slice(1).map(t => NAMES[t]).join(' · ')}<br>vs browser-layer</div></div>`;
     document.getElementById(id + '-chart').innerHTML = head + rows.map(r => {
       const bars = tools.map(t => `<div class="bar" data-tip="${label(r)} · ${NAMES[t]}: ${m.fmt(r[t][measure])} ${m.label.toLowerCase()}"><i style="width:calc(${(r[t][measure] / max) * 100}% - 6ch);background:var(${VAR[t]})"></i><b>${m.fmt(r[t][measure])}</b></div>`).join('');
       const ratios = tools.slice(1).map(t => (r[t][measure] / r[tools[0]][measure]).toFixed(1) + '×').join(' · ');
@@ -402,6 +402,6 @@ function chart(id, rows, tools, label) {
 }
 
 tiles();
-chart('wab', DATA.wab, ['agent-layer', 'agent-browser'], r => r.task);
-chart('own', DATA.own, ['agent-layer', 'agent-browser', 'playwright-cli'], r => r.task);
+chart('wab', DATA.wab, ['browser-layer', 'agent-browser'], r => r.task);
+chart('own', DATA.own, ['browser-layer', 'agent-browser', 'playwright-cli'], r => r.task);
 </script>

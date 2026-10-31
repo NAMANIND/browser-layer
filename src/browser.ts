@@ -1,5 +1,5 @@
 // Which browser the agent drives: the first Chromium-family browser found, the same one for the
-// daemon and for `login`, so both read and write the same profile. AGENT_LAYER_BROWSER overrides.
+// daemon and for `login`, so both read and write the same profile. BROWSER_LAYER_BROWSER overrides.
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
@@ -24,11 +24,11 @@ function installed(): string[] {
 
 /** The browser executable, or why there is none. */
 export function findBrowser(): { path: string } | { error: string } {
-  const chosen = env('AGENT_LAYER_BROWSER')
-  if (chosen) return existsSync(chosen) ? { path: chosen } : { error: `AGENT_LAYER_BROWSER is ${chosen}, which does not exist` }
-  // Last: the Chromium that `agent-layer install` downloads.
+  const chosen = env('BROWSER_LAYER_BROWSER')
+  if (chosen) return existsSync(chosen) ? { path: chosen } : { error: `BROWSER_LAYER_BROWSER is ${chosen}, which does not exist` }
+  // Last: the Chromium that `browser-layer install` downloads.
   const path = [...installed(), chromium.executablePath()].find(p => existsSync(p))
-  return path ? { path } : { error: 'no Chrome, Edge or Chromium found — install one, run `agent-layer install` to download Chromium, or set AGENT_LAYER_BROWSER to a browser executable' }
+  return path ? { path } : { error: 'no Chrome, Edge or Chromium found — install one, run `browser-layer install` to download Chromium, or set BROWSER_LAYER_BROWSER to a browser executable' }
 }
 
 // The cookie store the agent's browser uses: Playwright launches Chromium with these on every platform,

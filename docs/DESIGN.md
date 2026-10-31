@@ -1,4 +1,4 @@
-# agent-layer — design
+# browser-layer — design
 
 Status: draft for review · 31 Oct 2026 · replaces the earlier draft (MCP, compiler and replay are out of scope)
 
@@ -61,7 +61,7 @@ From `bench/RESULTS.md` (five live sites, 31 Oct 2026):
 
 ```
  agent (any LLM with a terminal)
-   │  agent-layer <command>          text out, --json for programs
+   │  browser-layer <command>          text out, --json for programs
  ┌─┴───────────────────────────────────────────────────────────┐
  │ CLI            parse args, print. No logic.                   │
  ├─────────────────────────────────────────────────────────────┤
@@ -303,7 +303,7 @@ Keys are added when the phase that uses them lands.
 
 - Daemon per user, started on demand, single instance (lock + liveness), owner-only socket on a short
   path, idle shutdown, `stop` returns after the engine exits.
-- `~/.agent-layer/<profile>/`: browser profile, downloads, HAR logs (bounded, `Cookie` /
+- `~/.browser-layer/<profile>/`: browser profile, downloads, HAR logs (bounded, `Cookie` /
   `Authorization` / `Set-Cookie` redacted before disk), daemon log.
 - The `http` engine reads and writes cookies through the browser profile; no separate jar file.
 

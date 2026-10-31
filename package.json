@@ -1,5 +1,5 @@
 {
-  "name": "agent-layer",
+  "name": "browser-layer",
   "version": "0.1.0",
   "description": "A terminal browser for AI agents: pages as text maps, actions that answer with what changed, lists as records. Runs headless Chrome, Edge or Chromium.",
   "keywords": [
@@ -17,15 +17,15 @@
   "author": "Naman Rai",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/NAMANIND/agent-layer.git"
+    "url": "git+https://github.com/NAMANIND/browser-layer.git"
   },
-  "homepage": "https://github.com/NAMANIND/agent-layer#readme",
+  "homepage": "https://github.com/NAMANIND/browser-layer#readme",
   "bugs": {
-    "url": "https://github.com/NAMANIND/agent-layer/issues"
+    "url": "https://github.com/NAMANIND/browser-layer/issues"
   },
   "type": "module",
   "bin": {
-    "agent-layer": "dist/cli.js"
+    "browser-layer": "dist/cli.js"
   },
   "files": [
     "dist",

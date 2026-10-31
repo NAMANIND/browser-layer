@@ -15,7 +15,7 @@ const sh = promisify(execFile)
 const norm = s => String(s ?? '').toLowerCase().replace(/[₹,\s]/g, '')
 
 const TOOLS = {
-  'agent-layer': { help: 'agent-layer help', cleanup: env => sh('agent-layer', ['stop'], { env }).catch(() => {}) },
+  'browser-layer': { help: 'browser-layer help', cleanup: env => sh('browser-layer', ['stop'], { env }).catch(() => {}) },
   'agent-browser': { help: 'agent-browser --help', cleanup: () => sh('agent-browser', ['close']).catch(() => {}) },
   'playwright-cli': { help: 'playwright-cli --help', cleanup: async () => { await sh('playwright-cli', ['close']).catch(() => {}); await sh('playwright-cli', ['delete-data']).catch(() => {}) } },
 }
@@ -111,8 +111,8 @@ for (const task of tasks) {
   for (const tool of tools) {
     resetState()
     const cwd = mkdtempSync(join(tmpdir(), `bench-${tool}-`))
-    const env = { ...process.env, AGENT_LAYER_HOME: join(cwd, 'al') }
-    mkdirSync(env.AGENT_LAYER_HOME, { recursive: true })
+    const env = { ...process.env, BROWSER_LAYER_HOME: join(cwd, 'al') }
+    mkdirSync(env.BROWSER_LAYER_HOME, { recursive: true })
     await TOOLS[tool].cleanup(env)
     const t = TASKS[task]
     const r = await (runner === 'cursor' ? cursor : claude)(cwd, env, tool, `Open ${t.url ?? base + t.path} and do this: ${t.ask}`)

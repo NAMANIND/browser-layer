@@ -1,4 +1,4 @@
-# agent-layer — build plan
+# browser-layer — build plan
 
 Goes with [DESIGN.md](DESIGN.md). Engine decision: **headless Chrome now, own no-paint build later**.
 Each phase ends green and measured before the next one starts. Behavior changes land with a failing
@@ -114,7 +114,7 @@ records with named columns. 25 tests green; corpus facts all present. `src/` 1,3
 - `scroll` (wheel, top, bottom; lazy rows come back as changes), `hover`, `dblclick`, `rightclick`,
   `wait [--gone]`, `forward`, `reload`, `eval`.
 - Answers: changed lines; a replaced page answers with the shorter of its text and its map.
-- `npm link` installs the `agent-layer` command.
+- `npm link` installs the `browser-layer` command.
 
 **Result:** 33 tests green; corpus facts all present; live Google Flights task 12,418 chars with the
 right answer. `src/` 1,551 → 1,822 lines.

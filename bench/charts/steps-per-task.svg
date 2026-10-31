@@ -2,65 +2,65 @@
 <rect width="1200" height="854" fill="#fcfcfb"/>
 <text x="48" y="64" font-size="30" font-weight="700" fill="#0b0b0b">Steps per task</text>
 <text x="48" y="98" font-size="18" fill="#52514e">Tool calls the agent made, median of 3 runs. Lower is better. All 30 runs: 176 vs 391.</text>
-<rect x="48" y="116" width="14" height="14" rx="3" fill="#2a78d6"/><text x="70" y="128" font-size="16" fill="#52514e">agent-layer</text>
-<rect x="191" y="116" width="14" height="14" rx="3" fill="#eb6834"/><text x="213" y="128" font-size="16" fill="#52514e">agent-browser</text>
-<text x="1022" y="140" font-size="14" text-anchor="end" fill="#8a8984">agent-browser</text><text x="1022" y="158" font-size="14" text-anchor="end" fill="#8a8984">vs agent-layer</text>
+<rect x="48" y="116" width="14" height="14" rx="3" fill="#2a78d6"/><text x="70" y="128" font-size="16" fill="#52514e">browser-layer</text>
+<rect x="209" y="116" width="14" height="14" rx="3" fill="#eb6834"/><text x="231" y="128" font-size="16" fill="#52514e">agent-browser</text>
+<text x="1022" y="140" font-size="14" text-anchor="end" fill="#8a8984">agent-browser</text><text x="1022" y="158" font-size="14" text-anchor="end" fill="#8a8984">vs browser-layer</text>
 <text x="194" y="196" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">login</text>
-<path d="M210,170 h73.53846153846153 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-73.53846153846153 z" fill="#2a78d6"><title>agent-layer: 3</title></path>
+<path d="M210,170 h73.53846153846153 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-73.53846153846153 z" fill="#2a78d6"><title>browser-layer: 3</title></path>
 <text x="295.53846153846155" y="184" font-size="14" fill="#52514e">3</text>
 <path d="M210,190 h306.15384615384613 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-306.15384615384613 z" fill="#eb6834"><title>agent-browser: 12</title></path>
 <text x="528.1538461538462" y="204" font-size="14" fill="#52514e">12</text>
 <text x="1022" y="196" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">4.0×</text>
 <text x="194" y="258" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">shop-filter</text>
-<path d="M210,232 h73.53846153846153 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-73.53846153846153 z" fill="#2a78d6"><title>agent-layer: 3</title></path>
+<path d="M210,232 h73.53846153846153 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-73.53846153846153 z" fill="#2a78d6"><title>browser-layer: 3</title></path>
 <text x="295.53846153846155" y="246" font-size="14" fill="#52514e">3</text>
 <path d="M210,252 h176.92307692307693 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-176.92307692307693 z" fill="#eb6834"><title>agent-browser: 7</title></path>
 <text x="398.9230769230769" y="266" font-size="14" fill="#52514e">7</text>
 <text x="1022" y="258" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.3×</text>
 <text x="194" y="320" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">todos</text>
-<path d="M210,294 h125.23076923076923 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-125.23076923076923 z" fill="#2a78d6"><title>agent-layer: 5</title></path>
+<path d="M210,294 h125.23076923076923 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-125.23076923076923 z" fill="#2a78d6"><title>browser-layer: 5</title></path>
 <text x="347.2307692307692" y="308" font-size="14" fill="#52514e">5</text>
 <path d="M210,314 h280.3076923076923 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-280.3076923076923 z" fill="#eb6834"><title>agent-browser: 11</title></path>
 <text x="502.3076923076923" y="328" font-size="14" fill="#52514e">11</text>
 <text x="1022" y="320" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.2×</text>
 <text x="194" y="382" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">scroll-bottom</text>
-<path d="M210,356 h73.53846153846153 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-73.53846153846153 z" fill="#2a78d6"><title>agent-layer: 3</title></path>
+<path d="M210,356 h73.53846153846153 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-73.53846153846153 z" fill="#2a78d6"><title>browser-layer: 3</title></path>
 <text x="295.53846153846155" y="370" font-size="14" fill="#52514e">3</text>
 <path d="M210,376 h228.6153846153846 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-228.6153846153846 z" fill="#eb6834"><title>agent-browser: 9</title></path>
 <text x="450.61538461538464" y="390" font-size="14" fill="#52514e">9</text>
 <text x="1022" y="382" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">3.0×</text>
 <text x="194" y="444" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">load-more</text>
-<path d="M210,418 h228.6153846153846 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-228.6153846153846 z" fill="#2a78d6"><title>agent-layer: 9</title></path>
+<path d="M210,418 h228.6153846153846 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-228.6153846153846 z" fill="#2a78d6"><title>browser-layer: 9</title></path>
 <text x="450.61538461538464" y="432" font-size="14" fill="#52514e">9</text>
 <path d="M210,438 h512.9230769230769 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-512.9230769230769 z" fill="#eb6834"><title>agent-browser: 20</title></path>
 <text x="734.9230769230769" y="452" font-size="14" fill="#52514e">20</text>
 <text x="1022" y="444" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.2×</text>
 <text x="194" y="506" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">wait-for-value</text>
-<path d="M210,480 h73.53846153846153 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-73.53846153846153 z" fill="#2a78d6"><title>agent-layer: 3</title></path>
+<path d="M210,480 h73.53846153846153 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-73.53846153846153 z" fill="#2a78d6"><title>browser-layer: 3</title></path>
 <text x="295.53846153846155" y="494" font-size="14" fill="#52514e">3</text>
 <path d="M210,500 h176.92307692307693 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-176.92307692307693 z" fill="#eb6834"><title>agent-browser: 7</title></path>
 <text x="398.9230769230769" y="514" font-size="14" fill="#52514e">7</text>
 <text x="1022" y="506" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.3×</text>
 <text x="194" y="568" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">poll-status</text>
-<path d="M210,542 h99.38461538461539 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-99.38461538461539 z" fill="#2a78d6"><title>agent-layer: 4</title></path>
+<path d="M210,542 h99.38461538461539 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-99.38461538461539 z" fill="#2a78d6"><title>browser-layer: 4</title></path>
 <text x="321.38461538461536" y="556" font-size="14" fill="#52514e">4</text>
 <path d="M210,562 h280.3076923076923 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-280.3076923076923 z" fill="#eb6834"><title>agent-browser: 11</title></path>
 <text x="502.3076923076923" y="576" font-size="14" fill="#52514e">11</text>
 <text x="1022" y="568" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.8×</text>
 <text x="194" y="630" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">multi-step-form</text>
-<path d="M210,604 h228.6153846153846 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-228.6153846153846 z" fill="#2a78d6"><title>agent-layer: 9</title></path>
+<path d="M210,604 h228.6153846153846 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-228.6153846153846 z" fill="#2a78d6"><title>browser-layer: 9</title></path>
 <text x="450.61538461538464" y="618" font-size="14" fill="#52514e">9</text>
 <path d="M210,624 h332 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-332 z" fill="#eb6834"><title>agent-browser: 13</title></path>
 <text x="554" y="638" font-size="14" fill="#52514e">13</text>
 <text x="1022" y="630" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.4×</text>
 <text x="194" y="692" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">paginated-search</text>
-<path d="M210,666 h332 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-332 z" fill="#2a78d6"><title>agent-layer: 13</title></path>
+<path d="M210,666 h332 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-332 z" fill="#2a78d6"><title>browser-layer: 13</title></path>
 <text x="554" y="680" font-size="14" fill="#52514e">13</text>
 <path d="M210,686 h668 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-668 z" fill="#eb6834"><title>agent-browser: 26</title></path>
 <text x="890" y="700" font-size="14" fill="#52514e">26</text>
 <text x="1022" y="692" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.0×</text>
 <text x="194" y="754" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">modal-trap</text>
-<path d="M210,728 h151.07692307692307 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-151.07692307692307 z" fill="#2a78d6"><title>agent-layer: 6</title></path>
+<path d="M210,728 h151.07692307692307 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-151.07692307692307 z" fill="#2a78d6"><title>browser-layer: 6</title></path>
 <text x="373.0769230769231" y="742" font-size="14" fill="#52514e">6</text>
 <path d="M210,748 h228.6153846153846 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-228.6153846153846 z" fill="#eb6834"><title>agent-browser: 9</title></path>
 <text x="450.61538461538464" y="762" font-size="14" fill="#52514e">9</text>

@@ -11,56 +11,56 @@ import { live } from './client.js'
 import { findBrowser, PROFILE_FLAGS } from './browser.js'
 import type { Command } from './daemon.js'
 
-const HELP = `agent-layer — websites as text and verbs for agents.
+const HELP = `browser-layer — websites as text and verbs for agents.
 
 Fast path (plain HTTP, no browser):
-  agent-layer open <url>              read a page
-  agent-layer open <ref>              follow link [ref] from the last page
-  agent-layer do <verb> k=v ...       run a verb from the last page
-  agent-layer verbs                   list verbs on the last page
-  --json                              structured output instead of text
+  browser-layer open <url>              read a page
+  browser-layer open <ref>              follow link [ref] from the last page
+  browser-layer do <verb> k=v ...       run a verb from the last page
+  browser-layer verbs                   list verbs on the last page
+  --json                                structured output instead of text
 
 Live tabs (a headless browser kept alive in the background; runs the page's JS):
-  agent-layer tab <url>               open a live tab (it becomes current); answers with the page map
-  agent-layer go <url> | back         navigate the current tab
-  agent-layer map                     the page as regions: fields, actions, lists, links, with refs
-  agent-layer read [ref] [--page N]   the whole page, or one region / control by ref (paged)
-  agent-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b]
-                                      a list or table from the map as records (TSV)
-  agent-layer click <ref>             click control [ref]; any <ref> of an action may be its name: click "Next"
-  agent-layer type <ref> <text>       fill [ref]; add --enter to press Enter after
-  agent-layer pick <ref> <option>     choose an option in a select
-  agent-layer press <key>             press a key or combo (Enter, Escape, Control+A, Shift+Tab…)
-  agent-layer dblclick | rightclick | hover <ref>
-  agent-layer scroll [ref] [down|up|top|bottom]   wheel or jump; new rows come back as changes
-  agent-layer upload <ref> <file...>  a file input, or a button that opens a file chooser
-  agent-layer wait [--gone] <text>    until the text appears (or is gone)
-  agent-layer dialog accept [text] | dialog dismiss   answer an alert / confirm / prompt
-  agent-layer forward | reload
-  agent-layer eval <js>               run JavaScript in the page; prints the result as JSON
-  agent-layer allow <perm>[,perm] [lat,lon]   grant geolocation, notifications… to the current site
-  agent-layer find <text>             the lines of the page that contain it
-  agent-layer check | uncheck <ref>   set a checkbox (repeatable: only clicks if it must change)
-  agent-layer submit <ref>            submit the form a field is in, as its submit button would
-  agent-layer drag <ref> <onto ref>   pointer drag, and HTML drag and drop
-  agent-layer type <ref> <text> --keys    one key event per character, for fields that listen to keys
-  agent-layer cookies [domain] | cookies clear [domain]     names and expiry; values are never shown
-  agent-layer storage local|session [clear]                the current site's web storage
-  agent-layer explore [ref]           open every declared menu / pop-up, list what it holds, close it
-  agent-layer menu "A > B > C"        run a menu path by names (File > Download > CSV)
+  browser-layer tab <url>               open a live tab (it becomes current); answers with the page map
+  browser-layer go <url> | back         navigate the current tab
+  browser-layer map                     the page as regions: fields, actions, lists, links, with refs
+  browser-layer read [ref] [--page N]   the whole page, or one region / control by ref (paged)
+  browser-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b]
+                                        a list or table from the map as records (TSV)
+  browser-layer click <ref>             click control [ref]; any <ref> of an action may be its name: click "Next"
+  browser-layer type <ref> <text>       fill [ref]; add --enter to press Enter after
+  browser-layer pick <ref> <option>     choose an option in a select
+  browser-layer press <key>             press a key or combo (Enter, Escape, Control+A, Shift+Tab…)
+  browser-layer dblclick | rightclick | hover <ref>
+  browser-layer scroll [ref] [down|up|top|bottom]   wheel or jump; new rows come back as changes
+  browser-layer upload <ref> <file...>  a file input, or a button that opens a file chooser
+  browser-layer wait [--gone] <text>    until the text appears (or is gone)
+  browser-layer dialog accept [text] | dialog dismiss   answer an alert / confirm / prompt
+  browser-layer forward | reload
+  browser-layer eval <js>               run JavaScript in the page; prints the result as JSON
+  browser-layer allow <perm>[,perm] [lat,lon]   grant geolocation, notifications… to the current site
+  browser-layer find <text>             the lines of the page that contain it
+  browser-layer check | uncheck <ref>   set a checkbox (repeatable: only clicks if it must change)
+  browser-layer submit <ref>            submit the form a field is in, as its submit button would
+  browser-layer drag <ref> <onto ref>   pointer drag, and HTML drag and drop
+  browser-layer type <ref> <text> --keys    one key event per character, for fields that listen to keys
+  browser-layer cookies [domain] | cookies clear [domain]     names and expiry; values are never shown
+  browser-layer storage local|session [clear]                the current site's web storage
+  browser-layer explore [ref]           open every declared menu / pop-up, list what it holds, close it
+  browser-layer menu "A > B > C"        run a menu path by names (File > Download > CSV)
   Pop-ups open as tabs in the same session and become current; downloads are saved and reported.
-  agent-layer net [--all]             requests the page made (the API under the UI); trackers hidden
-  agent-layer net show <#>            one request in full: headers (secrets redacted) and bodies
-  agent-layer tabs | use <id> | close [id] | stop
+  browser-layer net [--all]             requests the page made (the API under the UI); trackers hidden
+  browser-layer net show <#>            one request in full: headers (secrets redacted) and bodies
+  browser-layer tabs | use <id> | close [id] | stop
 
-Watch: agent-layer show makes the current browser a visible window to watch (tabs reopen); it is
+Watch: browser-layer show makes the current browser a visible window to watch (tabs reopen); it is
 headless again after hide, or once that window is closed. The agent's browser is never visible otherwise.
-Sign-in: agent-layer login <url> opens a normal browser window on the agent's profile; sign in, quit it,
+Sign-in: browser-layer login <url> opens a normal browser window on the agent's profile; sign in, quit it,
 and the agent's browser is signed in from then on.
-Browser: the first of Chrome, Edge or Chromium installed (AGENT_LAYER_BROWSER=<path> picks one);
-agent-layer install downloads Chromium when there is none. agent-layer browser says which is used.
+Browser: the first of Chrome, Edge or Chromium installed (BROWSER_LAYER_BROWSER=<path> picks one);
+browser-layer install downloads Chromium when there is none. browser-layer browser says which is used.
 Profiles: --profile <name> is a separate browser (own profile, cookies, daemon).
-Sessions: --session <name> (or AGENT_LAYER_SESSION) gives each agent its own
+Sessions: --session <name> (or BROWSER_LAYER_SESSION) gives each agent its own
 last page and live tabs. Default is "default". Cookies are shared.`
 
 const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'allow', 'explore', 'menu', 'check', 'uncheck', 'submit', 'drag', 'find', 'cookies', 'storage', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
@@ -70,7 +70,7 @@ function fail(msg: string): never {
   process.exit(1)
 }
 
-let session = process.env.AGENT_LAYER_SESSION || 'default'
+let session = process.env.BROWSER_LAYER_SESSION || 'default'
 
 const short = (href: string, from: string) => {
   const u = new URL(href)
@@ -105,15 +105,15 @@ function show(res: Response, json: boolean) {
   const text = renderText(page.tree, new URL(page.url).origin, { nameChars: policy['render.nameChars'], labelChars: policy['render.labelChars'] })
   const [first, ...more] = paginate(text, policy['render.pageChars'])
   const out = [`${page.url}  [${page.status}]${page.title ? `  "${page.title}"` : ''}`, '', first]
-  if (more.length) out.push(`… ${more.join('\n').length} more chars: agent-layer tab ${page.url} reads it all`)
+  if (more.length) out.push(`… ${more.join('\n').length} more chars: browser-layer tab ${page.url} reads it all`)
   if (page.verbs.length) out.push('', 'verbs:', ...page.verbs.map(v => verbView(v, page.url)))
   // Little to read but scripts to run: the page is built in the browser, which the fast path never runs.
-  if (text.length < policy['http.shellChars'] && page.scripts) out.push('', `this page builds itself with JavaScript; agent-layer tab ${page.url} runs it`)
+  if (text.length < policy['http.shellChars'] && page.scripts) out.push('', `this page builds itself with JavaScript; browser-layer tab ${page.url} runs it`)
   console.log(out.join('\n').trimEnd())
 }
 
 function needPage(): Saved {
-  return lastPage(session) ?? fail('no page open yet — run: agent-layer open <url>')
+  return lastPage(session) ?? fail('no page open yet — run: browser-layer open <url>')
 }
 
 // HTML form submission: the entry list in tree order (fields, dirname, the submitter), newlines as CRLF,
@@ -180,7 +180,7 @@ async function main() {
   const profile = take('--profile')
   if (profile !== undefined) {
     if (!/^[\w.-]+$/.test(profile)) fail('a profile name uses letters, digits, dot, dash or underscore')
-    process.env.AGENT_LAYER_HOME = join(home(), 'profiles', profile)
+    process.env.BROWSER_LAYER_HOME = join(home(), 'profiles', profile)
   }
   const json = argv.includes('--json')
   const flags = new Set(['--json', '--enter', '--all', '--desc', '--gone', '--keys'])
@@ -208,11 +208,11 @@ async function main() {
     // the profile and carry over; page state such as half-filled forms does not.
     const state = await live({ cmd: 'state', session })
     // Never restart blind: if the open tabs cannot be listed (say a daemon from an older build), stop here.
-    if (!state.ok) fail(`could not list the open tabs (${state.error}); run agent-layer stop, then try again`)
+    if (!state.ok) fail(`could not list the open tabs (${state.error}); run browser-layer stop, then try again`)
     const open = JSON.parse(state.text!) as { session: string; url: string; current: boolean }[]
     await live({ cmd: 'stop', session })
     // Only the browser started now is visible; the daemon reads this from its environment at launch.
-    process.env.AGENT_LAYER_VISIBLE = cmd === 'show' ? '1' : ''
+    process.env.BROWSER_LAYER_VISIBLE = cmd === 'show' ? '1' : ''
     const reopened: string[] = []
     for (const t of [...open.filter(t => !t.current), ...open.filter(t => t.current)]) {
       const r = await live({ cmd: 'tab', session: t.session, url: t.url })
@@ -221,7 +221,7 @@ async function main() {
     // Chrome shows a window only when it has a tab, so showing an empty browser opens a blank one.
     if (cmd === 'show' && !open.length) {
       await live({ cmd: 'tab', session, url: 'about:blank' })
-      return console.log("The agent's browser is a visible window now, with a blank tab (no tabs were open). Next: agent-layer go <url>")
+      return console.log("The agent's browser is a visible window now, with a blank tab (no tabs were open). Next: browser-layer go <url>")
     }
     return console.log([`The agent's browser is ${cmd === 'show' ? 'a visible window' : 'headless'} now.${open.length ? ' Reopened:' : ''}`, ...reopened].join('\n'))
   }
@@ -229,7 +229,7 @@ async function main() {
   if (cmd === 'login') {
     // A plain Chrome window on the agent's own profile, with no automation attached: the person signs
     // in themselves (passwords, 2FA, passkeys stay with them) and the agent's browser keeps the session.
-    const url = target ?? fail('usage: agent-layer login <url>')
+    const url = target ?? fail('usage: browser-layer login <url>')
     const browser = findBrowser()
     if ('error' in browser) fail(browser.error)
     await live({ cmd: 'stop', session }) // one browser per profile directory at a time
@@ -242,11 +242,11 @@ async function main() {
 
   if (LIVE.has(cmd)) {
     const c: Command = { cmd, session, page, limit, sort, cols, desc: argv.includes('--desc'), gone: argv.includes('--gone'), keys: argv.includes('--keys'), enter: argv.includes('--enter'), all: argv.includes('--all') }
-    if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: agent-layer ${cmd} <url>`)
+    if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: browser-layer ${cmd} <url>`)
     if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)
-    if (cmd === 'net' && target) c.id = target === 'show' && /^#?\d+$/.test(rest[0] ?? '') ? Number(rest[0].replace('#', '')) : fail('usage: agent-layer net [--all] | net show <#>')
-    if (['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload', 'check', 'uncheck', 'submit', 'drag'].includes(cmd)) c.ref = target ?? fail(`usage: agent-layer ${cmd} <ref>`)
-    if (cmd === 'drag') c.to = rest[0] ?? fail('usage: agent-layer drag <ref> <onto ref>')
+    if (cmd === 'net' && target) c.id = target === 'show' && /^#?\d+$/.test(rest[0] ?? '') ? Number(rest[0].replace('#', '')) : fail('usage: browser-layer net [--all] | net show <#>')
+    if (['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload', 'check', 'uncheck', 'submit', 'drag'].includes(cmd)) c.ref = target ?? fail(`usage: browser-layer ${cmd} <ref>`)
+    if (cmd === 'drag') c.to = rest[0] ?? fail('usage: browser-layer drag <ref> <onto ref>')
     if (cmd === 'find') c.text = [target, ...rest].filter(Boolean).join(' ')
     if (cmd === 'cookies') [c.dir, c.url] = target === 'clear' ? ['clear', rest[0]] : [undefined, target]
     if (cmd === 'storage') [c.dir, c.text] = [target, rest[0]]
@@ -256,12 +256,12 @@ async function main() {
     if (cmd === 'dialog') [c.dir, c.text] = [target, rest.length ? rest.join(' ') : undefined]
     if (cmd === 'wait' || cmd === 'eval') c.text = [target, ...rest].filter(Boolean).join(' ')
     if (cmd === 'allow') [c.text, c.dir] = [target, rest[0]]
-    if (cmd === 'explore' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: agent-layer explore [ref]')
+    if (cmd === 'explore' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: browser-layer explore [ref]')
     if (cmd === 'menu') c.text = [target, ...rest].filter(Boolean).join(' ')
-    if (cmd === 'read' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: agent-layer read [ref] [--page N]')
-    if (cmd === 'get') c.ref = target && /^\d+$/.test(target) ? target : fail('usage: agent-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b]')
+    if (cmd === 'read' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: browser-layer read [ref] [--page N]')
+    if (cmd === 'get') c.ref = target && /^\d+$/.test(target) ? target : fail('usage: browser-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b]')
     if (cmd === 'type' || cmd === 'pick') c.text = rest.join(' ')
-    if (cmd === 'press') c.key = target ?? fail('usage: agent-layer press <key>')
+    if (cmd === 'press') c.key = target ?? fail('usage: browser-layer press <key>')
     const reply = await live(c)
     if (!reply.ok) fail(`error: ${reply.error}`)
     return console.log(reply.text)

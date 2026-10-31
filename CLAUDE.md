@@ -1,4 +1,4 @@
-# agent-layer — how code is written here
+# browser-layer — how code is written here
 
 Read `docs/DESIGN.md` and `docs/PLAN.md` first. Work only on the current phase.
 

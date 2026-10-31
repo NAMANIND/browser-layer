@@ -84,7 +84,7 @@ line2</textarea>
   res.end()
 })
 
-const env = { ...process.env, AGENT_LAYER_HOME: mkdtempSync(join(tmpdir(), 'agent-layer-')) }
+const env = { ...process.env, BROWSER_LAYER_HOME: mkdtempSync(join(tmpdir(), 'browser-layer-')) }
 
 function run(...args: string[]): Promise<{ code: number; out: string }> {
   return new Promise(resolve => {
@@ -99,7 +99,7 @@ before(() => new Promise<void>(r => server.listen(0, '127.0.0.1', () => {
 })))
 after(() => {
   server.close()
-  rmSync(env.AGENT_LAYER_HOME, { recursive: true, force: true })
+  rmSync(env.BROWSER_LAYER_HOME, { recursive: true, force: true })
 })
 
 test('open shows text, links and forms as verbs, without hidden content', async () => {
@@ -134,7 +134,7 @@ test('forms submit as the HTML spec builds the entry list: owners, disabled, sub
 })
 
 test('a page built by JavaScript says so instead of looking empty', async () => {
-  assert.match((await run('open', `${base}/app`)).out, /this page builds itself with JavaScript; agent-layer tab .*\/app runs it/)
+  assert.match((await run('open', `${base}/app`)).out, /this page builds itself with JavaScript; browser-layer tab .*\/app runs it/)
 })
 
 test('do refuses a verb with a missing required field', async () => {

@@ -1,5 +1,5 @@
 # Build and the whole test suite (live tests included) on each OS. GitHub's runner images ship with
-# Google Chrome, which agent-layer finds on its own.
+# Google Chrome, which browser-layer finds on its own.
 name: ci
 on: [push, pull_request]
 jobs:

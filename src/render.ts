@@ -147,7 +147,7 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number): 
   }
   summarize('page (outside any region)', root.children ?? [])
   const closed = withRefs(root).filter(isTrigger).length
-  if (closed) out.push(`closed menus and pop-ups: ${closed} (agent-layer explore lists what they hold)`)
+  if (closed) out.push(`closed menus and pop-ups: ${closed} (browser-layer explore lists what they hold)`)
   return out.join('\n')
 }
 

@@ -45,10 +45,10 @@ few percent of wall time for one tab, and a real share of CPU when many tabs run
 Same agent, model, prompt and task; only the browser tool changes. Runner: cursor-agent headless,
 model `claude-sonnet-5-thinking-high`, allowed to run only that tool and read files. Each answer is
 checked against ground truth (fixture state, or the Hacker News and GitHub APIs). Six tasks run on
-local fixture apps (`agents/site.mjs`), two on live sites. Tools: agent-layer, Vercel agent-browser
+local fixture apps (`agents/site.mjs`), two on live sites. Tools: browser-layer, Vercel agent-browser
 0.41.0, Microsoft playwright-cli 0.1.22. Tokens include cache reads.
 
-| Task | agent-layer | agent-browser | playwright-cli |
+| Task | browser-layer | agent-browser | playwright-cli |
 |---|---|---|---|
 | shop | ✅ 128k · 6 steps · 23 s | ✅ 145k · 5 steps · 48 s | ✅ 103k · 4 steps · 30 s |
 | flights | ✅ 330k · 15 steps · 52 s | ✅ 921k · 27 steps · 131 s | ✅ 506k · 22 steps · 51 s |
@@ -60,14 +60,14 @@ local fixture apps (`agents/site.mjs`), two on live sites. Tools: agent-layer, V
 | github | ✅ 52k · 2 steps · 13 s | ✅ 63k · 2 steps · 12 s | ✅ 92k · 4 steps · 12 s |
 | **Total** | **8/8 · 1255k · 56 steps · 258 s** | **8/8 · 1968k · 64 steps · 348 s** | **8/8 · 1909k · 83 steps · 292 s** |
 
-**Finding.** All three tools solve all eight tasks. agent-layer uses 36% fewer tokens than
+**Finding.** All three tools solve all eight tasks. browser-layer uses 36% fewer tokens than
 agent-browser and 34% fewer than playwright-cli, with the fewest steps and least time. It is
 cheapest on 6 of 8 tasks. It loses `orders` (pagination): agent-browser clicks "Next" by name in one
-command, while agent-layer needs a ref from a fresh map each page, and the agent wasted steps there.
+command, while browser-layer needs a ref from a fresh map each page, and the agent wasted steps there.
 
 Caveats: one run each, so single-task differences within ~20% are noise; we wrote the fixtures.
 
-### 3a. After fixing what the transcripts showed (agent-layer only, rerun)
+### 3a. After fixing what the transcripts showed (browser-layer only, rerun)
 
 Two defects, not agent mistakes: after `click Next` every row of the table changed, so the answer was
 the map, which a new page of records leaves unchanged (the agent could not see the click worked and
@@ -81,21 +81,21 @@ action can name its control (`click "Next"`).
 | shop | 128k · 6 steps | 108k · 5 steps | 145k · 5 | **103k** · 4 |
 | flights | 330k · 15 steps | **292k · 14 steps** | 921k · 27 | 506k · 22 |
 
-With the reruns, agent-layer is cheapest on 7 of 8 tasks; shop is within noise of playwright-cli.
+With the reruns, browser-layer is cheapest on 7 of 8 tasks; shop is within noise of playwright-cli.
 
 ## 4. web-agent-bench (a third party's suites, 3 runs each)
 
 [web-agent-bench](https://github.com/nsosio/web-agent-bench) is an independent benchmark that already
 drives agent-browser. Its scenarios, prompts, answer checks, per-tool guides and command guard are
-used as they are; agent-layer gets a copy of agent-browser's thin driver with only the CLI swapped,
-and the guard also blocks agent-layer's bypasses (`eval`, `net`, `cookies`, `storage`, `allow`, the
+used as they are; browser-layer gets a copy of agent-browser's thin driver with only the CLI swapped,
+and the guard also blocks browser-layer's bypasses (`eval`, `net`, `cookies`, `storage`, `allow`, the
 login window, and the plain-HTTP fast path). The brain is cursor-agent (`claude-sonnet-5-thinking-high`)
 instead of their API loop, with the guard run before every shell command as a hook, so a blocked
 command gets their message and the agent carries on, as in their loop. Suites: controlled, scroll,
-dynamic, hard (auth fails for every tool by design; vision needs pixels, which agent-layer never takes).
+dynamic, hard (auth fails for every tool by design; vision needs pixels, which browser-layer never takes).
 Medians of 3 runs; tools alternate order within each run.
 
-| Task | agent-layer | agent-browser 0.41.0 |
+| Task | browser-layer | agent-browser 0.41.0 |
 |---|---|---|
 | controlled/login | 3/3 · 69k · 3 steps · 12 s | 3/3 · 318k · 12 steps · 59 s |
 | controlled/shop-filter | 3/3 · 69k · 3 steps · 11 s | 3/3 · 233k · 7 steps · 37 s |
@@ -109,11 +109,11 @@ Medians of 3 runs; tools alternate order within each run.
 | hard/modal-trap | 3/3 · 124k · 6 steps · 24 s | 3/3 · 248k · 9 steps · 35 s |
 | **All 30 runs** | **30/30 · 3.7M tokens · 176 steps · 11 min** | **30/30 · 12.8M tokens · 391 steps · 28 min** |
 
-**Finding.** Both pass everything. agent-layer uses 3.4× fewer tokens, 2.2× fewer steps and 2.6× less
+**Finding.** Both pass everything. browser-layer uses 3.4× fewer tokens, 2.2× fewer steps and 2.6× less
 time. A step costs about the same with either tool (~22k vs ~29k tokens, ~90% of it the harness's own
 prompt re-read each step), so the gap is the number of steps. Part of agent-browser's is its own guide
 (reading the skill document, trying to `export` a session the guard blocks); the rest is design:
-agent-layer's `tab` answers with the page and every action with what changed, where agent-browser
+browser-layer's `tab` answers with the page and every action with what changed, where agent-browser
 re-snapshots, waits and reads after each action. Caveats: 3 runs, small fixture sites, and the
 cursor-agent harness multiplies step count by a large per-step prompt.
 

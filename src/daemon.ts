@@ -235,7 +235,7 @@ async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<st
     if (ref === undefined) remember(tab, text)
     else {
       const node = findRef(snap.tree, ref)
-      if (!node) throw new Error(`[${ref}] is not on the page — run: agent-layer map`)
+      if (!node) throw new Error(`[${ref}] is not on the page — run: browser-layer map`)
       text = renderText({ block: true, children: [node] }, snap.origin, caps())
     }
   }
@@ -244,14 +244,14 @@ async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<st
   const pages = paginate(text, policy['render.pageChars'])
   if (page < 1 || page > pages.length) throw new Error(`page ${page} does not exist; this view has ${pages.length}`)
   const head = `${await header(tab)}${pages.length > 1 ? `  (page ${page} of ${pages.length})` : ''}`
-  const more = page < pages.length ? `\n… more below: agent-layer read${ref === undefined ? '' : ` ${ref}`} --page ${page + 1}` : ''
+  const more = page < pages.length ? `\n… more below: browser-layer read${ref === undefined ? '' : ` ${ref}`} --page ${page + 1}` : ''
   const cut = truncated && page === pages.length ? '\n… (view ceiling reached; the page is larger than this)' : ''
   return `${head}\n\n${pages[page - 1]}${more}${cut}`
 }
 
 function need(session: string): Tab {
   const tab = tabs.get(current.get(session) ?? 0)
-  if (!tab) throw new Error(`no live tab in session "${session}" — run: agent-layer tab <url>`)
+  if (!tab) throw new Error(`no live tab in session "${session}" — run: browser-layer tab <url>`)
   return tab
 }
 
@@ -285,7 +285,7 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
       const inside = new Set(found.flatMap(lines))
       const body = [...added.filter(l => !inside.has(l)).map(l => `+ ${l}`), ...found.map(n => recordsView(n, snap.origin, {}))].join('\n\n')
       const where = found.map(n => `[${n.ref}] ${n.role}`).join(', ')
-      if (!found.length || body.length > policy['render.pageChars']) return mapView(tab, snap, settled, where && `new records in ${where} (agent-layer get <ref> reads them)`)
+      if (!found.length || body.length > policy['render.pageChars']) return mapView(tab, snap, settled, where && `new records in ${where} (browser-layer get <ref> reads them)`)
       remember(tab, snap.text)
       return `${await header(tab)}  — new records in ${where}${settled ? `, settled: ${settled}` : ''}\n\n${body}`
     }
@@ -293,7 +293,7 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
     return `${await header(tab)}  — the whole page changed${settled ? `, settled: ${settled}` : ''}\n\n${snap.text}`
   }
   remember(tab, snap.text)
-  const head = `tab ${tab.id}  ${tab.page.url()}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'}${settled ? `, settled: ${settled}` : ''} (full page: agent-layer read)`
+  const head = `tab ${tab.id}  ${tab.page.url()}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'}${settled ? `, settled: ${settled}` : ''} (full page: browser-layer read)`
   return [head, '', ...removed.map(l => `- ${l}`), ...added.map(l => `+ ${l}`)].join('\n').trimEnd()
 }
 
@@ -339,9 +339,9 @@ async function offsetOf(tab: Tab, scope: string): Promise<[number, number]> {
 function targetOf(tab: Tab, ref?: string): Target {
   if (!ref || !/^\d+$/.test(ref)) throw new Error(`expected a ref number like 12, got "${ref ?? ''}"`)
   const at = tab.refs.byRef.get(Number(ref))
-  if (!at) throw new Error(`[${ref}] is not on the page — run: agent-layer read`)
+  if (!at) throw new Error(`[${ref}] is not on the page — run: browser-layer read`)
   const cdp = at.scope ? tab.frames.get(at.scope)?.cdp : tab.cdp
-  if (!cdp) throw new Error(`[${ref}] is in a frame that is gone — run: agent-layer read`)
+  if (!cdp) throw new Error(`[${ref}] is in a frame that is gone — run: browser-layer read`)
   return { cdp, page: tab.cdp, id: at.id, offset: () => offsetOf(tab, at.scope) }
 }
 
@@ -352,7 +352,7 @@ async function act(tab: Tab, ref: string | undefined, fn: (t: Target) => Promise
     await fn(t)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    throw new Error(/No node with given id|Could not find node/i.test(msg) ? `[${ref}] is not on the page — run: agent-layer read` : `cannot act on [${ref}]: ${msg}`)
+    throw new Error(/No node with given id|Could not find node/i.test(msg) ? `[${ref}] is not on the page — run: browser-layer read` : `cannot act on [${ref}]: ${msg}`)
   }
 }
 
@@ -408,7 +408,7 @@ async function answer(tab: Tab): Promise<string> {
   const settled = await settle(tab)
   if (tab.dialog) {
     const d = tab.dialog
-    return `tab ${tab.id}  a ${d.type()} dialog is open: "${d.message()}"${d.type() === 'prompt' ? ` (default "${d.defaultValue()}")` : ''}\nanswer: agent-layer dialog accept [text] | agent-layer dialog dismiss`
+    return `tab ${tab.id}  a ${d.type()} dialog is open: "${d.message()}"${d.type() === 'prompt' ? ` (default "${d.defaultValue()}")` : ''}\nanswer: browser-layer dialog accept [text] | browser-layer dialog dismiss`
   }
   await Promise.race([Promise.all(tab.saving), sleep(policy['load.timeoutMs'])])
   tab.saving = []
@@ -478,7 +478,7 @@ async function refNamed(tab: Tab, target: string | undefined): Promise<string | 
   const hits = withRefs((await snapshot(tab)).tree).filter(n => isItem(n) && fit(n.name, want) < 3)
   const best = hits.filter(n => fit(n.name, want) === Math.min(...hits.map(h => fit(h.name, want))))
   if (best.length === 1) return String(best[0].ref)
-  if (!best.length) throw new Error(`nothing is named "${target}" — run: agent-layer map`)
+  if (!best.length) throw new Error(`nothing is named "${target}" — run: browser-layer map`)
   throw new Error(`${best.length} controls are named "${target}"; use a ref: ${best.slice(0, policy['render.mapFew']).map(n => `[${n.ref}] ${n.role} "${n.name}"`).join(' · ')}`)
 }
 
@@ -529,7 +529,7 @@ async function run(c: Command): Promise<string> {
       const tab = need(c.session)
       const { tree, origin } = await snapshot(tab)
       const node = findRef(tree, Number(c.ref))
-      if (!node) throw new Error(`[${c.ref}] is not on the page — run: agent-layer map`)
+      if (!node) throw new Error(`[${c.ref}] is not on the page — run: browser-layer map`)
       if (!records(node, origin, caps()).rows.length) throw new Error(`[${c.ref}] has no rows; get works on the lists and tables the map shows`)
       return `${await header(tab)}  — ${recordsView(node, origin, c)}`
     }
@@ -576,7 +576,7 @@ async function run(c: Command): Promise<string> {
     case 'find': {
       const tab = need(c.session)
       const want = (c.text ?? '').toLowerCase()
-      if (!want) throw new Error('usage: agent-layer find <text>')
+      if (!want) throw new Error('usage: browser-layer find <text>')
       const hits = (await snapshot(tab)).text.split('\n').filter(l => l.toLowerCase().includes(want))
       if (!hits.length) return `"${c.text}" is not on the page`
       const shown = hits.slice(0, policy['data.rows'])
@@ -594,7 +594,7 @@ async function run(c: Command): Promise<string> {
     }
     case 'storage': {
       const tab = need(c.session)
-      if (c.dir !== 'local' && c.dir !== 'session') throw new Error('usage: agent-layer storage local|session [clear]')
+      if (c.dir !== 'local' && c.dir !== 'session') throw new Error('usage: browser-layer storage local|session [clear]')
       const area = `${c.dir}Storage`
       if (c.text === 'clear') {
         await tab.page.evaluate(`${area}.clear()`)
@@ -617,7 +617,7 @@ async function run(c: Command): Promise<string> {
     case 'upload': {
       const tab = need(c.session)
       const missing = (c.files ?? []).filter(f => !existsSync(f))
-      if (!c.files?.length || missing.length) throw new Error(missing.length ? `no such file: ${missing.join(', ')}` : 'usage: agent-layer upload <ref> <file...>')
+      if (!c.files?.length || missing.length) throw new Error(missing.length ? `no such file: ${missing.join(', ')}` : 'usage: browser-layer upload <ref> <file...>')
       // A file input takes the files directly; any other control is clicked and its file chooser answered.
       await act(tab, c.ref, async t => {
         if (await isFileInput(t)) return setFiles(t, c.files!)
@@ -642,7 +642,7 @@ async function run(c: Command): Promise<string> {
     }
     case 'wait': {
       const tab = need(c.session)
-      if (!c.text) throw new Error('usage: agent-layer wait [--gone] <text>')
+      if (!c.text) throw new Error('usage: browser-layer wait [--gone] <text>')
       const end = Date.now() + policy['wait.timeoutMs']
       while (((await snapshot(tab)).text.includes(c.text)) === !!c.gone) {
         if (Date.now() > end) throw new Error(`"${c.text}" ${c.gone ? 'is still on the page' : 'did not appear'} after ${policy['wait.timeoutMs']} ms`)
@@ -657,14 +657,14 @@ async function run(c: Command): Promise<string> {
       tab.dialog = undefined
       if (c.dir === 'accept') await d.accept(c.text)
       else if (c.dir === 'dismiss') await d.dismiss()
-      else throw new Error('usage: agent-layer dialog accept [text] | dismiss')
+      else throw new Error('usage: browser-layer dialog accept [text] | dismiss')
       return answer(tab)
     }
     case 'explore': {
       const tab = need(c.session)
       const { tree } = await snapshot(tab)
       const scope = c.ref ? findRef(tree, Number(c.ref)) : tree
-      if (!scope) throw new Error(`[${c.ref}] is not on the page — run: agent-layer map`)
+      if (!scope) throw new Error(`[${c.ref}] is not on the page — run: browser-layer map`)
       const triggers = (isTrigger(scope) ? [scope] : withRefs(scope).filter(isTrigger))
       if (!triggers.length) return 'nothing here declares a menu or pop-up (aria-haspopup / aria-expanded)'
       const budget = { opens: policy['explore.max'] }
@@ -684,7 +684,7 @@ async function run(c: Command): Promise<string> {
       // A path of names: each step is clicked, then looked for among what the previous step opened.
       const tab = need(c.session)
       const steps = (c.text ?? '').split('>').map(s => s.trim().toLowerCase()).filter(Boolean)
-      if (!steps.length) throw new Error('usage: agent-layer menu "File > Download > CSV"')
+      if (!steps.length) throw new Error('usage: browser-layer menu "File > Download > CSV"')
       for (const [k, step] of steps.entries()) {
         // Best name match first; among equals, the newest control (the menu just opened) after step one.
         const hits = withRefs((await snapshot(tab)).tree)
@@ -700,7 +700,7 @@ async function run(c: Command): Promise<string> {
       // Permissions are denied unless the agent grants them, per site: `allow geolocation 19.07,72.87`.
       const tab = need(c.session)
       const perms = (c.text ?? '').split(',').filter(Boolean)
-      if (!perms.length) throw new Error('usage: agent-layer allow <permission>[,permission] [latitude,longitude]')
+      if (!perms.length) throw new Error('usage: browser-layer allow <permission>[,permission] [latitude,longitude]')
       const origin = new URL(tab.page.url()).origin
       await ctx.grantPermissions(perms, { origin })
       if (c.dir) {
@@ -721,7 +721,7 @@ async function run(c: Command): Promise<string> {
       if (c.id !== undefined) {
         // One request in full: what an agent needs to call the same API itself.
         const r = tab.net.find(n => n.id === c.id)
-        if (!r) throw new Error(`no request #${c.id} — run: agent-layer net`)
+        if (!r) throw new Error(`no request #${c.id} — run: browser-layer net`)
         const res = await r.request.response().catch(() => null)
         const body = await res?.text().catch(() => undefined)
         return [`#${r.id} ${r.method} ${r.url}`, 'request headers:', headerLines(await r.request.allHeaders()),
@@ -769,9 +769,9 @@ async function main() {
   }
   ctx = await chromium.launchPersistentContext(join(home(), 'profile'), {
     executablePath: browser.path,
-    // Headless always, except a browser `agent-layer show` started for a person to watch. Nothing is
+    // Headless always, except a browser `browser-layer show` started for a person to watch. Nothing is
     // remembered: the next browser after this one is headless again.
-    headless: process.env.AGENT_LAYER_VISIBLE !== '1',
+    headless: process.env.BROWSER_LAYER_VISIBLE !== '1',
     viewport: { width: policy['viewport.width'], height: policy['viewport.height'] },
     reducedMotion: 'reduce',
   })
@@ -843,7 +843,7 @@ async function main() {
     // administrators write to it, so no other account can send it commands.
     if (process.platform !== 'win32') chmodSync(socketPath(), 0o600)
     touch()
-    console.log(`agent-layer daemon on ${socketPath()}`)
+    console.log(`browser-layer daemon on ${socketPath()}`)
   })
   process.on('SIGTERM', () => void shutdown())
   process.on('SIGINT', () => void shutdown())

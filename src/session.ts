@@ -8,7 +8,7 @@ export type Saved = { url: string; links: Record<number, string>; verbs: Verb[] 
 
 export type Cookie = { name: string; value: string; domain: string; hostOnly: boolean; path: string; expires?: number; secure?: boolean }
 
-export const home = () => process.env.AGENT_LAYER_HOME || join(homedir(), '.agent-layer')
+export const home = () => process.env.BROWSER_LAYER_HOME || join(homedir(), '.browser-layer')
 
 function load<T>(file: string, fallback: T): T {
   try { return JSON.parse(readFileSync(join(home(), file), 'utf8')) } catch { return fallback }

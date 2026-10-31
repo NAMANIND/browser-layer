@@ -2,65 +2,65 @@
 <rect width="1200" height="854" fill="#fcfcfb"/>
 <text x="48" y="64" font-size="30" font-weight="700" fill="#0b0b0b">Time per task</text>
 <text x="48" y="98" font-size="18" fill="#52514e">Wall-clock seconds, median of 3 runs. Lower is better. All 30 runs: 11 vs 28 min.</text>
-<rect x="48" y="116" width="14" height="14" rx="3" fill="#2a78d6"/><text x="70" y="128" font-size="16" fill="#52514e">agent-layer</text>
-<rect x="191" y="116" width="14" height="14" rx="3" fill="#eb6834"/><text x="213" y="128" font-size="16" fill="#52514e">agent-browser</text>
-<text x="1022" y="140" font-size="14" text-anchor="end" fill="#8a8984">agent-browser</text><text x="1022" y="158" font-size="14" text-anchor="end" fill="#8a8984">vs agent-layer</text>
+<rect x="48" y="116" width="14" height="14" rx="3" fill="#2a78d6"/><text x="70" y="128" font-size="16" fill="#52514e">browser-layer</text>
+<rect x="209" y="116" width="14" height="14" rx="3" fill="#eb6834"/><text x="231" y="128" font-size="16" fill="#52514e">agent-browser</text>
+<text x="1022" y="140" font-size="14" text-anchor="end" fill="#8a8984">agent-browser</text><text x="1022" y="158" font-size="14" text-anchor="end" fill="#8a8984">vs browser-layer</text>
 <text x="194" y="196" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">login</text>
-<path d="M210,170 h89.7172236503856 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-89.7172236503856 z" fill="#2a78d6"><title>agent-layer: 12 s</title></path>
+<path d="M210,170 h89.7172236503856 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-89.7172236503856 z" fill="#2a78d6"><title>browser-layer: 12 s</title></path>
 <text x="311.7172236503856" y="184" font-size="14" fill="#52514e">12 s</text>
 <path d="M210,190 h448.34447300771205 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-448.34447300771205 z" fill="#eb6834"><title>agent-browser: 59 s</title></path>
 <text x="670.344473007712" y="204" font-size="14" fill="#52514e">59 s</text>
 <text x="1022" y="196" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">4.8×</text>
 <text x="194" y="258" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">shop-filter</text>
-<path d="M210,232 h76.97686375321337 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-76.97686375321337 z" fill="#2a78d6"><title>agent-layer: 11 s</title></path>
+<path d="M210,232 h76.97686375321337 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-76.97686375321337 z" fill="#2a78d6"><title>browser-layer: 11 s</title></path>
 <text x="298.97686375321337" y="246" font-size="14" fill="#52514e">11 s</text>
 <path d="M210,252 h283.48329048843186 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-283.48329048843186 z" fill="#eb6834"><title>agent-browser: 37 s</title></path>
 <text x="505.48329048843186" y="266" font-size="14" fill="#52514e">37 s</text>
 <text x="1022" y="258" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">3.6×</text>
 <text x="194" y="320" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">todos</text>
-<path d="M210,294 h161.64781491002572 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-161.64781491002572 z" fill="#2a78d6"><title>agent-layer: 21 s</title></path>
+<path d="M210,294 h161.64781491002572 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-161.64781491002572 z" fill="#2a78d6"><title>browser-layer: 21 s</title></path>
 <text x="383.6478149100257" y="308" font-size="14" fill="#52514e">21 s</text>
 <path d="M210,314 h426.32647814910024 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-426.32647814910024 z" fill="#eb6834"><title>agent-browser: 56 s</title></path>
 <text x="648.3264781491002" y="328" font-size="14" fill="#52514e">56 s</text>
 <text x="1022" y="320" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.6×</text>
 <text x="194" y="382" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">scroll-bottom</text>
-<path d="M210,356 h71.44730077120822 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-71.44730077120822 z" fill="#2a78d6"><title>agent-layer: 10 s</title></path>
+<path d="M210,356 h71.44730077120822 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-71.44730077120822 z" fill="#2a78d6"><title>browser-layer: 10 s</title></path>
 <text x="293.44730077120823" y="370" font-size="14" fill="#52514e">10 s</text>
 <path d="M210,376 h290 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-290 z" fill="#eb6834"><title>agent-browser: 38 s</title></path>
 <text x="512" y="390" font-size="14" fill="#52514e">38 s</text>
 <text x="1022" y="382" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">3.9×</text>
 <text x="194" y="444" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">load-more</text>
-<path d="M210,418 h244.69151670951157 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-244.69151670951157 z" fill="#2a78d6"><title>agent-layer: 32 s</title></path>
+<path d="M210,418 h244.69151670951157 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-244.69151670951157 z" fill="#2a78d6"><title>browser-layer: 32 s</title></path>
 <text x="466.6915167095116" y="432" font-size="14" fill="#52514e">32 s</text>
 <path d="M210,438 h541.3676092544987 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-541.3676092544987 z" fill="#eb6834"><title>agent-browser: 71 s</title></path>
 <text x="763.3676092544987" y="452" font-size="14" fill="#52514e">71 s</text>
 <text x="1022" y="444" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.2×</text>
 <text x="194" y="506" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">wait-for-value</text>
-<path d="M210,480 h96.01799485861183 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-96.01799485861183 z" fill="#2a78d6"><title>agent-layer: 13 s</title></path>
+<path d="M210,480 h96.01799485861183 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-96.01799485861183 z" fill="#2a78d6"><title>browser-layer: 13 s</title></path>
 <text x="318.0179948586118" y="494" font-size="14" fill="#52514e">13 s</text>
 <path d="M210,500 h220.1439588688946 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-220.1439588688946 z" fill="#eb6834"><title>agent-browser: 29 s</title></path>
 <text x="442.14395886889463" y="514" font-size="14" fill="#52514e">29 s</text>
 <text x="1022" y="506" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.2×</text>
 <text x="194" y="568" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">poll-status</text>
-<path d="M210,542 h100.48329048843188 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-100.48329048843188 z" fill="#2a78d6"><title>agent-layer: 14 s</title></path>
+<path d="M210,542 h100.48329048843188 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-100.48329048843188 z" fill="#2a78d6"><title>browser-layer: 14 s</title></path>
 <text x="322.48329048843186" y="556" font-size="14" fill="#52514e">14 s</text>
 <path d="M210,562 h354.2185089974293 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-354.2185089974293 z" fill="#eb6834"><title>agent-browser: 46 s</title></path>
 <text x="576.2185089974294" y="576" font-size="14" fill="#52514e">46 s</text>
 <text x="1022" y="568" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">3.4×</text>
 <text x="194" y="630" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">multi-step-form</text>
-<path d="M210,604 h180.93573264781492 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-180.93573264781492 z" fill="#2a78d6"><title>agent-layer: 24 s</title></path>
+<path d="M210,604 h180.93573264781492 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-180.93573264781492 z" fill="#2a78d6"><title>browser-layer: 24 s</title></path>
 <text x="402.9357326478149" y="618" font-size="14" fill="#52514e">24 s</text>
 <path d="M210,624 h404.5784061696658 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-404.5784061696658 z" fill="#eb6834"><title>agent-browser: 53 s</title></path>
 <text x="626.5784061696659" y="638" font-size="14" fill="#52514e">53 s</text>
 <text x="1022" y="630" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.2×</text>
 <text x="194" y="692" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">paginated-search</text>
-<path d="M210,666 h359.75578406169666 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-359.75578406169666 z" fill="#2a78d6"><title>agent-layer: 47 s</title></path>
+<path d="M210,666 h359.75578406169666 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-359.75578406169666 z" fill="#2a78d6"><title>browser-layer: 47 s</title></path>
 <text x="581.7557840616967" y="680" font-size="14" fill="#52514e">47 s</text>
 <path d="M210,686 h668 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-668 z" fill="#eb6834"><title>agent-browser: 87 s</title></path>
 <text x="890" y="700" font-size="14" fill="#52514e">87 s</text>
 <text x="1022" y="692" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.8×</text>
 <text x="194" y="754" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">modal-trap</text>
-<path d="M210,728 h179 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-179 z" fill="#2a78d6"><title>agent-layer: 24 s</title></path>
+<path d="M210,728 h179 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-179 z" fill="#2a78d6"><title>browser-layer: 24 s</title></path>
 <text x="401" y="742" font-size="14" fill="#52514e">24 s</text>
 <path d="M210,748 h266.02313624678663 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-266.02313624678663 z" fill="#eb6834"><title>agent-browser: 35 s</title></path>
 <text x="488.02313624678663" y="762" font-size="14" fill="#52514e">35 s</text>

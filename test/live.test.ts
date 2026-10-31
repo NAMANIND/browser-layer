@@ -231,7 +231,7 @@ const deepHome = join(home, 'deep', 'd'.repeat(110))
 function runIn(dir: string, ...args: string[]): Promise<{ code: number; out: string }> {
   return new Promise(resolve => {
     // node --import tsx, not npx: npx is a .cmd script on Windows, which execFile cannot run.
-    execFile(process.execPath, ['--import', 'tsx', 'src/cli.ts', ...args], { env: { ...process.env, AGENT_LAYER_HOME: dir }, timeout: 120000 }, (err, stdout, stderr) =>
+    execFile(process.execPath, ['--import', 'tsx', 'src/cli.ts', ...args], { env: { ...process.env, BROWSER_LAYER_HOME: dir }, timeout: 120000 }, (err, stdout, stderr) =>
       resolve({ code: err ? (err as { code?: number }).code ?? 1 : 0, out: stdout + stderr }))
   })
 }
@@ -407,7 +407,7 @@ test('actions answer with what changed; a new page answers with its map', async 
   const full = await openRead(`${base}/delta`)
   assert.match(full.out, /story 5/)
   const more = await run('click', ref(full.out, /button "More"/))
-  assert.match(more.out, /lines gone, \d+ new, settled: idle in \d+ ms \(full page: agent-layer read\)/)
+  assert.match(more.out, /lines gone, \d+ new, settled: idle in \d+ ms \(full page: browser-layer read\)/)
   assert.match(more.out, /^\+ loaded more$/m)
   assert.doesNotMatch(more.out, /story 5/)
   assert.match((await run('read')).out, /story 5[\s\S]*loaded more/)
@@ -438,7 +438,7 @@ test('long views come in pages and every page is reachable', async () => {
   assert.match(first.out, /\(page 1 of (\d+)\)/)
   const total = Number(first.out.match(/\(page 1 of (\d+)\)/)![1])
   assert.ok(total >= 2)
-  assert.match(first.out, /more below: agent-layer read --page 2/)
+  assert.match(first.out, /more below: browser-layer read --page 2/)
   const last = await run('read', '--page', String(total))
   assert.match(last.out, /line 599 /)
   assert.doesNotMatch(last.out, /more below/)
@@ -557,7 +557,7 @@ test('a profile is a separate browser with its own tabs', async () => {
 })
 
 test('a session saved by a normal browser window on the agent profile carries into the agent browser', async () => {
-  // What `agent-layer login` launches, headless here and quit through DevTools instead of by a person.
+  // What `browser-layer login` launches, headless here and quit through DevTools instead of by a person.
   const dir = mkdtempSync(join(tmpdir(), 'al-login-'))
   const found = findBrowser()
   if ('error' in found) throw new Error(found.error)
@@ -625,7 +625,7 @@ test('text drawn on a canvas reads as lines, and text painted over is forgotten'
 
 test('explore opens every declared menu, reads it, closes it, and never runs a command', async () => {
   const map = (await run('tab', `${base}/menus`)).out
-  assert.match(map, /closed menus and pop-ups: 2 \(agent-layer explore lists what they hold\)/)
+  assert.match(map, /closed menus and pop-ups: 2 \(browser-layer explore lists what they hold\)/)
   const out = (await run('explore')).out
   assert.match(out, /2 declared menus and pop-ups, each opened, read and closed/)
   assert.match(out, /^\[\d+\] File ▸ New · Download ▸ · Print$/m)

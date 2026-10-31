@@ -6,16 +6,16 @@
 <text x="80" y="330" font-size="112" font-weight="800" fill="#0b0b0b">3.4×</text>
 <text x="80" y="384" font-size="24" font-weight="600" fill="#0b0b0b">fewer tokens</text>
 <text x="80" y="426" font-size="17" fill="#52514e">3.7M vs 12.8M</text>
-<rect x="80" y="448" width="10" height="10" rx="2" fill="#2a78d6"/><text x="98" y="458" font-size="15" fill="#8a8984">agent-layer vs agent-browser</text>
+<rect x="80" y="448" width="10" height="10" rx="2" fill="#2a78d6"/><text x="98" y="458" font-size="15" fill="#8a8984">browser-layer vs agent-browser</text>
 <rect x="426.6666666666667" y="190" width="346.6666666666667" height="300" rx="16" fill="#ffffff" stroke="#e7e6e2"/>
 <text x="458.6666666666667" y="330" font-size="112" font-weight="800" fill="#0b0b0b">2.2×</text>
 <text x="458.6666666666667" y="384" font-size="24" font-weight="600" fill="#0b0b0b">fewer steps</text>
 <text x="458.6666666666667" y="426" font-size="17" fill="#52514e">176 vs 391 tool calls</text>
-<rect x="458.6666666666667" y="448" width="10" height="10" rx="2" fill="#2a78d6"/><text x="476.6666666666667" y="458" font-size="15" fill="#8a8984">agent-layer vs agent-browser</text>
+<rect x="458.6666666666667" y="448" width="10" height="10" rx="2" fill="#2a78d6"/><text x="476.6666666666667" y="458" font-size="15" fill="#8a8984">browser-layer vs agent-browser</text>
 <rect x="805.3333333333334" y="190" width="346.6666666666667" height="300" rx="16" fill="#ffffff" stroke="#e7e6e2"/>
 <text x="837.3333333333334" y="330" font-size="112" font-weight="800" fill="#0b0b0b">2.6×</text>
 <text x="837.3333333333334" y="384" font-size="24" font-weight="600" fill="#0b0b0b">faster</text>
 <text x="837.3333333333334" y="426" font-size="17" fill="#52514e">11 vs 28 minutes in all</text>
-<rect x="837.3333333333334" y="448" width="10" height="10" rx="2" fill="#2a78d6"/><text x="855.3333333333334" y="458" font-size="15" fill="#8a8984">agent-layer vs agent-browser</text>
+<rect x="837.3333333333334" y="448" width="10" height="10" rx="2" fill="#2a78d6"/><text x="855.3333333333334" y="458" font-size="15" fill="#8a8984">browser-layer vs agent-browser</text>
 <text x="48" y="582" font-size="15" fill="#8a8984">web-agent-bench suites (controlled, scroll, dynamic, hard) · claude-sonnet-5-thinking-high · 3 runs per task, both tools 30/30 passed</text>
 </svg>

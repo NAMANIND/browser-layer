@@ -15,10 +15,10 @@ import type { Command } from './daemon.js'
 // so a deep home dir gets a short, stable path in the temp dir instead.
 const homeId = () => createHash('sha256').update(home()).digest('hex').slice(0, 12)
 export const socketPath = () => {
-  if (process.platform === 'win32') return `\\\\.\\pipe\\agent-layer-${homeId()}`
+  if (process.platform === 'win32') return `\\\\.\\pipe\\browser-layer-${homeId()}`
   const p = join(home(), 'daemon.sock')
   if (Buffer.byteLength(p) < 100) return p
-  return join(tmpdir(), `agent-layer-${homeId()}.sock`)
+  return join(tmpdir(), `browser-layer-${homeId()}.sock`)
 }
 const lockPath = () => join(home(), 'daemon.lock')
 const LOCK_STALE_MS = 30000
