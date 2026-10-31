@@ -1,13 +1,29 @@
 # browser-layer
 
-[![ci](https://github.com/NAMANIND/browser-layer/actions/workflows/ci.yml/badge.svg)](https://github.com/NAMANIND/browser-layer/actions/workflows/ci.yml)
-
 A terminal browser for AI agents. A page comes back as a short text map of its regions and controls,
-every action answers with what changed, and lists and tables come back as records. No screenshots,
-no DOM dumps.
+every action answers with what changed, and lists and tables come back as records. The agent reads
+text: no screenshots, no DOM dumps.
 
-On the same tasks, same model and same rules, browser-layer took about half the steps of Vercel's
-agent-browser and used 3.4× fewer tokens ([benchmarks](bench/RESULTS.md)).
+## Benchmark
+
+Eight end-to-end tasks (six web apps plus Hacker News and GitHub): the same agent, model, prompt
+and task for each tool, with only the browser CLI changing. Every answer is checked against ground
+truth.
+
+| | browser-layer | agent-browser 0.41.0 | playwright-cli 0.1.22 |
+|---|---|---|---|
+| Tasks passed | 8/8 | 8/8 | 8/8 |
+| Tokens | **1.03M** | 1.97M | 1.91M |
+| Steps | **47** | 64 | 83 |
+| Time | **3.2 min** | 5.8 min | 4.9 min |
+
+browser-layer used about half the tokens of either and the fewest steps, and was the cheapest on
+7 of 8 tasks.
+
+![Tokens per task: browser-layer, agent-browser, playwright-cli](https://raw.githubusercontent.com/NAMANIND/browser-layer/main/bench/charts/three-tools-tokens.png)
+
+Agent: cursor-agent with `claude-sonnet-5-thinking-high`, one run per tool per task. Tasks, runner,
+raw data and method: [github.com/NAMANIND/browser-layer](https://github.com/NAMANIND/browser-layer/blob/main/bench/RESULTS.md).
 
 ## Install
 
@@ -50,7 +66,16 @@ forms are in the HTML the server sends; pages built by JavaScript need a live ta
 sign in yourself (passwords, 2FA and passkeys stay with you), close it, and the agent stays signed in.
 
 **Watching**: `browser-layer show` turns the agent's browser into a visible window; `browser-layer hide`
-makes it headless again.
+makes it headless again. `browser-layer screenshot [ref]` saves a picture of the tab or one region
+when a person wants one.
+
+## Agent skill
+
+Teach Claude Code, Codex, Cursor and other agents the workflow with one command:
+
+```bash
+npx skills add NAMANIND/browser-layer
+```
 
 ## Develop
 
