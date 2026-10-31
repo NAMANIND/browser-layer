@@ -407,13 +407,21 @@ test('a page that refuses the browser says so, and how a person can clear it', a
   assert.doesNotMatch((await run('go', `${base}/longmenu`)).out, /blocked:/)
 })
 
-test('screenshot saves a PNG of the tab, the visible part or the whole page', async () => {
-  await run('tab', `${base}/longmenu`)
+test('screenshot saves a PNG of the tab: the visible part, the whole page, or one region', async () => {
+  const map = await run('tab', `${base}/longmenu`)
   const dir = mkdtempSync(join(tmpdir(), 'shot-'))
+  const size = (file: string) => { const png = readFileSync(join(dir, file)); return [png.readUInt32BE(16), png.readUInt32BE(20)] }
   const shot = await run('screenshot', join(dir, 'a.png'))
   assert.equal(shot.out.trim(), `saved ${join(dir, 'a.png')}`)
   assert.equal(readFileSync(join(dir, 'a.png')).subarray(1, 4).toString(), 'PNG')
+  assert.deepEqual(size('a.png'), [DEFAULTS['viewport.width'], DEFAULTS['viewport.height']])
   assert.equal((await run('screenshot', join(dir, 'b.png'), '--full')).code, 0)
+  assert.ok(size('b.png')[1] > DEFAULTS['viewport.height'])
+  // The button sits below 400 paragraphs, out of view: its picture is just its box.
+  assert.equal((await run('screenshot', ref(map.out, /button "Language: Any"/), join(dir, 'c.png'))).code, 0)
+  const [w, h] = size('c.png')
+  assert.ok(w < 300 && h < 60, `${w}x${h}`)
+  assert.match((await run('screenshot', '99999', join(dir, 'd.png'))).out, /\[99999\] is not on the page/)
   rmSync(dir, { recursive: true, force: true })
 })
 

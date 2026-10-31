@@ -38,7 +38,7 @@ Live tabs (a headless browser kept alive in the background; runs the page's JS):
   browser-layer dialog accept [text] | dialog dismiss   answer an alert / confirm / prompt
   browser-layer forward | reload
   browser-layer eval <js>               run JavaScript in the page; prints the result as JSON
-  browser-layer screenshot [file] [--full]   save a PNG of the tab when a person wants one (read the page as text)
+  browser-layer screenshot [ref] [file] [--full]   save a PNG of the tab, or of one region, when a person wants one (read the page as text)
   browser-layer allow <perm>[,perm] [lat,lon]   grant geolocation, notifications… to the current site
   browser-layer find <text>             the lines of the page that contain it
   browser-layer check | uncheck <ref>   set a checkbox (repeatable: only clicks if it must change)
@@ -255,7 +255,10 @@ async function main() {
     if (cmd === 'storage') [c.dir, c.text] = [target, rest[0]]
     // The daemon runs elsewhere, so files are resolved against the agent's working directory here.
     if (cmd === 'upload') c.files = rest.map(f => resolve(f))
-    if (cmd === 'screenshot') [c.files, c.full] = [[resolve(target ?? `screenshot-${Date.now()}.png`)], argv.includes('--full')]
+    if (cmd === 'screenshot') {
+      const [ref, file] = target && /^\d+$/.test(target) ? [target, rest[0]] : [undefined, target]
+      ;[c.ref, c.files, c.full] = [ref, [resolve(file ?? `screenshot-${Date.now()}.png`)], argv.includes('--full')]
+    }
     if (cmd === 'scroll') [c.ref, c.dir] = target && /^\d+$/.test(target) ? [target, rest[0]] : [undefined, target]
     if (cmd === 'dialog') [c.dir, c.text] = [target, rest.length ? rest.join(' ') : undefined]
     if (cmd === 'wait' || cmd === 'eval') c.text = [target, ...rest].filter(Boolean).join(' ')

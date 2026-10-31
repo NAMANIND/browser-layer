@@ -748,9 +748,19 @@ async function run(c: Command): Promise<string> {
     }
     case 'screenshot': {
       // A picture for a person (or a judge): the agent reads the page as text. Images and fonts are
-      // never loaded (DECORATION), so it shows the page without them.
+      // never loaded (DECORATION), so it shows the page without them. A ref pictures just its box, in
+      // page coordinates so a region taller than the window comes out whole.
       const tab = need(c.session)
-      await tab.page.screenshot({ path: c.files![0], fullPage: !!c.full })
+      let clip: { x: number; y: number; width: number; height: number } | undefined
+      if (c.ref !== undefined) await act(tab, c.ref, async t => {
+        const { model } = await t.cdp.send('DOM.getBoxModel', { backendNodeId: t.id })
+        const [left, top, right, , , bottom] = model.border
+        if (right <= left || bottom <= top) throw new Error('it has no box on the page (hidden or not rendered)')
+        const [ox, oy] = await t.offset()
+        const [sx, sy] = (await tab.page.evaluate('[scrollX, scrollY]')) as [number, number]
+        clip = { x: left + ox + sx, y: top + oy + sy, width: right - left, height: bottom - top }
+      })
+      await tab.page.screenshot({ path: c.files![0], fullPage: !!c.full || !!clip, clip })
       return `saved ${c.files![0]}`
     }
     case 'eval': {
