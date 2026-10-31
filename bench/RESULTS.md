@@ -82,3 +82,37 @@ action can name its control (`click "Next"`).
 | flights | 330k · 15 steps | **292k · 14 steps** | 921k · 27 | 506k · 22 |
 
 With the reruns, agent-layer is cheapest on 7 of 8 tasks; shop is within noise of playwright-cli.
+
+## 4. web-agent-bench (a third party's suites, 3 runs each)
+
+[web-agent-bench](https://github.com/nsosio/web-agent-bench) is an independent benchmark that already
+drives agent-browser. Its scenarios, prompts, answer checks, per-tool guides and command guard are
+used as they are; agent-layer gets a copy of agent-browser's thin driver with only the CLI swapped,
+and the guard also blocks agent-layer's bypasses (`eval`, `net`, `cookies`, `storage`, `allow`, the
+login window, and the plain-HTTP fast path). The brain is cursor-agent (`claude-sonnet-5-thinking-high`)
+instead of their API loop, with the guard run before every shell command as a hook, so a blocked
+command gets their message and the agent carries on, as in their loop. Suites: controlled, scroll,
+dynamic, hard (auth fails for every tool by design; vision needs pixels, which agent-layer never takes).
+Medians of 3 runs; tools alternate order within each run.
+
+| Task | agent-layer | agent-browser 0.41.0 |
+|---|---|---|
+| controlled/login | 3/3 · 69k · 3 steps · 12 s | 3/3 · 318k · 12 steps · 59 s |
+| controlled/shop-filter | 3/3 · 69k · 3 steps · 11 s | 3/3 · 233k · 7 steps · 37 s |
+| controlled/todos | 3/3 · 106k · 5 steps · 21 s | 3/3 · 410k · 11 steps · 56 s |
+| scroll/scroll-bottom | 3/3 · 68k · 3 steps · 10 s | 3/3 · 240k · 9 steps · 38 s |
+| scroll/load-more | 3/3 · 181k · 9 steps · 32 s | 3/3 · 562k · 20 steps · 71 s |
+| dynamic/wait-for-value | 3/3 · 68k · 3 steps · 13 s | 3/3 · 181k · 7 steps · 29 s |
+| dynamic/poll-status | 3/3 · 86k · 4 steps · 14 s | 3/3 · 292k · 11 steps · 46 s |
+| hard/multi-step-form | 3/3 · 182k · 9 steps · 24 s | 3/3 · 479k · 13 steps · 53 s |
+| hard/paginated-search | 3/3 · 282k · 13 steps · 47 s | 3/3 · 1042k · 26 steps · 87 s |
+| hard/modal-trap | 3/3 · 124k · 6 steps · 24 s | 3/3 · 248k · 9 steps · 35 s |
+| **All 30 runs** | **30/30 · 3.7M tokens · 176 steps · 11 min** | **30/30 · 12.8M tokens · 391 steps · 28 min** |
+
+**Finding.** Both pass everything. agent-layer uses 3.4× fewer tokens, 2.2× fewer steps and 2.5× less
+time. A step costs about the same with either tool (~22k vs ~29k tokens, ~90% of it the harness's own
+prompt re-read each step), so the gap is the number of steps. Part of agent-browser's is its own guide
+(reading the skill document, trying to `export` a session the guard blocks); the rest is design:
+agent-layer's `tab` answers with the page and every action with what changed, where agent-browser
+re-snapshots, waits and reads after each action. Caveats: 3 runs, small fixture sites, and the
+cursor-agent harness multiplies step count by a large per-step prompt.
