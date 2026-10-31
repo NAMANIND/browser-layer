@@ -15,6 +15,14 @@
   ],
   "license": "Apache-2.0",
   "author": "Naman Rai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NAMANIND/agent-layer.git"
+  },
+  "homepage": "https://github.com/NAMANIND/agent-layer#readme",
+  "bugs": {
+    "url": "https://github.com/NAMANIND/agent-layer/issues"
+  },
   "type": "module",
   "bin": {
     "agent-layer": "dist/cli.js"
