@@ -109,10 +109,13 @@ Medians of 3 runs; tools alternate order within each run.
 | hard/modal-trap | 3/3 · 124k · 6 steps · 24 s | 3/3 · 248k · 9 steps · 35 s |
 | **All 30 runs** | **30/30 · 3.7M tokens · 176 steps · 11 min** | **30/30 · 12.8M tokens · 391 steps · 28 min** |
 
-**Finding.** Both pass everything. agent-layer uses 3.4× fewer tokens, 2.2× fewer steps and 2.5× less
+**Finding.** Both pass everything. agent-layer uses 3.4× fewer tokens, 2.2× fewer steps and 2.6× less
 time. A step costs about the same with either tool (~22k vs ~29k tokens, ~90% of it the harness's own
 prompt re-read each step), so the gap is the number of steps. Part of agent-browser's is its own guide
 (reading the skill document, trying to `export` a session the guard blocks); the rest is design:
 agent-layer's `tab` answers with the page and every action with what changed, where agent-browser
 re-snapshots, waits and reads after each action. Caveats: 3 runs, small fixture sites, and the
 cursor-agent harness multiplies step count by a large per-step prompt.
+
+Charts for posts (SVG and 2× PNG) are in `charts/`, and `charts/results.html` is a page with the
+charts and side-by-side transcripts; `node bench/charts.mjs` rebuilds all of them from `results/`.

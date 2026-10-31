@@ -1,0 +1,245 @@
+<title>agent-layer Benchmarks</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column; numbers first, then each chart, then real transcripts side by side. */
+:root {
+  --bg: #fbfbfa; --panel: #ffffff; --line: #e6e5e1; --fg: #0f1011; --fg-2: #4f5054; --fg-3: #85868b;
+  --term-bg: #f3f4f6; --blocked: #a8402a;
+  --s-layer: #2a78d6; --s-browser: #eb6834; --s-pw: #1baf7a;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141516; --panel: #1b1c1e; --line: #2d2e31; --fg: #f0f0ee; --fg-2: #b9bab6; --fg-3: #8a8b88;
+  --term-bg: #101112; --blocked: #f08a70;
+  --s-layer: #3987e5; --s-browser: #d95926; --s-pw: #199e70; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141516; --panel: #1b1c1e; --line: #2d2e31; --fg: #f0f0ee; --fg-2: #b9bab6; --fg-3: #8a8b88;
+  --term-bg: #101112; --blocked: #f08a70;
+  --s-layer: #3987e5; --s-browser: #d95926; --s-pw: #199e70; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); }
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 56px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 64px; }
+h1, h2 { font-family: var(--display); letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.05; }
+h2 { font-size: 1.7rem; line-height: 1.15; }
+p { margin: 0; max-width: 65ch; color: var(--fg-2); }
+.eyebrow { font: 600 0.78rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
+header { display: grid; gap: 14px; }
+.cmd { font-family: var(--mono); font-size: 0.95em; background: var(--term-bg); padding: 1px 6px; border-radius: 4px; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; display: grid; gap: 4px; }
+.tile .big { font: 700 clamp(2.6rem, 7vw, 4.2rem)/1 var(--display); font-variant-numeric: tabular-nums; }
+.tile .what { font-weight: 600; }
+.tile .detail { color: var(--fg-2); font-size: 0.92rem; font-variant-numeric: tabular-nums; }
+section { display: grid; gap: 18px; }
+.legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 0.92rem; color: var(--fg-2); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.controls button { font: 500 0.9rem var(--body); color: var(--fg-2); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+.controls button[aria-pressed="true"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+.controls button:focus-visible, summary:focus-visible { outline: 2px solid var(--s-layer); outline-offset: 2px; }
+.chart { display: grid; gap: 14px; }
+.row { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 14px; align-items: center; }
+.row .name { font-weight: 500; text-align: right; font-size: 0.95rem; }
+.row .ratio { font: 700 1.05rem var(--display); font-variant-numeric: tabular-nums; min-width: 5.5ch; text-align: right; }
+.bars { display: grid; gap: 2px; min-width: 0; }
+.bar { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bar i { height: 16px; border-radius: 0 4px 4px 0; display: block; min-width: 3px; }
+.bar b { font: 400 0.82rem var(--mono); color: var(--fg-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ratio-head { font-size: 0.8rem; color: var(--fg-3); text-align: right; }
+.note { font-size: 0.85rem; color: var(--fg-3); }
+details { border-top: 1px solid var(--line); padding-top: 10px; }
+summary { cursor: pointer; color: var(--fg-2); font-size: 0.92rem; }
+.tablebox { overflow-x: auto; margin-top: 10px; }
+table { border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; width: 100%; }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--fg-3); font-weight: 500; }
+#tip { position: fixed; pointer-events: none; background: var(--fg); color: var(--bg); font: 500 0.82rem var(--body); padding: 6px 10px; border-radius: 6px; z-index: 5; }
+.compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.term { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: auto 1fr auto; min-width: 0; }
+.term-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.term-head strong { display: inline-flex; align-items: center; gap: 8px; }
+.term-head span { font: 500 0.82rem var(--mono); color: var(--fg-2); }
+ol.steps { list-style: none; margin: 0; padding: 12px 16px 4px; display: grid; align-content: start; gap: 10px; counter-reset: step; min-width: 0; }
+ol.steps li { counter-increment: step; display: grid; grid-template-columns: 2.2ch minmax(0, 1fr); gap: 10px; min-width: 0; }
+ol.steps li::before { content: counter(step); font: 600 0.8rem var(--mono); color: var(--fg-3); padding-top: 3px; }
+.c { font: 500 0.82rem/1.45 var(--mono); color: var(--fg); word-break: break-word; }
+.c.blocked { color: var(--blocked); }
+.c.blocked::after { content: "  blocked"; font-weight: 600; }
+pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; padding: 8px 10px; font: 0.78rem/1.45 var(--mono); color: var(--fg-2); overflow-x: auto; white-space: pre; }
+.answer { font: 600 0.85rem var(--mono); color: var(--fg); padding: 6px 16px 16px; border-top: 1px solid var(--line); }
+@media (max-width: 720px) {
+  .tiles, .compare { grid-template-columns: minmax(0, 1fr); }
+  .row { grid-template-columns: minmax(0, 1fr) auto; }
+  .row .name { grid-column: 1 / -1; text-align: left; }
+}
+@media (prefers-reduced-motion: no-preference) { .bar i { transition: width 0.35s ease; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Benchmarks · October 2026</div>
+    <h1>agent-layer finishes the same browser tasks in half the steps</h1>
+    <p>Same model, same prompts, same answer checks. Only the browser tool changes. The agent runs each tool from its terminal, as <span class="cmd">agent-layer</span>, <span class="cmd">agent-browser</span> or <span class="cmd">playwright-cli</span>, and every answer is checked automatically.</p>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section>
+    <div class="eyebrow">web-agent-bench · 10 tasks · 3 runs each</div>
+    <h2>Per task, against Vercel's agent-browser</h2>
+    <p>The tasks come from web-agent-bench, an independent benchmark that already drives agent-browser: login, filtering, to-dos, infinite scroll, load-more, delayed values, a checkout wizard, paginated search with decoys, and a modal behind a cookie banner. Both tools passed all 30 runs. Bars show the median of 3.</p>
+    <div class="controls" role="group" aria-label="Measure" id="wab-controls"></div>
+    <div class="legend" id="wab-legend"></div>
+    <div class="chart" id="wab-chart"></div>
+    <details><summary>Show the numbers as a table</summary><div class="tablebox" id="wab-table"></div></details>
+  </section>
+
+  <section>
+    <div class="eyebrow">Our benchmark · 8 tasks · 3 tools</div>
+    <h2>Three browser CLIs, eight tasks</h2>
+    <p>Six local apps (shop, flights, reports, orders, signup, settings) and two live sites, Hacker News and GitHub. All three tools passed 8 of 8. One run each, so read small differences as noise.</p>
+    <div class="controls" role="group" aria-label="Measure" id="own-controls"></div>
+    <div class="legend" id="own-legend"></div>
+    <div class="chart" id="own-chart"></div>
+    <details><summary>Show the numbers as a table</summary><div class="tablebox" id="own-table"></div></details>
+  </section>
+
+  <section>
+    <div class="eyebrow">Example · login task · run 1 of 3</div>
+    <h2>What the agent actually ran</h2>
+    <p>The task: open the login page, sign in as <span class="cmd">demo</span> / <span class="cmd">s3cret</span>, and report the access code on the dashboard. These are the real commands from the benchmark, with long outputs shortened. agent-layer opens the page as a map of its controls, and each action answers with what changed, so the code arrives in the reply to the click itself.</p>
+    <div class="compare">
+      <div class="term">
+        <div class="term-head"><strong><i class="sw" style="background:var(--s-layer)"></i>agent-layer</strong><span>3 steps · 69k tokens · 12 s</span></div>
+        <ol class="steps">
+          <li><div><div class="c">$ agent-layer help</div><pre class="out">agent-layer — websites as text and verbs for agents.
+…</pre></div></li>
+          <li><div><div class="c">$ agent-layer tab http://127.0.0.1:63413/login</div><pre class="out">tab 1  …/login  "Acme bench site"
+
+[4] navigation
+  links: [1] link "Login" · [2] link "Shop" · [3] link "Todos"
+[9] main
+  headings: Sign in
+[8] form
+  fields: [5] textbox "Username" · [6] textbox "Password"
+  actions: [7] button "Sign in"</pre></div></li>
+          <li><div><div class="c">$ agent-layer type 5 demo &amp;&amp; agent-layer type 6 s3cret &amp;&amp; agent-layer click 7</div><pre class="out">— 1 lines gone, 1 new, settled: idle in 409 ms
++ [5] textbox "Username" = "demo" focused
+— 2 lines gone, 2 new, settled: idle in 410 ms
++ [6] textbox "Password" = "••••••" focused
+— the whole page changed, settled: idle in 513 ms
+[9] main
+# Dashboard
+Welcome, demo.
+Your access code is: ALPHA-LPHPAT</pre></div></li>
+        </ol>
+        <div class="answer">Answer: ALPHA-LPHPAT ✓</div>
+      </div>
+      <div class="term">
+        <div class="term-head"><strong><i class="sw" style="background:var(--s-browser)"></i>agent-browser</strong><span>14 steps · 386k tokens · 65 s</span></div>
+        <ol class="steps">
+          <li><div><div class="c">$ agent-browser skills get core --full</div><pre class="out">(a long guide, saved to a file)</pre></div></li>
+          <li><div class="c">Read the guide from the file</div></li>
+          <li><div class="c blocked">$ export AGENT_BROWSER_SESSION="$(agent-browser session id …)" &amp;&amp; …</div></li>
+          <li><div class="c">$ agent-browser session id --scope worktree --prefix task</div></li>
+          <li><div class="c blocked">$ export AGENT_BROWSER_SESSION="task-ab8af06ebf46" …</div></li>
+          <li><div class="c blocked">$ export AGENT_BROWSER_SESSION="task-ab8af06ebf46"</div></li>
+          <li><div class="c blocked">$ echo hello</div></li>
+          <li><div><div class="c">$ agent-browser open http://127.0.0.1:63413/login</div><pre class="out">✓ Acme bench site</pre></div></li>
+          <li><div><div class="c">$ agent-browser snapshot -i</div><pre class="out">- generic "AcmeLoginShopTodosSign in…" [ref=e1]
+  - link "Login" [ref=e2]
+  …
+  - textbox "Username" [ref=e7]
+  - textbox "Password" [ref=e8]
+  - button "Sign in" [ref=e6]</pre></div></li>
+          <li><div><div class="c">$ agent-browser fill @e7 "demo" &amp;&amp; agent-browser fill @e8 "s3cret" &amp;&amp; agent-browser click @e6</div><pre class="out">✓ Done
+✓ Done
+✓ Done</pre></div></li>
+          <li><div><div class="c">$ agent-browser wait --text "code" ; agent-browser snapshot -i</div><pre class="out">- generic "…Dashboard Welcome, demo. Your access code is: ALPHA-LPHPAT" [ref=e1]
+  - heading "Dashboard" [level=1, ref=e5]</pre></div></li>
+          <li><div><div class="c">$ agent-browser read</div><pre class="out"># Dashboard
+Welcome, demo.
+Your access code is: ALPHA-LPHPAT</pre></div></li>
+          <li><div class="c blocked">$ agent-browser eval "document.body.innerText"</div></li>
+          <li><div><div class="c">$ agent-browser get text @e1</div><pre class="out">… Your access code is: ALPHA-LPHPAT</pre></div></li>
+        </ol>
+        <div class="answer">Answer: ALPHA-LPHPAT ✓</div>
+      </div>
+    </div>
+    <p class="note">Steps 1–7 on the right come from agent-browser's own guide, which tells the agent to read a long skill document and set a session with <span class="cmd">export</span>, a command the benchmark's rules block for every tool. The rest is the browsing itself: a separate snapshot after opening, then wait, snapshot and read after acting.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">How it was run</div>
+    <h2>Setup and limits</h2>
+    <p>The agent is cursor-agent in headless mode with claude-sonnet-5-thinking-high. Versions: agent-browser 0.41.0, playwright-cli 0.1.22. web-agent-bench's own prompts, answer checks, per-tool guides and command rules are used unchanged. Its rules forbid in-page JavaScript, network capture, cookies and storage, so agent-layer's matching commands and its plain-HTTP fast path were blocked too. A step costs about the same with either tool (22k vs 29k tokens, mostly the agent's own prompt resent each step), so the gap comes from the number of steps. The tasks are small fixture sites with 3 runs each; on our two live sites the gap was smaller (1.2–1.7×).</p>
+  </section>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+const DATA = {"wab":[{"suite":"controlled","task":"login","agent-layer":{"tokens":68694,"steps":3,"s":12},"agent-browser":{"tokens":317623,"steps":12,"s":59}},{"suite":"controlled","task":"shop-filter","agent-layer":{"tokens":68572,"steps":3,"s":11},"agent-browser":{"tokens":232973,"steps":7,"s":37}},{"suite":"controlled","task":"todos","agent-layer":{"tokens":106366,"steps":5,"s":21},"agent-browser":{"tokens":410366,"steps":11,"s":56}},{"suite":"scroll","task":"scroll-bottom","agent-layer":{"tokens":68456,"steps":3,"s":10},"agent-browser":{"tokens":239868,"steps":9,"s":38}},{"suite":"scroll","task":"load-more","agent-layer":{"tokens":180715,"steps":9,"s":32},"agent-browser":{"tokens":561530,"steps":20,"s":71}},{"suite":"dynamic","task":"wait-for-value","agent-layer":{"tokens":68266,"steps":3,"s":13},"agent-browser":{"tokens":181167,"steps":7,"s":29}},{"suite":"dynamic","task":"poll-status","agent-layer":{"tokens":86383,"steps":4,"s":14},"agent-browser":{"tokens":291895,"steps":11,"s":46}},{"suite":"hard","task":"multi-step-form","agent-layer":{"tokens":182059,"steps":9,"s":24},"agent-browser":{"tokens":478898,"steps":13,"s":53}},{"suite":"hard","task":"paginated-search","agent-layer":{"tokens":281587,"steps":13,"s":47},"agent-browser":{"tokens":1042310,"steps":26,"s":87}},{"suite":"hard","task":"modal-trap","agent-layer":{"tokens":124419,"steps":6,"s":24},"agent-browser":{"tokens":248173,"steps":9,"s":35}}],"own":[{"task":"shop","agent-layer":{"tokens":108143,"steps":5,"s":32},"agent-browser":{"tokens":145423,"steps":5,"s":48},"playwright-cli":{"tokens":103355,"steps":4,"s":30}},{"task":"flights","agent-layer":{"tokens":291502,"steps":14,"s":49},"agent-browser":{"tokens":921170,"steps":27,"s":131},"playwright-cli":{"tokens":506367,"steps":22,"s":51}},{"task":"reports","agent-layer":{"tokens":104381,"steps":5,"s":26},"agent-browser":{"tokens":162097,"steps":6,"s":36},"playwright-cli":{"tokens":385221,"steps":18,"s":70}},{"task":"orders","agent-layer":{"tokens":218586,"steps":10,"s":31},"agent-browser":{"tokens":286445,"steps":10,"s":48},"playwright-cli":{"tokens":246322,"steps":9,"s":46}},{"task":"signup","agent-layer":{"tokens":105516,"steps":5,"s":17},"agent-browser":{"tokens":162529,"steps":6,"s":29},"playwright-cli":{"tokens":276456,"steps":13,"s":29}},{"task":"settings","agent-layer":{"tokens":92503,"steps":4,"s":15},"agent-browser":{"tokens":136857,"steps":5,"s":28},"playwright-cli":{"tokens":150684,"steps":7,"s":19}},{"task":"hn","agent-layer":{"tokens":54139,"steps":2,"s":10},"agent-browser":{"tokens":90750,"steps":3,"s":16},"playwright-cli":{"tokens":148206,"steps":6,"s":35}},{"task":"github","agent-layer":{"tokens":52014,"steps":2,"s":13},"agent-browser":{"tokens":63062,"steps":2,"s":12},"playwright-cli":{"tokens":91946,"steps":4,"s":12}}],"totals":{"agent-layer":{"tokens":3738630,"steps":176,"s":652},"agent-browser":{"tokens":12818030,"steps":391,"s":1670}}};
+const NAMES = { 'agent-layer': 'agent-layer', 'agent-browser': 'agent-browser', 'playwright-cli': 'playwright-cli' };
+const VAR = { 'agent-layer': '--s-layer', 'agent-browser': '--s-browser', 'playwright-cli': '--s-pw' };
+const MEASURES = {
+  tokens: { label: 'Tokens', fmt: v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : Math.round(v / 1000) + 'k' },
+  steps: { label: 'Steps', fmt: v => String(v) },
+  s: { label: 'Time', fmt: v => v + ' s' },
+};
+const tip = document.getElementById('tip');
+const showTip = (e, text) => { tip.textContent = text; tip.hidden = false; tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; };
+const hideTip = () => { tip.hidden = true; };
+
+function tiles() {
+  const a = 'agent-layer', b = 'agent-browser';
+  const t = [
+    ['tokens', 'fewer tokens', v => MEASURES.tokens.fmt(v)],
+    ['steps', 'fewer steps', v => v + ' tool calls'],
+    ['s', 'less time', v => Math.round(v / 60) + ' min'],
+  ];
+  document.getElementById('tiles').innerHTML = t.map(([k, what, f]) => {
+    const x = DATA.totals[a][k], y = DATA.totals[b][k];
+    return `<div class="tile"><div class="big">${(y / x).toFixed(1)}×</div><div class="what">${what}</div><div class="detail">${f(x)} vs ${f(y)} over all 30 runs</div></div>`;
+  }).join('');
+}
+
+function chart(id, rows, tools, label) {
+  let measure = 'tokens';
+  const controls = document.getElementById(id + '-controls');
+  controls.innerHTML = Object.entries(MEASURES).map(([k, m]) => `<button type="button" id="${id}-m-${k}" data-m="${k}" aria-pressed="${k === measure}">${m.label}</button>`).join('');
+  document.getElementById(id + '-legend').innerHTML = tools.map(t => `<span><i class="sw" style="background:var(${VAR[t]})"></i>${NAMES[t]}</span>`).join('');
+  const draw = () => {
+    const m = MEASURES[measure];
+    const max = Math.max(...rows.flatMap(r => tools.map(t => r[t][measure])));
+    const head = `<div class="row"><div></div><div></div><div class="ratio-head">${tools.slice(1).map(t => NAMES[t]).join(' · ')}<br>vs agent-layer</div></div>`;
+    document.getElementById(id + '-chart').innerHTML = head + rows.map(r => {
+      const bars = tools.map(t => `<div class="bar" data-tip="${label(r)} · ${NAMES[t]}: ${m.fmt(r[t][measure])} ${m.label.toLowerCase()}"><i style="width:calc(${(r[t][measure] / max) * 100}% - 6ch);background:var(${VAR[t]})"></i><b>${m.fmt(r[t][measure])}</b></div>`).join('');
+      const ratios = tools.slice(1).map(t => (r[t][measure] / r[tools[0]][measure]).toFixed(1) + '×').join(' · ');
+      return `<div class="row"><div class="name">${label(r)}</div><div class="bars">${bars}</div><div class="ratio">${ratios}</div></div>`;
+    }).join('');
+    document.getElementById(id + '-table').innerHTML = `<table><thead><tr><th>Task</th>${tools.map(t => `<th>${NAMES[t]} tokens</th><th>steps</th><th>time</th>`).join('')}</tr></thead><tbody>${
+      rows.map(r => `<tr><td>${label(r)}</td>${tools.map(t => `<td>${MEASURES.tokens.fmt(r[t].tokens)}</td><td>${r[t].steps}</td><td>${r[t].s} s</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  };
+  controls.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    measure = b.dataset.m;
+    controls.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    draw();
+  });
+  const box = document.getElementById(id + '-chart');
+  box.addEventListener('pointermove', e => { const b = e.target.closest('.bar'); b ? showTip(e, b.dataset.tip) : hideTip(); });
+  box.addEventListener('pointerleave', hideTip);
+  draw();
+}
+
+tiles();
+chart('wab', DATA.wab, ['agent-layer', 'agent-browser'], r => r.task);
+chart('own', DATA.own, ['agent-layer', 'agent-browser', 'playwright-cli'], r => r.task);
+</script>

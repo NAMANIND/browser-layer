@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="854" viewBox="0 0 1200 854" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif">
+<rect width="1200" height="854" fill="#fcfcfb"/>
+<text x="48" y="64" font-size="30" font-weight="700" fill="#0b0b0b">Tokens per task</text>
+<text x="48" y="98" font-size="18" fill="#52514e">Median of 3 runs. Lower is better. All 30 runs: 3.7M vs 12.8M.</text>
+<rect x="48" y="116" width="14" height="14" rx="3" fill="#2a78d6"/><text x="70" y="128" font-size="16" fill="#52514e">agent-layer</text>
+<rect x="191" y="116" width="14" height="14" rx="3" fill="#eb6834"/><text x="213" y="128" font-size="16" fill="#52514e">agent-browser</text>
+<text x="1022" y="140" font-size="14" text-anchor="end" fill="#8a8984">agent-browser</text><text x="1022" y="158" font-size="14" text-anchor="end" fill="#8a8984">vs agent-layer</text>
+<text x="194" y="196" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">login</text>
+<path d="M210,170 h40.28852068962209 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-40.28852068962209 z" fill="#2a78d6"><title>agent-layer: 69k</title></path>
+<text x="262.2885206896221" y="184" font-size="14" fill="#52514e">69k</text>
+<path d="M210,190 h200.77847857163417 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-200.77847857163417 z" fill="#eb6834"><title>agent-browser: 318k</title></path>
+<text x="422.7784785716342" y="204" font-size="14" fill="#52514e">318k</text>
+<text x="1022" y="196" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">4.6×</text>
+<text x="194" y="258" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">shop-filter</text>
+<path d="M210,232 h40.20986462760599 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-40.20986462760599 z" fill="#2a78d6"><title>agent-layer: 69k</title></path>
+<text x="262.20986462760595" y="246" font-size="14" fill="#52514e">69k</text>
+<path d="M210,252 h146.202776525218 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-146.202776525218 z" fill="#eb6834"><title>agent-browser: 233k</title></path>
+<text x="368.20277652521804" y="266" font-size="14" fill="#52514e">233k</text>
+<text x="1022" y="258" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">3.4×</text>
+<text x="194" y="320" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">todos</text>
+<path d="M210,294 h64.57648108528173 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-64.57648108528173 z" fill="#2a78d6"><title>agent-layer: 106k</title></path>
+<text x="286.5764810852817" y="308" font-size="14" fill="#52514e">106k</text>
+<path d="M210,314 h260.57191430572476 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-260.57191430572476 z" fill="#eb6834"><title>agent-browser: 410k</title></path>
+<text x="482.57191430572476" y="328" font-size="14" fill="#52514e">410k</text>
+<text x="1022" y="320" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">3.9×</text>
+<text x="194" y="382" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">scroll-bottom</text>
+<path d="M210,356 h40.135076896508714 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-40.135076896508714 z" fill="#2a78d6"><title>agent-layer: 68k</title></path>
+<text x="262.13507689650874" y="370" font-size="14" fill="#52514e">68k</text>
+<path d="M210,376 h150.64813347276723 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-150.64813347276723 z" fill="#eb6834"><title>agent-browser: 240k</title></path>
+<text x="372.6481334727672" y="390" font-size="14" fill="#52514e">240k</text>
+<text x="1022" y="382" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">3.5×</text>
+<text x="194" y="444" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">load-more</text>
+<path d="M210,418 h112.51090366589594 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-112.51090366589594 z" fill="#2a78d6"><title>agent-layer: 181k</title></path>
+<text x="334.51090366589597" y="432" font-size="14" fill="#52514e">181k</text>
+<path d="M210,438 h358.0306434745901 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-358.0306434745901 z" fill="#eb6834"><title>agent-browser: 562k</title></path>
+<text x="580.0306434745901" y="452" font-size="14" fill="#52514e">562k</text>
+<text x="1022" y="444" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">3.1×</text>
+<text x="194" y="506" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">wait-for-value</text>
+<path d="M210,480 h40.01257975074594 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-40.01257975074594 z" fill="#2a78d6"><title>agent-layer: 68k</title></path>
+<text x="262.01257975074594" y="494" font-size="14" fill="#52514e">68k</text>
+<path d="M210,500 h112.8023179284474 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-112.8023179284474 z" fill="#eb6834"><title>agent-browser: 181k</title></path>
+<text x="334.8023179284474" y="514" font-size="14" fill="#52514e">181k</text>
+<text x="1022" y="506" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.7×</text>
+<text x="194" y="568" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">poll-status</text>
+<path d="M210,542 h51.69300496013662 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-51.69300496013662 z" fill="#2a78d6"><title>agent-layer: 86k</title></path>
+<text x="273.6930049601366" y="556" font-size="14" fill="#52514e">86k</text>
+<path d="M210,562 h184.19107559171457 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-184.19107559171457 z" fill="#eb6834"><title>agent-browser: 292k</title></path>
+<text x="406.1910755917146" y="576" font-size="14" fill="#52514e">292k</text>
+<text x="1022" y="568" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">3.4×</text>
+<text x="194" y="630" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">multi-step-form</text>
+<path d="M210,604 h113.37740979171264 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-113.37740979171264 z" fill="#2a78d6"><title>agent-layer: 182k</title></path>
+<text x="335.37740979171264" y="618" font-size="14" fill="#52514e">182k</text>
+<path d="M210,624 h304.75599006053864 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-304.75599006053864 z" fill="#eb6834"><title>agent-browser: 479k</title></path>
+<text x="526.7559900605386" y="638" font-size="14" fill="#52514e">479k</text>
+<text x="1022" y="630" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.6×</text>
+<text x="194" y="692" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">paginated-search</text>
+<path d="M210,666 h177.545283073174 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-177.545283073174 z" fill="#2a78d6"><title>agent-layer: 282k</title></path>
+<text x="399.545283073174" y="680" font-size="14" fill="#52514e">282k</text>
+<path d="M210,686 h668 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-668 z" fill="#eb6834"><title>agent-browser: 1.0M</title></path>
+<text x="890" y="700" font-size="14" fill="#52514e">1.0M</text>
+<text x="1022" y="692" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">3.7×</text>
+<text x="194" y="754" font-size="17" text-anchor="end" font-weight="500" fill="#0b0b0b">modal-trap</text>
+<path d="M210,728 h76.21564409820495 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-76.21564409820495 z" fill="#2a78d6"><title>agent-layer: 124k</title></path>
+<text x="298.21564409820496" y="742" font-size="14" fill="#52514e">124k</text>
+<path d="M210,748 h156.00254818624018 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-156.00254818624018 z" fill="#eb6834"><title>agent-browser: 248k</title></path>
+<text x="378.0025481862402" y="762" font-size="14" fill="#52514e">248k</text>
+<text x="1022" y="754" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.0×</text>
+<text x="48" y="826" font-size="14" fill="#8a8984">web-agent-bench suites (controlled, scroll, dynamic, hard) · cursor-agent, claude-sonnet-5-thinking-high · 3 runs per task, both tools 30/30 passed</text>
+</svg>
