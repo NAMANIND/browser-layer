@@ -39,3 +39,30 @@ parallel with the main thread, so it is not all on the critical path.
 **Finding.** Painting costs about 70–220 ms of CPU per page load, 13–41% of Chrome's work on real
 sites. Page loads take 1.5–3.5 s, almost all of it network and script. Removing paint would cut a
 few percent of wall time for one tab, and a real share of CPU when many tabs run at once.
+
+## 3. Agents on real tasks (`agents/run.mjs`, one run per tool per task)
+
+Same agent, model, prompt and task; only the browser tool changes. Runner: cursor-agent headless,
+model `claude-sonnet-5-thinking-high`, allowed to run only that tool and read files. Each answer is
+checked against ground truth (fixture state, or the Hacker News and GitHub APIs). Six tasks run on
+local fixture apps (`agents/site.mjs`), two on live sites. Tools: agent-layer, Vercel agent-browser
+0.41.0, Microsoft playwright-cli 0.1.22. Tokens include cache reads.
+
+| Task | agent-layer | agent-browser | playwright-cli |
+|---|---|---|---|
+| shop | ✅ 128k · 6 steps · 23 s | ✅ 145k · 5 steps · 48 s | ✅ 103k · 4 steps · 30 s |
+| flights | ✅ 330k · 15 steps · 52 s | ✅ 921k · 27 steps · 131 s | ✅ 506k · 22 steps · 51 s |
+| reports | ✅ 104k · 5 steps · 26 s | ✅ 162k · 6 steps · 36 s | ✅ 385k · 18 steps · 70 s |
+| orders | ✅ 388k · 17 steps · 102 s | ✅ 286k · 10 steps · 48 s | ✅ 246k · 9 steps · 46 s |
+| signup | ✅ 106k · 5 steps · 17 s | ✅ 163k · 6 steps · 29 s | ✅ 276k · 13 steps · 29 s |
+| settings | ✅ 93k · 4 steps · 15 s | ✅ 137k · 5 steps · 28 s | ✅ 151k · 7 steps · 19 s |
+| hn | ✅ 54k · 2 steps · 10 s | ✅ 91k · 3 steps · 16 s | ✅ 148k · 6 steps · 35 s |
+| github | ✅ 52k · 2 steps · 13 s | ✅ 63k · 2 steps · 12 s | ✅ 92k · 4 steps · 12 s |
+| **Total** | **8/8 · 1255k · 56 steps · 258 s** | **8/8 · 1968k · 64 steps · 348 s** | **8/8 · 1909k · 83 steps · 292 s** |
+
+**Finding.** All three tools solve all eight tasks. agent-layer uses 36% fewer tokens than
+agent-browser and 34% fewer than playwright-cli, with the fewest steps and least time. It is
+cheapest on 6 of 8 tasks. It loses `orders` (pagination): agent-browser clicks "Next" by name in one
+command, while agent-layer needs a ref from a fresh map each page, and the agent wasted steps there.
+
+Caveats: one run each, so single-task differences within ~20% are noise; we wrote the fixtures.
