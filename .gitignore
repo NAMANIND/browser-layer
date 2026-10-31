@@ -1,3 +1,5 @@
 node_modules
 dist
 *.tgz
+# Recordings of other sites' pages, made per machine by bench/record-corpus.mjs
+test/corpus/*.har

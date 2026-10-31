@@ -3,10 +3,11 @@
 // with several parts requires them on one line. Exits 1 if a fact is missing.
 // Usage: npm run measure [-- --save] [-- --dump DIR]
 import { chromium } from 'playwright-core'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { newRefs, readTree } from '../dist/reader.js'
 import { renderMap, renderText } from '../dist/render.js'
 import { loadPolicy } from '../dist/policy.js'
+import { findBrowser } from '../dist/browser.js'
 import { deterministic } from './deterministic.mjs'
 
 const RUNS = 5
@@ -18,7 +19,15 @@ const save = process.argv.includes('--save')
 const dumpAt = process.argv.indexOf('--dump')
 const dump = dumpAt >= 0 ? process.argv[dumpAt + 1] : ''
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+// The recordings are other sites' pages, so they are not in the repository: each machine records its own.
+const missing = pages.filter(p => !existsSync(new URL(`${p.name}.har`, corpus)))
+if (missing.length) {
+  console.error(`no recording for ${missing.map(p => p.name).join(', ')} — run: node bench/record-corpus.mjs`)
+  process.exit(1)
+}
+const found = findBrowser()
+if (found.error) throw new Error(found.error)
+const browser = await chromium.launch({ executablePath: found.path, headless: true })
 const results = []
 let failed = false
 for (const { name, url, facts = [] } of pages) {

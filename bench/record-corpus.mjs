@@ -5,6 +5,7 @@
 import { chromium } from 'playwright-core'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { deterministic } from './deterministic.mjs'
+import { findBrowser } from '../dist/browser.js'
 
 const dir = new URL('../test/corpus/', import.meta.url)
 const pages = JSON.parse(readFileSync(new URL('pages.json', dir), 'utf8'))
@@ -12,7 +13,9 @@ const only = new Set(process.argv.slice(2))
 const SECRET = new Set(['cookie', 'set-cookie', 'authorization', 'proxy-authorization'])
 const DECORATION = new Set(['image', 'font', 'media'])
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const found = findBrowser()
+if (found.error) throw new Error(found.error)
+const browser = await chromium.launch({ executablePath: found.path, headless: true })
 for (const { name, url } of pages) {
   if (only.size && !only.has(name)) continue
   const file = new URL(`${name}.har`, dir)

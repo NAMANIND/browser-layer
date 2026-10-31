@@ -1,5 +1,7 @@
 # agent-layer
 
+[![ci](https://github.com/NAMANIND/agent-layer/actions/workflows/ci.yml/badge.svg)](https://github.com/NAMANIND/agent-layer/actions/workflows/ci.yml)
+
 A terminal browser for AI agents. A page comes back as a short text map of its regions and controls,
 every action answers with what changed, and lists and tables come back as records. No screenshots,
 no DOM dumps.
@@ -59,6 +61,9 @@ npm test          # unit and live tests; the live tests drive the browser agent-
 ```
 
 CI runs the build and every test on Linux, macOS and Windows with Node 22 and 24.
+
+The reader's speed benchmark replays recorded pages of real sites. Those recordings stay on your
+machine: make them once with `node bench/record-corpus.mjs`, then run `npm run measure`.
 
 ## License
 

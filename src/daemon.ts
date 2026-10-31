@@ -839,7 +839,8 @@ async function main() {
     process.exit(1)
   })
   server.listen(socketPath(), () => {
-    // A named pipe (Windows) has no file mode; its default ACL already admits only this user.
+    // A named pipe (Windows) has no file mode; its default ACL lets only this user, SYSTEM and
+    // administrators write to it, so no other account can send it commands.
     if (process.platform !== 'win32') chmodSync(socketPath(), 0o600)
     touch()
     console.log(`agent-layer daemon on ${socketPath()}`)
