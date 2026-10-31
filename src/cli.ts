@@ -25,7 +25,7 @@ Live tabs (headless Chrome kept alive in the background; runs the page's JS):
   agent-layer read [ref] [--page N]   the whole page, or one region / control by ref (paged)
   agent-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b]
                                       a list or table from the map as records (TSV)
-  agent-layer click <ref>             click control [ref]
+  agent-layer click <ref>             click control [ref]; any <ref> of an action may be its name: click "Next"
   agent-layer type <ref> <text>       fill [ref]; add --enter to press Enter after
   agent-layer pick <ref> <option>     choose an option in a select
   agent-layer press <key>             press a key or combo (Enter, Escape, Control+A, Shift+Tab…)

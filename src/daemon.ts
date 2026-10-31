@@ -220,11 +220,11 @@ const header = async (tab: Tab) => {
 }
 
 // Opening a page answers with its map (DESIGN §1a); read and read <ref> go deeper.
-async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>, settled = ''): Promise<string> {
+async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>, settled = '', note = ''): Promise<string> {
   const { tree, origin, text } = snap ?? await snapshot(tab)
   remember(tab, text)
   const map = renderMap(tree, origin, caps(), policy['render.mapFew'])
-  return `${await header(tab)}${settled ? `  — settled: ${settled}` : ''}\n\n${map}\n\n(read <ref> opens a region · read gives the whole page)`
+  return `${await header(tab)}${note ? `  — ${note}` : ''}${settled ? `  — settled: ${settled}` : ''}\n\n${map}\n\n(read <ref> opens a region · read gives the whole page)`
 }
 
 async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<string> {
@@ -274,13 +274,37 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
   // Changed lines longer than the page itself: the page was replaced. Like a new view, it is answered
   // with the shorter of its whole text (a small page) and its map (a large one).
   if (size > snap.text.length) {
-    if (snap.text.length > renderMap(snap.tree, snap.origin, caps(), policy['render.mapFew']).length) return mapView(tab, snap, settled)
+    if (snap.text.length > renderMap(snap.tree, snap.origin, caps(), policy['render.mapFew']).length) {
+      // New records (the next page of a table) leave a map as it was, so what changed is answered as those
+      // records, plus any other new lines. Too many to fit one page: the map, naming where they are.
+      const fresh = new Set(added)
+      const lines = (n: Node) => renderText({ block: true, children: [n] }, snap.origin, caps()).split('\n')
+      const moved = (n: Node): Node[] => (n.ref && COLLECTIONS.has(n.role ?? '') && lines(n).some(l => fresh.has(l)) ? [n] : (n.children ?? []).flatMap(moved))
+      const found = moved(snap.tree)
+      const inside = new Set(found.flatMap(lines))
+      const body = [...added.filter(l => !inside.has(l)).map(l => `+ ${l}`), ...found.map(n => recordsView(n, snap.origin, {}))].join('\n\n')
+      const where = found.map(n => `[${n.ref}] ${n.role}`).join(', ')
+      if (!found.length || body.length > policy['render.pageChars']) return mapView(tab, snap, settled, where && `new records in ${where} (agent-layer get <ref> reads them)`)
+      remember(tab, snap.text)
+      return `${await header(tab)}  — new records in ${where}${settled ? `, settled: ${settled}` : ''}\n\n${body}`
+    }
     remember(tab, snap.text)
     return `${await header(tab)}  — the whole page changed${settled ? `, settled: ${settled}` : ''}\n\n${snap.text}`
   }
   remember(tab, snap.text)
   const head = `tab ${tab.id}  ${tab.page.url()}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'}${settled ? `, settled: ${settled}` : ''} (full page: agent-layer read)`
   return [head, '', ...removed.map(l => `- ${l}`), ...added.map(l => `+ ${l}`)].join('\n').trimEnd()
+}
+
+// A collection as records (TSV): sorted and column-picked as asked; without a limit, as many as fit one page.
+function recordsView(node: Node, origin: string, q: Query): string {
+  const all = records(node, origin, caps())
+  const out = query(all, q)
+  let size = 0
+  const fits = out.rows.findIndex(r => (size += r.join('\t').length + 1) > policy['render.pageChars'])
+  if (q.limit === undefined && fits >= 0) out.rows = out.rows.slice(0, fits)
+  const what = [q.sort ? `sorted by ${q.sort}${q.desc ? ' descending' : ''}` : '', out.rows.length < all.rows.length ? `first ${out.rows.length}` : ''].filter(Boolean).join(', ')
+  return `[${node.ref}] ${node.role}: ${all.rows.length} records, ${all.columns.length} columns${what ? ` (${what})` : ''}\n\n${toTsv(out)}`
 }
 
 // The engine session for a cross-origin frame. Playwright gives such a frame its own session; the frame
@@ -439,8 +463,31 @@ async function openRead(tab: Tab, trigger: Node, depth: number, budget: { opens:
   return out
 }
 
+// A control can be named instead of numbered: the best match by accessible name (exact, then prefix, then
+// contained). Several equally good matches are an error that lists them; guessing would act on the wrong one.
+const fit = (name: string | undefined, want: string) => {
+  const n = (name ?? '').toLowerCase()
+  return n === want ? 0 : n.startsWith(want) ? 1 : n.includes(want) ? 2 : 3
+}
+const ACTIONS = new Set(['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload', 'check', 'uncheck', 'submit', 'drag'])
+
+async function refNamed(tab: Tab, target: string | undefined): Promise<string | undefined> {
+  if (!target || /^\d+$/.test(target)) return target
+  const want = target.trim().toLowerCase()
+  const hits = withRefs((await snapshot(tab)).tree).filter(n => isItem(n) && fit(n.name, want) < 3)
+  const best = hits.filter(n => fit(n.name, want) === Math.min(...hits.map(h => fit(h.name, want))))
+  if (best.length === 1) return String(best[0].ref)
+  if (!best.length) throw new Error(`nothing is named "${target}" — run: agent-layer map`)
+  throw new Error(`${best.length} controls are named "${target}"; use a ref: ${best.slice(0, policy['render.mapFew']).map(n => `[${n.ref}] ${n.role} "${n.name}"`).join(' · ')}`)
+}
+
 async function run(c: Command): Promise<string> {
   beginCommand()
+  if (ACTIONS.has(c.cmd) && (!/^\d+$/.test(c.ref ?? '') || (c.to && !/^\d+$/.test(c.to)))) {
+    const tab = need(c.session)
+    c.ref = await refNamed(tab, c.ref)
+    c.to = await refNamed(tab, c.to)
+  }
   switch (c.cmd) {
     case 'tab': {
       const tab = await newTab(c.session, c.url ?? 'about:blank')
@@ -482,13 +529,8 @@ async function run(c: Command): Promise<string> {
       const { tree, origin } = await snapshot(tab)
       const node = findRef(tree, Number(c.ref))
       if (!node) throw new Error(`[${c.ref}] is not on the page — run: agent-layer map`)
-      const all = records(node, origin, caps())
-      if (!all.rows.length) throw new Error(`[${c.ref}] has no rows; get works on the lists and tables the map shows`)
-      const limit = c.limit ?? policy['data.rows']
-      const out = query(all, { ...c, limit })
-      const what = [c.sort ? `sorted by ${c.sort}${c.desc ? ' descending' : ''}` : '', out.rows.length < all.rows.length ? `first ${out.rows.length}` : ''].filter(Boolean).join(', ')
-      const head = `${await header(tab)}  — [${c.ref}] ${node.role}: ${all.rows.length} records, ${all.columns.length} columns${what ? ` (${what})` : ''}`
-      return `${head}\n\n${toTsv(out)}`
+      if (!records(node, origin, caps()).rows.length) throw new Error(`[${c.ref}] has no rows; get works on the lists and tables the map shows`)
+      return `${await header(tab)}  — ${recordsView(node, origin, c)}`
     }
     case 'read':
       return view(need(c.session), c.page ?? 1, undefined, c.ref === undefined ? undefined : Number(c.ref))
@@ -643,12 +685,10 @@ async function run(c: Command): Promise<string> {
       const steps = (c.text ?? '').split('>').map(s => s.trim().toLowerCase()).filter(Boolean)
       if (!steps.length) throw new Error('usage: agent-layer menu "File > Download > CSV"')
       for (const [k, step] of steps.entries()) {
-        const named = (n: Node) => (n.name ?? '').toLowerCase()
-        const fit = (n: Node) => (named(n) === step ? 0 : named(n).startsWith(step) ? 1 : named(n).includes(step) ? 2 : 3)
         // Best name match first; among equals, the newest control (the menu just opened) after step one.
         const hits = withRefs((await snapshot(tab)).tree)
-          .filter(n => isItem(n) && !n.states?.includes('disabled') && fit(n) < 3)
-          .sort((a, b) => fit(a) - fit(b) || (k ? b.ref! - a.ref! : a.ref! - b.ref!))
+          .filter(n => isItem(n) && !n.states?.includes('disabled') && fit(n.name, step) < 3)
+          .sort((a, b) => fit(a.name, step) - fit(b.name, step) || (k ? b.ref! - a.ref! : a.ref! - b.ref!))
         if (!hits.length) throw new Error(`nothing named "${step}"${k ? ` after "${steps.slice(0, k).join(' > ')}"` : ''} — explore lists what menus hold`)
         await pointerAt(tab, String(hits[0].ref), {})
         if (k < steps.length - 1) await settle(tab, policy['explore.waitMs'])

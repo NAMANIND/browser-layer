@@ -66,3 +66,19 @@ cheapest on 6 of 8 tasks. It loses `orders` (pagination): agent-browser clicks "
 command, while agent-layer needs a ref from a fresh map each page, and the agent wasted steps there.
 
 Caveats: one run each, so single-task differences within ~20% are noise; we wrote the fixtures.
+
+### 3a. After fixing what the transcripts showed (agent-layer only, rerun)
+
+Two defects, not agent mistakes: after `click Next` every row of the table changed, so the answer was
+the map, which a new page of records leaves unchanged (the agent could not see the click worked and
+went looking with `net` and `eval`); and `get` stopped at 20 of 40 records. Now an action whose change
+is new records answers with those records (§4.4 of DESIGN), `get` returns what fits one page, and an
+action can name its control (`click "Next"`).
+
+| Task | Before | After | agent-browser | playwright-cli |
+|---|---|---|---|---|
+| orders | 388k · 17 steps | **219k · 10 steps** (one other run: 190k · 9 steps, the model miscounted 3 rows as 4) | 286k · 10 | 246k · 9 |
+| shop | 128k · 6 steps | 108k · 5 steps | 145k · 5 | **103k** · 4 |
+| flights | 330k · 15 steps | **292k · 14 steps** | 921k · 27 | 506k · 22 |
+
+With the reruns, agent-layer is cheapest on 7 of 8 tasks; shop is within noise of playwright-cli.

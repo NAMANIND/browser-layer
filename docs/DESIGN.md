@@ -168,7 +168,10 @@ The same rules apply on every site; there is no per-site knowledge.
 The agent already holds the page, so an action answers with the lines that changed since the last view
 of the same context (the page, or a modal dialog by name): `- old line` / `+ new line`, plus why settling
 stopped. When the changed lines are longer than the page itself, the page was replaced: the answer is
-the shorter of its whole text (a small page) and its map (a large one). A new document
+the shorter of its whole text (a small page) and its map (a large one). A map shows a collection by its
+shape, which new records (the next page of a table) leave as it was, so such an answer is those
+records, as `get` gives them, plus any other new lines; more than one page of them gets the map,
+naming where they are (`new records in [12] table`). A new document
 (`Page.frameNavigated` on the main frame) gets the map. pushState and hash changes are the same
 document: refs and the view stay valid. A dialog, a pop-up and finished downloads are reported first.
 
@@ -204,6 +207,10 @@ wrapped cell is several rows: Google Sheets' grid comes out split and spread. A 
 read, so for such apps their own export (found with `explore`, run with `menu`) is the clean path.
 
 ## 5. Actions
+
+An action's target is a ref, or a control's accessible name: an exact match wins over a prefix, a
+prefix over a contained match (case-insensitive). Several equally good matches are an error that lists
+them with refs, since guessing would act on the wrong control.
 
 ### 5.1 Actionability
 
@@ -280,7 +287,7 @@ Keys are added when the phase that uses them lands.
 | `explore.depth` | 2 | Levels of submenus `explore` opens |
 | `explore.max` | 40 | Most menus one `explore` opens |
 | `explore.waitMs` | 1500 | Settle deadline after opening or closing a menu while exploring |
-| `data.rows` | 20 | Records `get` returns when no `--limit` is given |
+| `data.rows` | 20 | Lines `find` returns (`get` with no `--limit` returns the records that fit `render.pageChars`) |
 | `data.minRepeats` | 3 | Siblings sharing a signature before they count as records |
 | `data.minParts` | 2 | Block-level parts each of those siblings needs |
 | (data) `src/trackers.ts` | hosts and path segments | With beacons and 204 responses, hidden from `net` unless `--all` |

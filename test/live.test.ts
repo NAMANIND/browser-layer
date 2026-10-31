@@ -81,6 +81,9 @@ const server = createServer((req, res) => {
   }
   const page = (title: string, body: string) => { res.setHeader('content-type', 'text/html'); res.end(`<meta charset="utf-8"><title>${title}</title>${body}`) }
   const port = req.headers.host!.split(':')[1]
+  // A paged table: Next replaces every row, which leaves the table's shape (and so the map) as it was.
+  if (req.url === '/paged') return page('paged', `<main><table id="t"></table><button onclick="go(1)">Next</button><button>Delete</button><button>Delete all</button></main>
+    <script>let p = 0; const go = d => { p += d; t.innerHTML = '<tr><th>Order</th><th>Status</th></tr>' + Array.from({ length: 30 }, (_, i) => '<tr><td>ORD-' + (p * 30 + i) + '</td><td>Paid</td></tr>').join('') }; go(0)</script>`)
   if (req.url === '/frames') return page('frames', `<p>outer</p><iframe src="/inner-same"></iframe><iframe src="http://localhost:${port}/inner-cross"></iframe>`)
   if (req.url === '/inner-same') return page('same', `<button onclick="this.textContent='same clicked'">Same button</button>`)
   if (req.url === '/inner-cross') return page('cross', `<input aria-label="Card number"><button onclick="document.querySelector('p').textContent = 'paid ' + document.querySelector('input').value">Pay</button><p>unpaid</p>`)
@@ -359,6 +362,20 @@ test('get turns a list or table into records that line up, sort as numbers, and 
   const bad = await run('get', list, '--sort', 'price')
   assert.equal(bad.code, 1)
   assert.match(bad.out, /no column "price"; columns are c1, c2, c3, c4/)
+})
+
+test('controls can be named instead of numbered; new records under an unchanged map are named', async () => {
+  await run('tab', `${base}/paged`)
+  const all = await run('get', ref((await run('map')).out, /table of 30/))
+  assert.match(all.out, /30 records, 2 columns\n/)
+  assert.match(all.out, /ORD-29\tPaid$/m)
+  const next = await run('click', 'next')
+  assert.match(next.out, /new records in \[\d+\] table, settled: idle in \d+ ms\n\n\+ \[\d+\] button "Next" focused.*\n\n\[\d+\] table: 30 records, 2 columns\n\nc1 Order\tc2 Status\nORD-30\tPaid$/m)
+  assert.doesNotMatch(next.out, /ORD-29/)
+  const vague = await run('click', 'del')
+  assert.equal(vague.code, 1)
+  assert.match(vague.out, /2 controls are named "del"; use a ref: \[\d+\] button "Delete" · \[\d+\] button "Delete all"/)
+  assert.match((await run('click', 'nothing here')).out, /nothing is named "nothing here"/)
 })
 
 test('repeated cards without list markup are records; repeated paragraphs are not', async () => {
