@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { after, before, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DEFAULTS } from '../src/policy.js'
+import { findBrowser, PROFILE_FLAGS } from '../src/browser.js'
 
 // A page that only exists after JS runs: autocomplete, then a fetch() send with no <form>.
 const APP = `<!doctype html><title>Trip</title><body><div id="app"></div><script>
@@ -229,12 +230,18 @@ const deepHome = join(home, 'deep', 'd'.repeat(110))
 
 function runIn(dir: string, ...args: string[]): Promise<{ code: number; out: string }> {
   return new Promise(resolve => {
-    execFile('npx', ['tsx', 'src/cli.ts', ...args], { env: { ...process.env, AGENT_LAYER_HOME: dir }, timeout: 120000 }, (err, stdout, stderr) =>
+    // node --import tsx, not npx: npx is a .cmd script on Windows, which execFile cannot run.
+    execFile(process.execPath, ['--import', 'tsx', 'src/cli.ts', ...args], { env: { ...process.env, AGENT_LAYER_HOME: dir }, timeout: 120000 }, (err, stdout, stderr) =>
       resolve({ code: err ? (err as { code?: number }).code ?? 1 : 0, out: stdout + stderr }))
   })
 }
 
 const run = (...args: string[]) => runIn(home, ...args)
+
+// Kill every process whose command line contains `arg`: pkill where there is one, CIM on Windows.
+const killByArgument = (arg: string) => new Promise(r => (process.platform === 'win32'
+  ? execFile('powershell', ['-NoProfile', '-Command', `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${arg.replace(/'/g, "''")}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`], r)
+  : execFile('pkill', ['-f', arg], r)))
 // Opening answers with the map; these tests check page content, so they read the whole page next.
 const openRead = async (url: string) => { await run('tab', url); return run('read') }
 
@@ -549,10 +556,12 @@ test('a profile is a separate browser with its own tabs', async () => {
   await run('--profile', 'work', 'stop')
 })
 
-test('a session saved by a normal Chrome on the agent profile carries into the agent browser', { skip: process.platform !== 'darwin' }, async () => {
+test('a session saved by a normal browser window on the agent profile carries into the agent browser', async () => {
   // What `agent-layer login` launches, headless here and quit through DevTools instead of by a person.
   const dir = mkdtempSync(join(tmpdir(), 'al-login-'))
-  const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [`--user-data-dir=${join(dir, 'profile')}`, '--use-mock-keychain', '--no-first-run', '--no-default-browser-check', '--headless=new', '--remote-debugging-port=9335', `${base}/signin`], { stdio: 'ignore' })
+  const found = findBrowser()
+  if ('error' in found) throw new Error(found.error)
+  const chrome = spawn(found.path, [`--user-data-dir=${join(dir, 'profile')}`, ...PROFILE_FLAGS, '--no-first-run', '--no-default-browser-check', '--headless=new', '--remote-debugging-port=9335', `${base}/signin`], { stdio: 'ignore' })
   await new Promise(r => setTimeout(r, 2500))
   const { chromium } = await import('playwright-core')
   const browser = await chromium.connectOverCDP('http://127.0.0.1:9335')
@@ -585,7 +594,7 @@ test('when the browser goes away (window closed, crash), the next command starts
   const dir = mkdtempSync(join(tmpdir(), 'al-gone-'))
   await runIn(dir, 'tab', `${base}/page/one`)
   // Quit this daemon's Chrome out from under it, as closing the last visible window does.
-  await new Promise(r => execFile('pkill', ['-f', `user-data-dir=${join(dir, 'profile')}`], r))
+  await killByArgument(`user-data-dir=${join(dir, 'profile')}`)
   await new Promise(r => setTimeout(r, 1500))
   const again = await runIn(dir, 'tab', `${base}/page/two`)
   assert.equal(again.code, 0, again.out)

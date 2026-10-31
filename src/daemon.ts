@@ -5,6 +5,7 @@ import { chmodSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium, type BrowserContext, type CDPSession, type Dialog, type Page, type Request } from 'playwright-core'
 import { isTracker } from './trackers.js'
+import { findBrowser } from './browser.js'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
 import { diffLines, findRef, paginate, renderMap, renderText } from './render.js'
@@ -751,6 +752,9 @@ async function run(c: Command): Promise<string> {
   }
 }
 
+// A Unix socket is a file left behind on exit; a Windows named pipe goes away with its server.
+const dropSocket = () => { if (process.platform !== 'win32') rmSync(socketPath(), { force: true }) }
+
 async function main() {
   // A second daemon would steal the socket and orphan the first one's tabs.
   if (await ping()) {
@@ -758,8 +762,13 @@ async function main() {
     process.exit(0)
   }
   policy = loadPolicy()
+  const browser = findBrowser()
+  if ('error' in browser) {
+    console.error(browser.error)
+    process.exit(1)
+  }
   ctx = await chromium.launchPersistentContext(join(home(), 'profile'), {
-    channel: 'chrome',
+    executablePath: browser.path,
     // Headless always, except a browser `agent-layer show` started for a person to watch. Nothing is
     // remembered: the next browser after this one is headless again.
     headless: process.env.AGENT_LAYER_VISIBLE !== '1',
@@ -786,7 +795,7 @@ async function main() {
     stopping = true
     server.close()
     await ctx.close().catch(() => {})
-    rmSync(socketPath(), { force: true })
+    dropSocket()
     if (reply) reply('stopped')
     else process.exit(0)
   }
@@ -795,7 +804,7 @@ async function main() {
   // without a browser can only fail, so it exits and the next command starts a fresh one.
   ctx.on('close', () => {
     if (stopping) return
-    rmSync(socketPath(), { force: true })
+    dropSocket()
     process.exit(0)
   })
 
@@ -823,14 +832,15 @@ async function main() {
       })
     })
   })
-  rmSync(socketPath(), { force: true })
+  dropSocket()
   server.on('error', async err => {
     console.error(`cannot listen on ${socketPath()}: ${err.message}`)
     await ctx.close().catch(() => {})
     process.exit(1)
   })
   server.listen(socketPath(), () => {
-    chmodSync(socketPath(), 0o600)
+    // A named pipe (Windows) has no file mode; its default ACL already admits only this user.
+    if (process.platform !== 'win32') chmodSync(socketPath(), 0o600)
     touch()
     console.log(`agent-layer daemon on ${socketPath()}`)
   })

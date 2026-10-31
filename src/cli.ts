@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { readHtml, type Field, type Verb } from './html.js'
@@ -7,6 +8,7 @@ import { home, lastPage, request, saveLastPage, type Response, type Saved } from
 import { paginate, renderText } from './render.js'
 import { loadPolicy } from './policy.js'
 import { live } from './client.js'
+import { findBrowser, PROFILE_FLAGS } from './browser.js'
 import type { Command } from './daemon.js'
 
 const HELP = `agent-layer — websites as text and verbs for agents.
@@ -18,7 +20,7 @@ Fast path (plain HTTP, no browser):
   agent-layer verbs                   list verbs on the last page
   --json                              structured output instead of text
 
-Live tabs (headless Chrome kept alive in the background; runs the page's JS):
+Live tabs (a headless browser kept alive in the background; runs the page's JS):
   agent-layer tab <url>               open a live tab (it becomes current); answers with the page map
   agent-layer go <url> | back         navigate the current tab
   agent-layer map                     the page as regions: fields, actions, lists, links, with refs
@@ -53,17 +55,13 @@ Live tabs (headless Chrome kept alive in the background; runs the page's JS):
 
 Watch: agent-layer show makes the current browser a visible window to watch (tabs reopen); it is
 headless again after hide, or once that window is closed. The agent's browser is never visible otherwise.
-Sign-in: agent-layer login <url> opens a normal Chrome window on the agent's profile; sign in, quit it,
+Sign-in: agent-layer login <url> opens a normal browser window on the agent's profile; sign in, quit it,
 and the agent's browser is signed in from then on.
-Profiles: --profile <name> is a separate browser (own Chrome profile, cookies, daemon).
+Browser: the first of Chrome, Edge or Chromium installed (AGENT_LAYER_BROWSER=<path> picks one);
+agent-layer install downloads Chromium when there is none. agent-layer browser says which is used.
+Profiles: --profile <name> is a separate browser (own profile, cookies, daemon).
 Sessions: --session <name> (or AGENT_LAYER_SESSION) gives each agent its own
 last page and live tabs. Default is "default". Cookies are shared.`
-
-const CHROME: Record<string, string> = {
-  darwin: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  linux: 'google-chrome',
-  win32: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-}
 
 const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'allow', 'explore', 'menu', 'check', 'uncheck', 'submit', 'drag', 'find', 'cookies', 'storage', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
 
@@ -188,6 +186,20 @@ async function main() {
   const flags = new Set(['--json', '--enter', '--all', '--desc', '--gone', '--keys'])
   const [cmd, target, ...rest] = argv.filter(a => !flags.has(a))
 
+  if (cmd === 'browser') {
+    const browser = findBrowser()
+    return 'error' in browser ? fail(browser.error) : console.log(browser.path)
+  }
+
+  if (cmd === 'install') {
+    // Playwright's own installer, for the Chromium build this playwright-core drives. --with-deps (Linux)
+    // also installs the system libraries it needs, through the package manager, so it asks for sudo.
+    const cli = createRequire(import.meta.url).resolve('playwright-core/cli.js')
+    const code = await new Promise<number | null>(done => spawn(process.execPath, [cli, 'install', 'chromium', ...(argv.includes('--with-deps') ? ['--with-deps'] : [])], { stdio: 'inherit' }).on('exit', done))
+    if (code) process.exit(code)
+    return console.log(`Installed. The agent's browser: ${(findBrowser() as { path: string }).path}`)
+  }
+
   if (cmd === 'show' || cmd === 'hide') {
     // Chrome cannot switch between headless and visible while running, so the browser restarts and every
     // open tab is reopened in its session (the current one last, so it stays current). Sign-ins live in
@@ -216,12 +228,11 @@ async function main() {
     // A plain Chrome window on the agent's own profile, with no automation attached: the person signs
     // in themselves (passwords, 2FA, passkeys stay with them) and the agent's browser keeps the session.
     const url = target ?? fail('usage: agent-layer login <url>')
-    const chrome = CHROME[process.platform] ?? fail(`login needs Google Chrome; no known path on ${process.platform}`)
-    await live({ cmd: 'stop', session }) // one Chrome per profile directory at a time
-    console.log('Sign in in the Chrome window that opens, then quit it (Cmd+Q, or close every window).')
-    // --use-mock-keychain: the agent's browser (Playwright) encrypts cookies with Chromium's mock keychain,
-    // so the window must too, or the session it saves cannot be decrypted and is dropped.
-    await new Promise(done => spawn(chrome, [`--user-data-dir=${join(home(), 'profile')}`, '--use-mock-keychain', '--no-first-run', '--no-default-browser-check', /^[a-z]+:\/\//i.test(url) ? url : `https://${url}`], { stdio: 'ignore' }).on('exit', done))
+    const browser = findBrowser()
+    if ('error' in browser) fail(browser.error)
+    await live({ cmd: 'stop', session }) // one browser per profile directory at a time
+    console.log('Sign in in the browser window that opens, then quit it (close every window of it).')
+    await new Promise(done => spawn(browser.path, [`--user-data-dir=${join(home(), 'profile')}`, ...PROFILE_FLAGS, '--no-first-run', '--no-default-browser-check', /^[a-z]+:\/\//i.test(url) ? url : `https://${url}`], { stdio: 'ignore' }).on('exit', done))
     // The jar mirrors the browser after every command; dropping it lets the new session win over stale cookies.
     rmSync(join(home(), 'cookies.json'), { force: true })
     return console.log("Saved. The agent's browser uses this session from the next command.")

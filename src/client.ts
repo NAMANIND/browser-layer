@@ -7,14 +7,18 @@ import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { home } from './session.js'
+import { findBrowser } from './browser.js'
 import type { Command } from './daemon.js'
 
+// Windows has no Unix sockets; a named pipe, named after the home dir, plays the same part.
 // Unix socket paths are capped near 104 bytes on macOS and silently truncated past that,
 // so a deep home dir gets a short, stable path in the temp dir instead.
+const homeId = () => createHash('sha256').update(home()).digest('hex').slice(0, 12)
 export const socketPath = () => {
+  if (process.platform === 'win32') return `\\\\.\\pipe\\agent-layer-${homeId()}`
   const p = join(home(), 'daemon.sock')
   if (Buffer.byteLength(p) < 100) return p
-  return join(tmpdir(), `agent-layer-${createHash('sha256').update(home()).digest('hex').slice(0, 12)}.sock`)
+  return join(tmpdir(), `agent-layer-${homeId()}.sock`)
 }
 const lockPath = () => join(home(), 'daemon.lock')
 const LOCK_STALE_MS = 30000
@@ -58,7 +62,8 @@ function startDaemon() {
   const entry = join(self, '..', `daemon${extname(self)}`)
   const log = openSync(join(home(), 'daemon.log'), 'a')
   // execArgv carries tsx's loader in dev and tests, and is empty for the built CLI.
-  spawn(process.execPath, [...process.execArgv, entry], { detached: true, stdio: ['ignore', log, log], env: process.env }).unref()
+  // windowsHide: a detached process on Windows would otherwise open a console window of its own.
+  spawn(process.execPath, [...process.execArgv, entry], { detached: true, windowsHide: true, stdio: ['ignore', log, log], env: process.env }).unref()
 }
 
 export async function live(c: Command): Promise<Reply> {
@@ -71,6 +76,9 @@ export async function live(c: Command): Promise<Reply> {
   }
   // Asking about or stopping a browser that is not running must not start one.
   if (c.cmd === 'stop' || c.cmd === 'state') return { ok: true, text: c.cmd === 'stop' ? 'daemon was not running' : '[]' }
+  // Without a browser the daemon could only exit; say why now instead of waiting for it.
+  const browser = findBrowser()
+  if ('error' in browser) return { ok: false, error: browser.error }
   mkdirSync(home(), { recursive: true })
   const mine = takeLock()
   if (mine) startDaemon()

@@ -88,7 +88,7 @@ const env = { ...process.env, AGENT_LAYER_HOME: mkdtempSync(join(tmpdir(), 'agen
 
 function run(...args: string[]): Promise<{ code: number; out: string }> {
   return new Promise(resolve => {
-    execFile('npx', ['tsx', 'src/cli.ts', ...args], { env }, (err, stdout, stderr) =>
+    execFile(process.execPath, ['--import', 'tsx', 'src/cli.ts', ...args], { env }, (err, stdout, stderr) =>
       resolve({ code: err ? (err as { code?: number }).code ?? 1 : 0, out: stdout + stderr }))
   })
 }

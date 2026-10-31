@@ -1,36 +1,61 @@
 # agent-layer
 
-Websites as text and verbs for agents. No browser, no CSS, no paint.
+A terminal browser for AI agents. A page comes back as a short text map of its regions and controls,
+every action answers with what changed, and lists and tables come back as records. No screenshots,
+no DOM dumps.
+
+On the same tasks, same model and same rules, agent-layer took about half the steps of Vercel's
+agent-browser and used 3.4× fewer tokens ([benchmarks](bench/RESULTS.md)).
+
+## Install
+
+Needs Node.js 20 or newer, on macOS, Linux or Windows.
 
 ```bash
-npm install && npm run build && npm link   # installs the agent-layer command
-node dist/cli.js open example.com                 # read a page
-node dist/cli.js open 3                           # follow link [3] from the last page
-node dist/cli.js verbs                            # forms on the last page, as verbs
-node dist/cli.js do contact.submit name=Naman email=n@x.com
-node dist/cli.js do post topping=bacon,onion      # checkbox groups: comma-separated
+npm install -g agent-layer
+agent-layer browser        # which browser it will drive
 ```
 
-`--json` prints structured output. Cookies and the last page live in `~/.agent-layer` (override with `AGENT_LAYER_HOME`).
-
-## Two paths
-
-**Fast path** (`open`, `do`, `verbs`): plain HTTP, no browser. Works when content and forms are in the HTML the server sends. It does not run JavaScript, so apps built in the browser show up nearly empty.
-
-**Live tabs** (`tab`, `read`, `click`, `type`, `pick`, `press`, `net`, ...): a background daemon keeps headless Chrome tabs alive between commands, so the page's JavaScript runs. Every control gets a stable `[ref]`. `net` shows the API calls the page made, which is what a later compile step can replay without the tab.
+agent-layer drives a browser you already have: Google Chrome, then Microsoft Edge, then Chromium,
+whichever it finds first (every Windows machine has Edge). To pick one, set `AGENT_LAYER_BROWSER` to
+its executable. On a machine with none, such as a server or a container, download Chromium once:
 
 ```bash
-node dist/cli.js tab google.com/travel/flights   # answers with the page map
-node dist/cli.js type 15 Mumbai                  # answers with what changed
-node dist/cli.js click 77
-node dist/cli.js read 231                        # one region in full
-node dist/cli.js get 233 --sort c11 --limit 3    # a list or table as records
-node dist/cli.js net
-node dist/cli.js show                            # watch the agent's browser in a window (hide: headless)
-node dist/cli.js login accounts.google.com       # sign in yourself; the agent stays signed in
-node dist/cli.js stop
+agent-layer install              # macOS, Windows, or Linux with the system libraries present
+agent-layer install --with-deps  # Linux: also installs the libraries Chromium needs (uses sudo)
 ```
 
-Needs Google Chrome installed. The daemon exits after 30 idle minutes.
+## Use
 
-Next: compile recorded requests into verbs and replay them without the tab, then an MCP server over the same commands.
+```bash
+agent-layer tab google.com/travel/flights   # opens a live tab; answers with the page map
+agent-layer type 15 Mumbai                  # answers with what changed
+agent-layer click "Search"                  # a control by ref or by name
+agent-layer read 231                        # one region in full
+agent-layer get 233 --sort c11 --limit 3    # a list or table as records (TSV)
+agent-layer net                             # the API calls the page made
+agent-layer stop
+```
+
+`agent-layer help` lists every command. A background daemon keeps the browser and its tabs alive
+between commands and exits after 30 idle minutes. Its state (profile, cookies, last page) lives in
+`~/.agent-layer`, or `AGENT_LAYER_HOME`.
+
+**Fast path** (`open`, `do`, `verbs`): plain HTTP, no browser at all. It works when the content and
+forms are in the HTML the server sends; pages built by JavaScript need a live tab.
+
+**Signing in**: `agent-layer login <url>` opens a normal browser window on the agent's profile. You
+sign in yourself (passwords, 2FA and passkeys stay with you), close it, and the agent stays signed in.
+
+**Watching**: `agent-layer show` turns the agent's browser into a visible window; `agent-layer hide`
+makes it headless again.
+
+## Develop
+
+```bash
+npm install
+npm run build
+npm test          # unit and live tests; the live tests drive the browser agent-layer finds
+```
+
+CI runs the build and every test on Linux, macOS and Windows with Node 20 and 22.
