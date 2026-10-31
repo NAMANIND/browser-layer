@@ -27,8 +27,8 @@ export async function findBrowser(): Promise<{ path: string } | { error: string 
   if (chosen) return existsSync(chosen) ? { path: chosen } : { error: `BROWSER_LAYER_BROWSER is ${chosen}, which does not exist` }
   // Last: the Chromium that `browser-layer install` downloads. Playwright takes ~200 ms to load, so
   // only a machine without an installed browser pays for it.
-  const path = installed().find(p => existsSync(p)) ?? [(await import('playwright-core')).chromium.executablePath()].find(p => existsSync(p))
-  return path ? { path } : { error: 'no Chrome, Edge or Chromium found — install one, run `browser-layer install` to download Chromium, or set BROWSER_LAYER_BROWSER to a browser executable' }
+  const path = installed().find(p => existsSync(p)) ?? (await import('playwright-core')).chromium.executablePath()
+  return existsSync(path) ? { path } : { error: 'no Chrome, Edge or Chromium found — install one, run `browser-layer install` to download Chromium, or set BROWSER_LAYER_BROWSER to a browser executable' }
 }
 
 // The cookie store the agent's browser uses: Playwright launches Chromium with these on every platform,
