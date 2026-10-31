@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
@@ -100,6 +100,14 @@ before(() => new Promise<void>(r => server.listen(0, '127.0.0.1', () => {
 after(() => {
   server.close()
   rmSync(env.BROWSER_LAYER_HOME, { recursive: true, force: true })
+})
+
+test('--version prints the package version; an unknown command fails and says so', async () => {
+  const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
+  for (const flag of ['--version', '-v', 'version']) assert.deepEqual(await run(flag), { code: 0, out: `${version}\n` })
+  const bad = await run('nope')
+  assert.equal(bad.code, 1)
+  assert.match(bad.out, /^unknown command "nope"\n\nbrowser-layer — /)
 })
 
 test('open shows text, links and forms as verbs, without hidden content', async () => {

@@ -11,7 +11,7 @@ import { COLLECTIONS, LANDMARKS, isTrigger, newRefs, readTree, withRefs, type No
 import { diffLines, findRef, itemsLine, paginate, renderMap, renderText } from './render.js'
 import { call, drag, fill, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
 import { query, records, toTsv, type Query } from './data.js'
-import { ping, socketPath } from './client.js'
+import { ping, socketPath, VERSION } from './client.js'
 import { loadPolicy, type Policy } from './policy.js'
 
 // Decoration the agent never needs; DESIGN §1 principle 3. Never requested.
@@ -108,7 +108,7 @@ type Tab = {
 }
 export type Command = {
   cmd: string; session: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean
-  page?: number; files?: string[]; dir?: string; gone?: boolean; keys?: boolean; to?: string; full?: boolean
+  page?: number; files?: string[]; dir?: string; gone?: boolean; keys?: boolean; to?: string; full?: boolean; version?: string
 } & Query
 
 // Tab ids are unique across the daemon; each session (one agent, one task) has its own current tab.
@@ -869,6 +869,12 @@ async function main() {
       const c = JSON.parse(body || '{}') as Command
       if (c.cmd === 'stop') {
         void shutdown(text => res.end(JSON.stringify({ ok: true, text }), () => process.exit(0)))
+        return
+      }
+      // The CLI was updated under a running daemon: this one's code is old, so it exits and the CLI starts
+      // its own. (A ping carries no version.)
+      if (c.version && c.version !== VERSION) {
+        void shutdown(() => res.end(JSON.stringify({ ok: false, stale: true }), () => process.exit(0)))
         return
       }
       // One command at a time: two agents clicking into the same tab at once would race.

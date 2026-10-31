@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process'
-import { createServer } from 'node:http'
+import { createServer, request } from 'node:http'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -405,6 +405,19 @@ test('a long list an action reveals is one line; find and read go in', async () 
 test('a page that refuses the browser says so, and how a person can clear it', async () => {
   assert.match((await run('tab', `${base}/refused`)).out, /\nblocked: the site refused this browser \(HTTP 403\)\. The agent cannot pass it; a person can: browser-layer show/)
   assert.doesNotMatch((await run('go', `${base}/longmenu`)).out, /blocked:/)
+})
+
+test('a daemon from another version (the CLI was updated) stops, and the next command starts a fresh one', async () => {
+  await run('tab', `${base}/longmenu`)
+  process.env.BROWSER_LAYER_HOME = home
+  const { socketPath } = await import('../src/client.js')
+  const reply = await new Promise<string>((done, fail) => request({ socketPath: socketPath(), method: 'POST', path: '/' }, res => {
+    let body = ''
+    res.on('data', d => (body += d)).on('end', () => done(body))
+  }).on('error', fail).end(JSON.stringify({ cmd: 'tabs', session: 'default', version: '0.0.0' })))
+  assert.deepEqual(JSON.parse(reply), { ok: false, stale: true })
+  assert.match((await run('tabs')).out, /no live tabs/)
+  assert.match((await run('tab', `${base}/longmenu`)).out, /"longmenu"/)
 })
 
 test('screenshot saves a PNG of the tab: the visible part, the whole page, or one region', async () => {

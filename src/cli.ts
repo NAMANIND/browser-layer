@@ -7,7 +7,7 @@ import type { Field, Verb } from './html.js'
 import { home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
 import { paginate, renderText } from './render.js'
 import { loadPolicy } from './policy.js'
-import { live } from './client.js'
+import { live, VERSION } from './client.js'
 import { findBrowser, PROFILE_FLAGS } from './browser.js'
 import type { Command } from './daemon.js'
 
@@ -60,6 +60,7 @@ Sign-in: browser-layer login <url> opens a normal browser window on the agent's 
 and the agent's browser is signed in from then on.
 Browser: the first of Chrome, Edge or Chromium installed (BROWSER_LAYER_BROWSER=<path> picks one);
 browser-layer install downloads Chromium when there is none. browser-layer browser says which is used.
+Version: browser-layer --version prints it; browser-layer update installs the latest from npm.
 Profiles: --profile <name> is a separate browser (own profile, cookies, daemon).
 Sessions: --session <name> (or BROWSER_LAYER_SESSION) gives each agent its own
 last page and live tabs. Default is "default". Cookies are shared.`
@@ -189,6 +190,24 @@ async function main() {
   const flags = new Set(['--json', '--enter', '--all', '--desc', '--gone', '--keys', '--full'])
   const [cmd, target, ...rest] = argv.filter(a => !flags.has(a))
 
+  if (cmd === '--version' || cmd === '-v' || cmd === 'version') return console.log(VERSION)
+
+  if (cmd === 'update') {
+    const res = await fetch('https://registry.npmjs.org/browser-layer/latest')
+    if (!res.ok) fail(`could not reach npm (HTTP ${res.status}); run: npm install -g browser-layer@latest`)
+    const latest = ((await res.json()) as { version: string }).version
+    // Only a newer release installs: a build ahead of npm (a local checkout) must not be replaced by an older one.
+    const parts = (v: string) => v.split(/[.-]/).slice(0, 3).map(Number)
+    const newer = parts(latest).map((n, i) => n - parts(VERSION)[i]).find(d => d !== 0)! > 0
+    if (!newer) return console.log(`browser-layer ${VERSION} is up to date (npm has ${latest})`)
+    // npm.cmd is a batch file on Windows, which spawn runs only through a shell.
+    const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+    const code = await new Promise<number | null>(done => spawn(npm, ['install', '-g', 'browser-layer@latest'], { stdio: 'inherit', shell: process.platform === 'win32' })
+      .on('exit', done).on('error', () => done(1)))
+    if (code) fail('the update failed; run: npm install -g browser-layer@latest')
+    return console.log(`browser-layer ${VERSION} → ${latest}. A browser that was running restarts on the next command.`)
+  }
+
   if (cmd === 'browser') {
     const browser = await findBrowser()
     return 'error' in browser ? fail(browser.error) : console.log(browser.path)
@@ -307,8 +326,12 @@ async function main() {
     return show(await request(verb.action, { method, body: body instanceof FormData ? body : body.toString(), headers: { ...headers, referer: page.url, origin: new URL(page.url).origin } }), json)
   }
 
+  if (cmd && cmd !== 'help' && cmd !== '--help' && cmd !== '-h') {
+    console.error(`unknown command "${cmd}"\n`)
+    console.error(HELP)
+    process.exit(1)
+  }
   console.log(HELP)
-  if (cmd && cmd !== 'help' && cmd !== '--help') process.exit(1)
 }
 
 main().catch(err => fail(`error: ${err instanceof Error ? err.message : err}`))

@@ -1,6 +1,7 @@
 // CLI side of the daemon: send one command over the socket, starting the daemon if it is not up.
 import { request } from 'node:http'
 import { spawn } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { closeSync, mkdirSync, openSync, rmSync, statSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
@@ -23,7 +24,11 @@ export const socketPath = () => {
 const lockPath = () => join(home(), 'daemon.lock')
 const LOCK_STALE_MS = 30000
 
-type Reply = { ok: boolean; text?: string; error?: string }
+// The installed version: the CLI prints it, and a daemon started by another version (before an update)
+// will not run this one's commands.
+export const VERSION = (createRequire(import.meta.url)('../package.json') as { version: string }).version
+
+type Reply = { ok: boolean; text?: string; error?: string; stale?: boolean }
 
 function send(c: Partial<Command>, timeout = 90000): Promise<Reply> {
   return new Promise((resolve, reject) => {
@@ -68,7 +73,10 @@ function startDaemon() {
 
 export async function live(c: Command): Promise<Reply> {
   try {
-    return await send(c)
+    const reply = await send({ ...c, version: VERSION })
+    // A daemon from another version stopped instead of answering; this version's starts below.
+    if (!reply.stale) return reply
+    if (c.cmd === 'stop') return { ok: true, text: 'stopped' }
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
     // ECONNRESET: the daemon was exiting (just after `stop`); like a missing one, start a fresh one.
