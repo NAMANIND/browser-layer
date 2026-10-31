@@ -559,7 +559,7 @@ test('a profile is a separate browser with its own tabs', async () => {
 test('a session saved by a normal browser window on the agent profile carries into the agent browser', async () => {
   // What `browser-layer login` launches, headless here and quit through DevTools instead of by a person.
   const dir = mkdtempSync(join(tmpdir(), 'al-login-'))
-  const found = findBrowser()
+  const found = await findBrowser()
   if ('error' in found) throw new Error(found.error)
   const chrome = spawn(found.path, [`--user-data-dir=${join(dir, 'profile')}`, ...PROFILE_FLAGS, '--no-first-run', '--no-default-browser-check', '--headless=new', '--remote-debugging-port=9335', `${base}/signin`], { stdio: 'ignore' })
   await new Promise(r => setTimeout(r, 2500))

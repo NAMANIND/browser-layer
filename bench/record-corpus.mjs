@@ -13,7 +13,7 @@ const only = new Set(process.argv.slice(2))
 const SECRET = new Set(['cookie', 'set-cookie', 'authorization', 'proxy-authorization'])
 const DECORATION = new Set(['image', 'font', 'media'])
 
-const found = findBrowser()
+const found = await findBrowser()
 if (found.error) throw new Error(found.error)
 const browser = await chromium.launch({ executablePath: found.path, headless: true })
 for (const { name, url } of pages) {

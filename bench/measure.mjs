@@ -25,7 +25,7 @@ if (missing.length) {
   console.error(`no recording for ${missing.map(p => p.name).join(', ')} — run: node bench/record-corpus.mjs`)
   process.exit(1)
 }
-const found = findBrowser()
+const found = await findBrowser()
 if (found.error) throw new Error(found.error)
 const browser = await chromium.launch({ executablePath: found.path, headless: true })
 const results = []

@@ -762,7 +762,7 @@ async function main() {
     process.exit(0)
   }
   policy = loadPolicy()
-  const browser = findBrowser()
+  const browser = await findBrowser()
   if ('error' in browser) {
     console.error(browser.error)
     process.exit(1)

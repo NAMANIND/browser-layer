@@ -3,7 +3,6 @@
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
-import { chromium } from 'playwright-core'
 
 const env = (name: string) => process.env[name] ?? ''
 
@@ -23,11 +22,12 @@ function installed(): string[] {
 }
 
 /** The browser executable, or why there is none. */
-export function findBrowser(): { path: string } | { error: string } {
+export async function findBrowser(): Promise<{ path: string } | { error: string }> {
   const chosen = env('BROWSER_LAYER_BROWSER')
   if (chosen) return existsSync(chosen) ? { path: chosen } : { error: `BROWSER_LAYER_BROWSER is ${chosen}, which does not exist` }
-  // Last: the Chromium that `browser-layer install` downloads.
-  const path = [...installed(), chromium.executablePath()].find(p => existsSync(p))
+  // Last: the Chromium that `browser-layer install` downloads. Playwright takes ~200 ms to load, so
+  // only a machine without an installed browser pays for it.
+  const path = installed().find(p => existsSync(p)) ?? [(await import('playwright-core')).chromium.executablePath()].find(p => existsSync(p))
   return path ? { path } : { error: 'no Chrome, Edge or Chromium found — install one, run `browser-layer install` to download Chromium, or set BROWSER_LAYER_BROWSER to a browser executable' }
 }
 

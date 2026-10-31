@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { readFileSync, rmSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { readHtml, type Field, type Verb } from './html.js'
+import type { Field, Verb } from './html.js'
 import { home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
 import { paginate, renderText } from './render.js'
 import { loadPolicy } from './policy.js'
@@ -91,13 +91,15 @@ function fieldLine(f: Field): string {
 const verbView = (v: Verb, from: string) => [`  ${v.name} → ${v.method} ${short(v.action, from)}`, ...v.fields.filter(f => f.type !== 'hidden' && f.type !== 'submit').map(fieldLine)].join('\n')
 
 // A fetched page reads like a live one: the same tree and renderer, plus its forms as verbs.
-function show(res: Response, json: boolean) {
+async function show(res: Response, json: boolean) {
   if (!/html|xml/.test(res.type) && res.body.trimStart()[0] !== '<') {
     let body = res.body
     try { body = JSON.stringify(JSON.parse(body), null, 2) } catch {}
     console.log(json ? JSON.stringify({ url: res.url, status: res.status, type: res.type, body: res.body }) : `${res.url}  [${res.status}]  ${res.type}\n\n${body.slice(0, 8000)}`)
     return
   }
+  // The HTML parser is loaded here, not at startup: live-tab commands never need it.
+  const { readHtml } = await import('./html.js')
   const page = readHtml(res.body, res.url, res.status)
   saveLastPage(session, { url: page.url, links: page.links, verbs: page.verbs })
   if (json) return console.log(JSON.stringify(page, null, 2))
@@ -187,7 +189,7 @@ async function main() {
   const [cmd, target, ...rest] = argv.filter(a => !flags.has(a))
 
   if (cmd === 'browser') {
-    const browser = findBrowser()
+    const browser = await findBrowser()
     return 'error' in browser ? fail(browser.error) : console.log(browser.path)
   }
 
@@ -199,7 +201,7 @@ async function main() {
     const cli = join(dirname(pkg), (JSON.parse(readFileSync(pkg, 'utf8')) as { bin: Record<string, string> }).bin['playwright-core'])
     const code = await new Promise<number | null>(done => spawn(process.execPath, [cli, 'install', 'chromium', ...(argv.includes('--with-deps') ? ['--with-deps'] : [])], { stdio: 'inherit' }).on('exit', done))
     if (code) process.exit(code)
-    return console.log(`Installed. The agent's browser: ${(findBrowser() as { path: string }).path}`)
+    return console.log(`Installed. The agent's browser: ${((await findBrowser()) as { path: string }).path}`)
   }
 
   if (cmd === 'show' || cmd === 'hide') {
@@ -230,7 +232,7 @@ async function main() {
     // A plain Chrome window on the agent's own profile, with no automation attached: the person signs
     // in themselves (passwords, 2FA, passkeys stay with them) and the agent's browser keeps the session.
     const url = target ?? fail('usage: browser-layer login <url>')
-    const browser = findBrowser()
+    const browser = await findBrowser()
     if ('error' in browser) fail(browser.error)
     await live({ cmd: 'stop', session }) // one browser per profile directory at a time
     console.log('Sign in in the browser window that opens, then quit it (close every window of it).')

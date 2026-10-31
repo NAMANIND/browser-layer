@@ -77,7 +77,7 @@ export async function live(c: Command): Promise<Reply> {
   // Asking about or stopping a browser that is not running must not start one.
   if (c.cmd === 'stop' || c.cmd === 'state') return { ok: true, text: c.cmd === 'stop' ? 'daemon was not running' : '[]' }
   // Without a browser the daemon could only exit; say why now instead of waiting for it.
-  const browser = findBrowser()
+  const browser = await findBrowser()
   if ('error' in browser) return { ok: false, error: browser.error }
   mkdirSync(home(), { recursive: true })
   const mine = takeLock()
