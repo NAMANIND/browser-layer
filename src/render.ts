@@ -27,6 +27,16 @@ export function control(n: Node, origin: string, caps: Caps): string {
   return ` [${n.ref}] ${n.role}${name ? ` "${name}"` : ''}${bits.length ? `  ${bits.join(' ')}` : ''}${reveals}${dest} `
 }
 
+// A collection of controls rather than records (a menu of every language), when it has more than `few`:
+// one line with its size and first items, or undefined when it is short enough to show in full.
+export function itemsLine(n: Node, origin: string, caps: Caps, few: number): string | undefined {
+  const items: Node[] = []
+  const walk = (c: Node) => (c.ref && !COLLECTIONS.has(c.role ?? '') ? items.push(c) : (c.children ?? []).forEach(walk))
+  ;(n.children ?? []).forEach(walk)
+  if (items.length <= few) return undefined
+  return `[${n.ref}] ${n.role} of ${items.length}: ${items.slice(0, few).map(c => control(c, origin, caps).trim()).join(' · ')} …`
+}
+
 export function renderText(root: Node, origin: string, caps: Caps): string {
   const lines: string[] = []
   let line = ''
@@ -117,6 +127,8 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number): 
           for (const c of n.children ?? []) if (rowsOf(c).length) nestedLists(c); else walk(c)
           return
         }
+        const line = itemsLine(n, origin, caps, few)
+        if (line) { lists.push(line); return }
       }
       if (n.role === 'canvas') {
         const lines = n.children ?? []

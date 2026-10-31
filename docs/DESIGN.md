@@ -26,7 +26,8 @@ calling an API with `curl` next time). This tool is the browser, not a second ag
 ### Out of scope
 
 MCP or other agent protocols (the agent has a terminal), learning and replay inside the tool,
-screenshots and vision, cloud or multi-user hosting, anti-bot evasion.
+vision (`screenshot` saves a picture for a person or a judge; the agent reads text), cloud or
+multi-user hosting, anti-bot evasion.
 
 ## 1a. How a website reaches an agent
 
@@ -174,6 +175,8 @@ records, as `get` gives them, plus any other new lines; more than one page of th
 naming where they are (`new records in [12] table`). A new document
 (`Page.frameNavigated` on the main frame) gets the map. pushState and hash changes are the same
 document: refs and the view stay valid. A dialog, a pop-up and finished downloads are reported first.
+Changed lines longer than one page with a long list among them (a menu of every language) give that
+list as one line, as the map does: its size and first items; `find` or `read <ref>` goes in.
 
 ### 4.5 Records
 

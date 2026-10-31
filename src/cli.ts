@@ -38,6 +38,7 @@ Live tabs (a headless browser kept alive in the background; runs the page's JS):
   browser-layer dialog accept [text] | dialog dismiss   answer an alert / confirm / prompt
   browser-layer forward | reload
   browser-layer eval <js>               run JavaScript in the page; prints the result as JSON
+  browser-layer screenshot [file] [--full]   save a PNG of the tab when a person wants one (read the page as text)
   browser-layer allow <perm>[,perm] [lat,lon]   grant geolocation, notifications… to the current site
   browser-layer find <text>             the lines of the page that contain it
   browser-layer check | uncheck <ref>   set a checkbox (repeatable: only clicks if it must change)
@@ -63,7 +64,7 @@ Profiles: --profile <name> is a separate browser (own profile, cookies, daemon).
 Sessions: --session <name> (or BROWSER_LAYER_SESSION) gives each agent its own
 last page and live tabs. Default is "default". Cookies are shared.`
 
-const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'allow', 'explore', 'menu', 'check', 'uncheck', 'submit', 'drag', 'find', 'cookies', 'storage', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop'])
+const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'allow', 'explore', 'menu', 'check', 'uncheck', 'submit', 'drag', 'find', 'cookies', 'storage', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop', 'screenshot'])
 
 function fail(msg: string): never {
   console.error(msg)
@@ -185,7 +186,7 @@ async function main() {
     process.env.BROWSER_LAYER_HOME = join(home(), 'profiles', profile)
   }
   const json = argv.includes('--json')
-  const flags = new Set(['--json', '--enter', '--all', '--desc', '--gone', '--keys'])
+  const flags = new Set(['--json', '--enter', '--all', '--desc', '--gone', '--keys', '--full'])
   const [cmd, target, ...rest] = argv.filter(a => !flags.has(a))
 
   if (cmd === 'browser') {
@@ -254,6 +255,7 @@ async function main() {
     if (cmd === 'storage') [c.dir, c.text] = [target, rest[0]]
     // The daemon runs elsewhere, so files are resolved against the agent's working directory here.
     if (cmd === 'upload') c.files = rest.map(f => resolve(f))
+    if (cmd === 'screenshot') [c.files, c.full] = [[resolve(target ?? `screenshot-${Date.now()}.png`)], argv.includes('--full')]
     if (cmd === 'scroll') [c.ref, c.dir] = target && /^\d+$/.test(target) ? [target, rest[0]] : [undefined, target]
     if (cmd === 'dialog') [c.dir, c.text] = [target, rest.length ? rest.join(' ') : undefined]
     if (cmd === 'wait' || cmd === 'eval') c.text = [target, ...rest].filter(Boolean).join(' ')

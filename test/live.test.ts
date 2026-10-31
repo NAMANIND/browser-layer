@@ -85,6 +85,9 @@ const server = createServer((req, res) => {
   // A paged table: Next replaces every row, which leaves the table's shape (and so the map) as it was.
   if (req.url === '/paged') return page('paged', `<main><table id="t"></table><button onclick="go(1)">Next</button><button>Delete</button><button>Delete all</button></main>
     <script>let p = 0; const go = d => { p += d; t.innerHTML = '<tr><th>Order</th><th>Status</th></tr>' + Array.from({ length: 30 }, (_, i) => '<tr><td>ORD-' + (p * 30 + i) + '</td><td>Paid</td></tr>').join('') }; go(0)</script>`)
+  // A filter menu of 900 choices, hidden until its button opens it (GitHub's language picker).
+  if (req.url === '/longmenu') return page('longmenu', `<main><h1>Trending</h1>${'<p>A repository description long enough to make the page bigger than the menu it opens.</p>'.repeat(400)}<button aria-haspopup="menu" onclick="m.hidden = false">Language: Any</button>
+    <div role="menu" id="m" hidden>${Array.from({ length: 900 }, (_, i) => `<div role="menuitemradio" aria-checked="false">Language ${i}</div>`).join('')}</div></main>`)
   if (req.url === '/frames') return page('frames', `<p>outer</p><iframe src="/inner-same"></iframe><iframe src="http://localhost:${port}/inner-cross"></iframe>`)
   if (req.url === '/inner-same') return page('same', `<button onclick="this.textContent='same clicked'">Same button</button>`)
   if (req.url === '/inner-cross') return page('cross', `<input aria-label="Card number"><button onclick="document.querySelector('p').textContent = 'paid ' + document.querySelector('input').value">Pay</button><p>unpaid</p>`)
@@ -383,6 +386,28 @@ test('controls can be named instead of numbered; new records under an unchanged 
   assert.equal(vague.code, 1)
   assert.match(vague.out, /2 controls are named "del"; use a ref: \[\d+\] button "Delete" · \[\d+\] button "Delete all"/)
   assert.match((await run('click', 'nothing here')).out, /nothing is named "nothing here"/)
+})
+
+test('a long list an action reveals is one line; find and read go in', async () => {
+  await run('tab', `${base}/longmenu`)
+  const open = await run('click', 'Language: Any')
+  assert.ok(open.out.length < 2000, open.out.slice(0, 300))
+  assert.match(open.out, /\+ \[(\d+)\] menu of 900: \[\d+\] menuitemradio "Language 0" {2}unchecked · .* …$/m)
+  assert.match(open.out, /a long list is one line: find <text> or read <ref> goes in/)
+  assert.match((await run('find', 'Language 899')).out, /\[\d+\] menuitemradio "Language 899"/)
+  assert.match((await run('read', open.out.match(/\[(\d+)\] menu of 900/)![1])).out, /"Language 100"/)
+  // The map shows it the same way.
+  assert.match((await run('map')).out, /\[\d+\] menu of 900: \[\d+\] menuitemradio "Language 0"/)
+})
+
+test('screenshot saves a PNG of the tab, the visible part or the whole page', async () => {
+  await run('tab', `${base}/longmenu`)
+  const dir = mkdtempSync(join(tmpdir(), 'shot-'))
+  const shot = await run('screenshot', join(dir, 'a.png'))
+  assert.equal(shot.out.trim(), `saved ${join(dir, 'a.png')}`)
+  assert.equal(readFileSync(join(dir, 'a.png')).subarray(1, 4).toString(), 'PNG')
+  assert.equal((await run('screenshot', join(dir, 'b.png'), '--full')).code, 0)
+  rmSync(dir, { recursive: true, force: true })
 })
 
 test('repeated cards without list markup are records; repeated paragraphs are not', async () => {

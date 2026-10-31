@@ -8,7 +8,7 @@ import { isTracker } from './trackers.js'
 import { findBrowser } from './browser.js'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
-import { diffLines, findRef, paginate, renderMap, renderText } from './render.js'
+import { diffLines, findRef, itemsLine, paginate, renderMap, renderText } from './render.js'
 import { call, drag, fill, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
 import { query, records, toTsv, type Query } from './data.js'
 import { ping, socketPath } from './client.js'
@@ -108,7 +108,7 @@ type Tab = {
 }
 export type Command = {
   cmd: string; session: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean
-  page?: number; files?: string[]; dir?: string; gone?: boolean; keys?: boolean; to?: string
+  page?: number; files?: string[]; dir?: string; gone?: boolean; keys?: boolean; to?: string; full?: boolean
 } & Query
 
 // Tab ids are unique across the daemon; each session (one agent, one task) has its own current tab.
@@ -266,6 +266,14 @@ function own(session: string, id: number): Tab {
 // answer to what the action did. A new document is answered with its map, as opening one is.
 const contextOf = (text: string) => (/^\[\d+\] dialog/.test(text) ? text.slice(0, text.indexOf('\n') >>> 0) : 'page')
 
+// The outermost collections holding any of the new lines, and the lines each one renders as.
+function changedCollections(snap: Awaited<ReturnType<typeof snapshot>>, added: string[]) {
+  const fresh = new Set(added)
+  const lines = (n: Node) => renderText({ block: true, children: [n] }, snap.origin, caps()).split('\n')
+  const moved = (n: Node): Node[] => (n.ref && COLLECTIONS.has(n.role ?? '') && lines(n).some(l => fresh.has(l)) ? [n] : (n.children ?? []).flatMap(moved))
+  return { found: moved(snap.tree), lines }
+}
+
 async function changes(tab: Tab, settled = ''): Promise<string> {
   const snap = await snapshot(tab)
   const before = tab.shown.get(contextOf(snap.text))
@@ -278,11 +286,9 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
     if (snap.text.length > renderMap(snap.tree, snap.origin, caps(), policy['render.mapFew']).length) {
       // New records (the next page of a table) leave a map as it was, so what changed is answered as those
       // records, plus any other new lines. Too many to fit one page: the map, naming where they are.
-      const fresh = new Set(added)
-      const lines = (n: Node) => renderText({ block: true, children: [n] }, snap.origin, caps()).split('\n')
-      const moved = (n: Node): Node[] => (n.ref && COLLECTIONS.has(n.role ?? '') && lines(n).some(l => fresh.has(l)) ? [n] : (n.children ?? []).flatMap(moved))
-      const found = moved(snap.tree)
-      const inside = new Set(found.flatMap(lines))
+      const changed = changedCollections(snap, added)
+      const found = changed.found.filter(n => records(n, snap.origin, caps()).rows.length)
+      const inside = new Set(found.flatMap(changed.lines))
       const body = [...added.filter(l => !inside.has(l)).map(l => `+ ${l}`), ...found.map(n => recordsView(n, snap.origin, {}))].join('\n\n')
       const where = found.map(n => `[${n.ref}] ${n.role}`).join(', ')
       if (!found.length || body.length > policy['render.pageChars']) return mapView(tab, snap, settled, where && `new records in ${where} (browser-layer get <ref> reads them)`)
@@ -293,8 +299,25 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
     return `${await header(tab)}  — the whole page changed${settled ? `, settled: ${settled}` : ''}\n\n${snap.text}`
   }
   remember(tab, snap.text)
-  const head = `tab ${tab.id}  ${tab.page.url()}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'}${settled ? `, settled: ${settled}` : ''} (full page: browser-layer read)`
-  return [head, '', ...removed.map(l => `- ${l}`), ...added.map(l => `+ ${l}`)].join('\n').trimEnd()
+  // More new lines than one page: each long list among them is one line, and find or read <ref> goes in.
+  let shown = added
+  let note = ''
+  if (size > policy['render.pageChars']) {
+    const { found, lines } = changedCollections(snap, added)
+    const summary = new Map<string, string>()
+    for (const n of found) {
+      const line = itemsLine(n, snap.origin, caps(), policy['render.mapFew'])
+      if (line) for (const l of lines(n)) summary.set(l, line)
+    }
+    const seen = new Set<string>()
+    shown = added.flatMap(l => {
+      const line = summary.get(l)
+      return !line ? [l] : seen.has(line) ? [] : (seen.add(line), [line])
+    })
+    if (seen.size) note = '; a long list is one line: find <text> or read <ref> goes in'
+  }
+  const head = `tab ${tab.id}  ${tab.page.url()}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'}${settled ? `, settled: ${settled}` : ''} (full page: browser-layer read${note})`
+  return [head, '', ...removed.map(l => `- ${l}`), ...shown.map(l => `+ ${l}`)].join('\n').trimEnd()
 }
 
 // A collection as records (TSV): sorted and column-picked as asked; without a limit, as many as fit one page.
@@ -709,6 +732,13 @@ async function run(c: Command): Promise<string> {
         await ctx.setGeolocation({ latitude, longitude })
       }
       return `allowed ${perms.join(', ')} for ${origin}${c.dir ? ` at ${c.dir}` : ''}`
+    }
+    case 'screenshot': {
+      // A picture for a person (or a judge): the agent reads the page as text. Images and fonts are
+      // never loaded (DECORATION), so it shows the page without them.
+      const tab = need(c.session)
+      await tab.page.screenshot({ path: c.files![0], fullPage: !!c.full })
+      return `saved ${c.files![0]}`
     }
     case 'eval': {
       const tab = need(c.session)
