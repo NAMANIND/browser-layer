@@ -27,7 +27,9 @@ calling an API with `curl` next time). This tool is the browser, not a second ag
 
 MCP or other agent protocols (the agent has a terminal), learning and replay inside the tool,
 vision (`screenshot` saves a picture for a person or a judge; the agent reads text), cloud or
-multi-user hosting, anti-bot evasion.
+multi-user hosting, anti-bot evasion. The browser says it is automated; a site that refuses it (HTTP
+403 or 429) or puts a CAPTCHA in front of the page is reported as `blocked:` with the way out, a
+person clearing it in the `show` window, and the session carries on with what they cleared.
 
 ## 1a. How a website reaches an agent
 

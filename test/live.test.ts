@@ -85,6 +85,8 @@ const server = createServer((req, res) => {
   // A paged table: Next replaces every row, which leaves the table's shape (and so the map) as it was.
   if (req.url === '/paged') return page('paged', `<main><table id="t"></table><button onclick="go(1)">Next</button><button>Delete</button><button>Delete all</button></main>
     <script>let p = 0; const go = d => { p += d; t.innerHTML = '<tr><th>Order</th><th>Status</th></tr>' + Array.from({ length: 30 }, (_, i) => '<tr><td>ORD-' + (p * 30 + i) + '</td><td>Paid</td></tr>').join('') }; go(0)</script>`)
+  // A site that turns automated browsers away.
+  if (req.url === '/refused') { res.statusCode = 403; return page('403 Forbidden', '<h1>403 Forbidden</h1>') }
   // A filter menu of 900 choices, hidden until its button opens it (GitHub's language picker).
   if (req.url === '/longmenu') return page('longmenu', `<main><h1>Trending</h1>${'<p>A repository description long enough to make the page bigger than the menu it opens.</p>'.repeat(400)}<button aria-haspopup="menu" onclick="m.hidden = false">Language: Any</button>
     <div role="menu" id="m" hidden>${Array.from({ length: 900 }, (_, i) => `<div role="menuitemradio" aria-checked="false">Language ${i}</div>`).join('')}</div></main>`)
@@ -398,6 +400,11 @@ test('a long list an action reveals is one line; find and read go in', async () 
   assert.match((await run('read', open.out.match(/\[(\d+)\] menu of 900/)![1])).out, /"Language 100"/)
   // The map shows it the same way.
   assert.match((await run('map')).out, /\[\d+\] menu of 900: \[\d+\] menuitemradio "Language 0"/)
+})
+
+test('a page that refuses the browser says so, and how a person can clear it', async () => {
+  assert.match((await run('tab', `${base}/refused`)).out, /\nblocked: the site refused this browser \(HTTP 403\)\. The agent cannot pass it; a person can: browser-layer show/)
+  assert.doesNotMatch((await run('go', `${base}/longmenu`)).out, /blocked:/)
 })
 
 test('screenshot saves a PNG of the tab, the visible part or the whole page', async () => {

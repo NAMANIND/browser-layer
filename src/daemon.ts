@@ -104,7 +104,7 @@ type Frame = { cdp: CDPSession; owner: { scope: string; id: number } }
 type Tab = {
   id: number; session: string; page: Page; cdp: CDPSession; refs: Refs; doc: number; shown: Map<string, { doc: number; text: string }>
   pending: Map<Request, number>; standing: Set<string>; net: Req[]; netId: number; frames: Map<string, Frame>; dialog?: Dialog; opened: number[]
-  downloads: { file: string; size: number; url: string }[]; saving: Promise<void>[]
+  downloads: { file: string; size: number; url: string }[]; saving: Promise<void>[]; status?: number
 }
 export type Command = {
   cmd: string; session: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean
@@ -220,12 +220,23 @@ const header = async (tab: Tab) => {
   return `tab ${tab.id}  ${tab.page.url()}${title ? `  "${title}"` : ''}`
 }
 
+// A page that turned the agent away: the site refused this browser, or put a human check from one of the
+// common CAPTCHA providers in front of it. The agent cannot pass either (DESIGN §1: no anti-bot evasion);
+// a person can, once, in the visible window, and the session carries on from there.
+const CHECKS = /^https:\/\/(www\.google\.com\/recaptcha|www\.recaptcha\.net|[\w.]*hcaptcha\.com|challenges\.cloudflare\.com)\//
+function blocked(tab: Tab): string {
+  const check = tab.page.frames().some(f => CHECKS.test(f.url()))
+  if (!check && tab.status !== 403 && tab.status !== 429) return ''
+  const why = check ? 'a human check (CAPTCHA) is on this page' : `the site refused this browser (HTTP ${tab.status})`
+  return `\nblocked: ${why}. The agent cannot pass it; a person can: browser-layer show, clear it in that window, then browser-layer hide\n`
+}
+
 // Opening a page answers with its map (DESIGN §1a); read and read <ref> go deeper.
 async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>, settled = '', note = ''): Promise<string> {
   const { tree, origin, text } = snap ?? await snapshot(tab)
   remember(tab, text)
   const map = renderMap(tree, origin, caps(), policy['render.mapFew'])
-  return `${await header(tab)}${note ? `  — ${note}` : ''}${settled ? `  — settled: ${settled}` : ''}\n\n${map}\n\n(read <ref> opens a region · read gives the whole page)`
+  return `${await header(tab)}${note ? `  — ${note}` : ''}${settled ? `  — settled: ${settled}` : ''}\n${blocked(tab)}\n${map}\n\n(read <ref> opens a region · read gives the whole page)`
 }
 
 async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<string> {
@@ -402,6 +413,8 @@ async function setupTab(session: string, page: Page): Promise<Tab> {
     for (const f of tab.frames.values()) void f.cdp.detach().catch(() => {})
     tab.frames.clear()
   })
+  // The status the page itself came with; a refusal (403, 429) is told apart from a page that merely says no.
+  page.on('response', r => { if (r.request().isNavigationRequest() && r.frame() === page.mainFrame()) tab.status = r.status() })
   // Dialogs wait for the agent: an unanswered confirm() is a decision, not something to auto-dismiss.
   page.on('dialog', d => { tab.dialog = d })
   page.on('download', d => {
