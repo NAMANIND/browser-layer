@@ -18,6 +18,8 @@ const TOOLS = {
   'browser-layer': { help: 'browser-layer help', cleanup: env => sh('browser-layer', ['stop'], { env }).catch(() => {}) },
   'agent-browser': { help: 'agent-browser --help', cleanup: () => sh('agent-browser', ['close']).catch(() => {}) },
   'playwright-cli': { help: 'playwright-cli --help', cleanup: async () => { await sh('playwright-cli', ['close']).catch(() => {}); await sh('playwright-cli', ['delete-data']).catch(() => {}) } },
+  // ego lite's agent CLI: the ego lite app must be running; the agent writes JavaScript it runs in a Space.
+  'ego-browser': { help: 'ego-browser skill', cleanup: async () => {} },
 }
 
 const cheapest16 = LAPTOPS.filter(l => l.ram >= 16).sort((a, b) => a.price - b.price).slice(0, 3)
@@ -44,7 +46,32 @@ const TASKS = {
     } },
   github: { url: 'https://github.com/microsoft/playwright', ask: 'What is the tag of the latest release of this repository? Answer with the tag only.',
     check: async a => norm(a) === norm((await (await fetch('https://api.github.com/repos/microsoft/playwright/releases/latest')).json()).tag_name) },
+  // Three of ego lite's Real-World Bench tasks (github.com/citrolabs/ego-browser-benchmark-framework, MIT),
+  // worded as they are. The answer is a whole report, checked against the live page when the run ends.
+  'rwb-hn': { report: true, ask: "I want a quick overview of today's most prominent topics on the Hacker News homepage and which posts are generating the most discussion. Visit https://news.ycombinator.com and collect the current top 10 posts, skipping any job post with no score and continuing farther down the list until you have 10 scored posts. For each one, record its rank, title, score in points, and number of comments. Then calculate the average score and average comment count across the 10 posts, rounded to one decimal place, and identify the post with the highest comments-to-points ratio, giving its title and the ratio rounded to two decimal places.",
+    check: async a => {
+      const titles = (await (await fetch('https://news.ycombinator.com')).text()).split('class="athing').slice(1)
+        .filter(row => /id="score_/.test(row.split('class="spacer"')[0])).slice(0, 10)
+        .map(row => decode(row.match(/class="titleline"><a [^>]*>([^<]+)/)[1]))
+      // Ranks move while a run reads the page, so 8 of the 10 is a pass.
+      return titles.filter(t => norm(a).includes(norm(t))).length >= 8
+    } },
+  'rwb-github': { report: true, ask: 'I want to see which Python projects are hottest on GitHub this week. Open the GitHub Trending page at https://github.com/trending, set the language to Python, and set the time range to This week. Take the first 8 repositories from this week\'s trending list and record each repository\'s rank, full name (owner/repo), stars gained this week as shown by "X stars this week", total Stars, total Forks, and one-line description; write "Not listed" if there is no description. Organize the results in a table. Then calculate the total and average number of stars gained this week across the 8 repositories, rounding the average to one decimal place. Finally, identify the repository with the highest ratio of stars gained this week to total Stars—the one with the strongest recent surge—and provide its full name and the ratio rounded to three decimal places.',
+    check: async a => {
+      const repos = [...(await (await fetch('https://github.com/trending/python?since=weekly')).text()).matchAll(/<h2 class="h3 lh-condensed">\s*<a [^>]*href="\/([^"]+)"/g)].slice(0, 8).map(m => m[1].toLowerCase())
+      const at = repos.map(r => a.toLowerCase().replace(/\s+\/\s+/g, '/').indexOf(r))
+      return repos.length === 8 && at.every((i, k) => i >= 0 && (k === 0 || i > at[k - 1]))
+    } },
+  'rwb-mortgage': { report: true, ask: "I'm evaluating the financing cost of a $550,000 home and want to know the monthly payment and total interest over the life of the loan. Visit https://www.calculator.net/mortgage-calculator.html and set the mortgage calculator to a Home Price of $550,000, a Down Payment of 20%, a Loan Term of 30 years, and an Interest Rate of 6.5%, then click Calculate. Provide four results: the Monthly Payment for principal and interest only, excluding taxes and fees; the Loan Amount; the Total Interest; and the total principal and interest across 360 payments, shown as Total of 360 Payments or Total Payments.",
+    // 440,000 at 6.5% over 360 months: 2,781.10 a month, 1,001,195.75 in all, 561,195.75 of it interest.
+    check: a => {
+      const nums = (a.replace(/,/g, '').match(/\d+(\.\d+)?/g) ?? []).map(Number)
+      const has = (want, within) => nums.some(n => Math.abs(n - want) <= within)
+      return has(2781.10, 0.01) && has(440000, 0) && has(561195.75, 2) && has(1001195.75, 2)
+    } },
 }
+
+function decode(s) { return s.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&') }
 
 const tools = arg('tools', Object.keys(TOOLS).join(',')).split(',')
 const tasks = arg('tasks', Object.keys(TASKS).join(',')).split(',')
@@ -115,9 +142,9 @@ for (const task of tasks) {
     mkdirSync(env.BROWSER_LAYER_HOME, { recursive: true })
     await TOOLS[tool].cleanup(env)
     const t = TASKS[task]
-    const r = await (runner === 'cursor' ? cursor : claude)(cwd, env, tool, `Open ${t.url ?? base + t.path} and do this: ${t.ask}`)
+    const r = await (runner === 'cursor' ? cursor : claude)(cwd, env, tool, t.report ? t.ask : `Open ${t.url ?? base + t.path} and do this: ${t.ask}`)
     await TOOLS[tool].cleanup(env)
-    const answer = String(r.result ?? '').match(/ANSWER:\s*(.+)\s*$/im)?.[1]?.trim() ?? ''
+    const answer = t.report ? String(r.result ?? '') : String(r.result ?? '').match(/ANSWER:\s*(.+)\s*$/im)?.[1]?.trim() ?? ''
     const ok = await Promise.resolve(t.check(answer)).catch(() => false)
     const u = r.usage ?? {}
     const tokens = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.output_tokens ?? 0)
