@@ -13,13 +13,15 @@
     "llm",
     "web"
   ],
+  "license": "Apache-2.0",
   "type": "module",
   "bin": {
     "agent-layer": "dist/cli.js"
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc",
