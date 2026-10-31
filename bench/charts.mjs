@@ -111,7 +111,7 @@ const wabTasks = [...new Set(wab.map(r => `${r.suite}/${r.scenario}`))].map(key 
 const wabRuns = (t, tool) => wab.filter(r => `${r.suite}/${r.scenario}` === t.key && r.tool === tool)
 const wabSum = (tool, f) => wab.filter(r => r.tool === tool).reduce((a, r) => a + f(r), 0)
 const two = ['agent-layer', 'agent-browser']
-const wabSource = 'web-agent-bench suites (controlled, scroll, dynamic, hard) · cursor-agent, claude-sonnet-5-thinking-high · 3 runs per task, both tools 30/30 passed'
+const wabSource = 'web-agent-bench suites (controlled, scroll, dynamic, hard) · claude-sonnet-5-thinking-high · 3 runs per task, both tools 30/30 passed'
 const k = n => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}k`)
 
 const charts = {
@@ -148,12 +148,12 @@ const ownTasks = [...new Set([...own.values()].map(r => r.task))].map(key => ({ 
 const three = ['agent-layer', 'agent-browser', 'playwright-cli']
 charts['three-tools-tokens'] = bars({
   title: 'Three browser CLIs, eight tasks', subtitle: `Tokens per task, one run each. Lower is better. All passed 8/8. Totals: ${three.map(tool => `${tool} ${k(ownTasks.reduce((a, o) => a + own.get(`${o.key}|${tool}`).tokens, 0))}`).join(', ')}.`,
-  source: 'agent-layer benchmark: 6 local apps + Hacker News + GitHub · cursor-agent, claude-sonnet-5-thinking-high · agent-browser 0.41.0, playwright-cli 0.1.22',
+  source: 'agent-layer benchmark: 6 local apps + Hacker News + GitHub · claude-sonnet-5-thinking-high · agent-browser 0.41.0, playwright-cli 0.1.22',
   tools: three, tasks: ownTasks, format: k,
   value: (t, tool) => own.get(`${t.key}|${tool}`).tokens,
 })
 
-const MODEL = 'claude-sonnet-5-thinking-high, run by cursor-agent'
+const MODEL = 'claude-sonnet-5-thinking-high'
 charts['runs-agent-browser'] = strip({
   title: 'Every run, agent-layer vs agent-browser', subtitle: '30 runs each: 10 web-agent-bench tasks × 3. Each dot is one run; lower is better. Both passed 30/30.',
   model: MODEL, source: wabSource, tools: two, runs: tool => wab.filter(r => r.tool === tool).map(r => r.total),

@@ -94,7 +94,7 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
   <div class="tiles" id="tiles"></div>
 
   <section>
-    <div class="eyebrow">Every run · model claude-sonnet-5-thinking-high, run by cursor-agent</div>
+    <div class="eyebrow">Every run · model claude-sonnet-5-thinking-high</div>
     <h2>Tokens for every run, per tool</h2>
     <p>Each dot is one run of one task; the line is each tool's median and the number above a column is its total. The first chart is web-agent-bench (10 tasks, 3 runs each); the second is our own eight tasks with playwright-cli added.</p>
     <div class="figure">__RUNS_AB__</div>
@@ -189,7 +189,7 @@ Your access code is: ALPHA-LPHPAT</pre></div></li>
   <section>
     <div class="eyebrow">How it was run</div>
     <h2>Setup and limits</h2>
-    <p>The agent is cursor-agent in headless mode with claude-sonnet-5-thinking-high. Versions: agent-browser 0.41.0, playwright-cli 0.1.22. web-agent-bench's own prompts, answer checks, per-tool guides and command rules are used unchanged. Its rules forbid in-page JavaScript, network capture, cookies and storage, so agent-layer's matching commands and its plain-HTTP fast path were blocked too. A step costs about the same with either tool (22k vs 29k tokens, mostly the agent's own prompt resent each step), so the gap comes from the number of steps. The tasks are small fixture sites with 3 runs each; on our two live sites the gap was smaller (1.2–1.7×).</p>
+    <p>The model is claude-sonnet-5-thinking-high. Versions: agent-browser 0.41.0, playwright-cli 0.1.22. web-agent-bench's own prompts, answer checks, per-tool guides and command rules are used unchanged. Its rules forbid in-page JavaScript, network capture, cookies and storage, so agent-layer's matching commands and its plain-HTTP fast path were blocked too. A step costs about the same with either tool (22k vs 29k tokens, mostly the agent's own prompt resent each step), so the gap comes from the number of steps. The tasks are small fixture sites with 3 runs each; on our two live sites the gap was smaller (1.2–1.7×).</p>
   </section>
 </div>
 <div id="tip" hidden></div>

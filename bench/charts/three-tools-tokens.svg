@@ -79,5 +79,5 @@
 <text x="272.09938664958696" y="798" font-size="14" fill="#52514e">92k</text>
 <text x="892" y="780" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.2×</text>
 <text x="1022" y="780" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">1.8×</text>
-<text x="48" y="862" font-size="14" fill="#8a8984">agent-layer benchmark: 6 local apps + Hacker News + GitHub · cursor-agent, claude-sonnet-5-thinking-high · agent-browser 0.41.0, playwright-cli 0.1.22</text>
+<text x="48" y="862" font-size="14" fill="#8a8984">agent-layer benchmark: 6 local apps + Hacker News + GitHub · claude-sonnet-5-thinking-high · agent-browser 0.41.0, playwright-cli 0.1.22</text>
 </svg>

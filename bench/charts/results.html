@@ -94,15 +94,15 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
   <div class="tiles" id="tiles"></div>
 
   <section>
-    <div class="eyebrow">Every run · model claude-sonnet-5-thinking-high, run by cursor-agent</div>
+    <div class="eyebrow">Every run · model claude-sonnet-5-thinking-high</div>
     <h2>Tokens for every run, per tool</h2>
     <p>Each dot is one run of one task; the line is each tool's median and the number above a column is its total. The first chart is web-agent-bench (10 tasks, 3 runs each); the second is our own eight tasks with playwright-cli added.</p>
     <div class="figure"><svg xmlns="http://www.w3.org/2000/svg" width="100%" height="auto" role="img" viewBox="0 0 1200 820" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif">
 <rect width="1200" height="820" fill="#fcfcfb"/>
 <text x="48" y="64" font-size="30" font-weight="700" fill="#0b0b0b">Every run, agent-layer vs agent-browser</text>
 <text x="48" y="98" font-size="18" fill="#52514e">30 runs each: 10 web-agent-bench tasks × 3. Each dot is one run; lower is better. Both passed 30/30.</text>
-<rect x="48" y="118" width="508" height="34" rx="17" fill="none" stroke="#e7e6e2" stroke-width="1.5"/>
-<text x="62" y="141" font-size="16" fill="#0b0b0b"><tspan font-weight="600">Model</tspan> claude-sonnet-5-thinking-high, run by cursor-agent</text>
+<rect x="48" y="118" width="306.4" height="34" rx="17" fill="none" stroke="#e7e6e2" stroke-width="1.5"/>
+<text x="62" y="141" font-size="16" fill="#0b0b0b"><tspan font-weight="600">Model</tspan> claude-sonnet-5-thinking-high</text>
 <text transform="translate(40 465) rotate(-90)" font-size="15" text-anchor="middle" fill="#8a8984">Tokens per run</text>
 <line x1="120" x2="1152" y1="700" y2="700" stroke="#e7e6e2" stroke-width="1"/>
 <text x="108" y="705" font-size="14" text-anchor="end" fill="#8a8984">0</text>
@@ -186,14 +186,14 @@ pre.out { margin: 6px 0 0; background: var(--term-bg); border-radius: 6px; paddi
 <text x="894" y="208" font-size="14" text-anchor="middle" fill="#8a8984">total over 30 runs</text>
 <rect x="834" y="728" width="12" height="12" rx="3" fill="#eb6834"/>
 <text x="852" y="739" font-size="17" font-weight="600" fill="#0b0b0b">agent-browser</text>
-<text x="48" y="792" font-size="14" fill="#8a8984">web-agent-bench suites (controlled, scroll, dynamic, hard) · cursor-agent, claude-sonnet-5-thinking-high · 3 runs per task, both tools 30/30 passed</text>
+<text x="48" y="792" font-size="14" fill="#8a8984">web-agent-bench suites (controlled, scroll, dynamic, hard) · claude-sonnet-5-thinking-high · 3 runs per task, both tools 30/30 passed</text>
 </svg></div>
     <div class="figure"><svg xmlns="http://www.w3.org/2000/svg" width="100%" height="auto" role="img" viewBox="0 0 1200 820" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif">
 <rect width="1200" height="820" fill="#fcfcfb"/>
 <text x="48" y="64" font-size="30" font-weight="700" fill="#0b0b0b">Every run, three browser CLIs</text>
 <text x="48" y="98" font-size="18" fill="#52514e">8 tasks, one run each. Each dot is one task; lower is better. All passed 8/8.</text>
-<rect x="48" y="118" width="508" height="34" rx="17" fill="none" stroke="#e7e6e2" stroke-width="1.5"/>
-<text x="62" y="141" font-size="16" fill="#0b0b0b"><tspan font-weight="600">Model</tspan> claude-sonnet-5-thinking-high, run by cursor-agent</text>
+<rect x="48" y="118" width="306.4" height="34" rx="17" fill="none" stroke="#e7e6e2" stroke-width="1.5"/>
+<text x="62" y="141" font-size="16" fill="#0b0b0b"><tspan font-weight="600">Model</tspan> claude-sonnet-5-thinking-high</text>
 <text transform="translate(40 465) rotate(-90)" font-size="15" text-anchor="middle" fill="#8a8984">Tokens per run</text>
 <line x1="120" x2="1152" y1="700" y2="700" stroke="#e7e6e2" stroke-width="1"/>
 <text x="108" y="705" font-size="14" text-anchor="end" fill="#8a8984">0</text>
@@ -341,7 +341,7 @@ Your access code is: ALPHA-LPHPAT</pre></div></li>
   <section>
     <div class="eyebrow">How it was run</div>
     <h2>Setup and limits</h2>
-    <p>The agent is cursor-agent in headless mode with claude-sonnet-5-thinking-high. Versions: agent-browser 0.41.0, playwright-cli 0.1.22. web-agent-bench's own prompts, answer checks, per-tool guides and command rules are used unchanged. Its rules forbid in-page JavaScript, network capture, cookies and storage, so agent-layer's matching commands and its plain-HTTP fast path were blocked too. A step costs about the same with either tool (22k vs 29k tokens, mostly the agent's own prompt resent each step), so the gap comes from the number of steps. The tasks are small fixture sites with 3 runs each; on our two live sites the gap was smaller (1.2–1.7×).</p>
+    <p>The model is claude-sonnet-5-thinking-high. Versions: agent-browser 0.41.0, playwright-cli 0.1.22. web-agent-bench's own prompts, answer checks, per-tool guides and command rules are used unchanged. Its rules forbid in-page JavaScript, network capture, cookies and storage, so agent-layer's matching commands and its plain-HTTP fast path were blocked too. A step costs about the same with either tool (22k vs 29k tokens, mostly the agent's own prompt resent each step), so the gap comes from the number of steps. The tasks are small fixture sites with 3 runs each; on our two live sites the gap was smaller (1.2–1.7×).</p>
   </section>
 </div>
 <div id="tip" hidden></div>

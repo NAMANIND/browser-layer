@@ -65,5 +65,5 @@
 <path d="M210,748 h156.00254818624018 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-156.00254818624018 z" fill="#eb6834"><title>agent-browser: 248k</title></path>
 <text x="378.0025481862402" y="762" font-size="14" fill="#52514e">248k</text>
 <text x="1022" y="754" font-size="18" text-anchor="end" font-weight="700" fill="#0b0b0b">2.0×</text>
-<text x="48" y="826" font-size="14" fill="#8a8984">web-agent-bench suites (controlled, scroll, dynamic, hard) · cursor-agent, claude-sonnet-5-thinking-high · 3 runs per task, both tools 30/30 passed</text>
+<text x="48" y="826" font-size="14" fill="#8a8984">web-agent-bench suites (controlled, scroll, dynamic, hard) · claude-sonnet-5-thinking-high · 3 runs per task, both tools 30/30 passed</text>
 </svg>

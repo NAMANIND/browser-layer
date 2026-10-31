@@ -17,5 +17,5 @@
 <text x="837.3333333333334" y="384" font-size="24" font-weight="600" fill="#0b0b0b">faster</text>
 <text x="837.3333333333334" y="426" font-size="17" fill="#52514e">11 vs 28 minutes in all</text>
 <rect x="837.3333333333334" y="448" width="10" height="10" rx="2" fill="#2a78d6"/><text x="855.3333333333334" y="458" font-size="15" fill="#8a8984">agent-layer vs agent-browser</text>
-<text x="48" y="582" font-size="15" fill="#8a8984">web-agent-bench suites (controlled, scroll, dynamic, hard) · cursor-agent, claude-sonnet-5-thinking-high · 3 runs per task, both tools 30/30 passed</text>
+<text x="48" y="582" font-size="15" fill="#8a8984">web-agent-bench suites (controlled, scroll, dynamic, hard) · claude-sonnet-5-thinking-high · 3 runs per task, both tools 30/30 passed</text>
 </svg>
