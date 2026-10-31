@@ -62,4 +62,4 @@ CI runs the build and every test on Linux, macOS and Windows with Node 20 and 22
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+Copyright 2026 Naman Rai. Licensed under Apache-2.0; see [LICENSE](LICENSE).
