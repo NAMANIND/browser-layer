@@ -308,6 +308,7 @@ Keys are added when the phase that uses them lands.
 | `render.mapFew` | 8 | In the map, controls are named up to this many per kind, counted above |
 | `actions.timeoutMs` | 5000 | Wait for a control to be ready before pointer input |
 | `command.timeoutMs` | 75000 | A command still running after this fails, so a page that stopped answering cannot hold the others (under the CLI's 90 s wait) |
+| `read.timeoutMs` | 20000 | The same for a command that only reads the page (read, map, find, get, screenshot, net…): reading takes seconds, so a stuck page is told sooner |
 | `wait.timeoutMs` | 15000 | How long `wait` looks for its text |
 | `explore.depth` | 2 | Levels of submenus `explore` opens |
 | `explore.max` | 40 | Most menus one `explore` opens |

@@ -11,6 +11,7 @@ export const DEFAULTS = {
   'settle.deadlineMs': 5000,
   'actions.timeoutMs': 5000,
   'command.timeoutMs': 75000,
+  'read.timeoutMs': 20000,
   'wait.timeoutMs': 15000,
   'explore.depth': 2,
   'http.shellChars': 200,

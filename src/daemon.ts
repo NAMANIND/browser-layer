@@ -124,6 +124,9 @@ export type Command = {
   page?: number; files?: string[]; dir?: string; gone?: boolean; keys?: boolean; to?: string; full?: boolean; version?: string
 } & Query
 
+// Commands that only read the current page, for the shorter time limit.
+const READS = new Set(['read', 'map', 'find', 'get', 'screenshot', 'net', 'tabs', 'cookies', 'storage'])
+
 // Tab ids are unique across the daemon; each session (one agent, one task) has its own current tab.
 const tabs = new Map<number, Tab>()
 const current = new Map<string, number>()
@@ -991,9 +994,11 @@ async function main() {
           c.session ||= 'default'
           await pullCookies()
           // A page whose renderer stopped answering (a script that never returns) would hold every later
-          // command behind it; the command fails instead, and other tabs carry on.
+          // command behind it; the command fails instead, and other tabs carry on. Reading the page takes
+          // seconds at most, so a read gives up sooner than a command that loads a page.
+          const limit = policy[READS.has(c.cmd) ? 'read.timeoutMs' : 'command.timeoutMs']
           const text = await Promise.race([run(c), new Promise<never>((_, fail) => setTimeout(() => fail(new Error(
-            `the page did not answer in ${policy['command.timeoutMs'] / 1000} s; it may be stuck: browser-layer close it and open it again`)), policy['command.timeoutMs']))])
+            `the page did not answer in ${limit / 1000} s; it may be stuck: browser-layer close it and open it again`)), limit))])
           await syncCookies().catch(() => {})
           res.end(JSON.stringify({ ok: true, text }))
         } catch (err) {
