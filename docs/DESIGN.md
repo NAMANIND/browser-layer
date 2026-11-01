@@ -98,9 +98,12 @@ Each fact comes from the browser source that is authoritative for it:
 - **What things are:** the accessibility tree (CDP `Accessibility`) — roles, names (Accessible Name
   Computation), values and states, as the browser maps ARIA and HTML. We never reimplement those specs.
 - **Identity:** the browser's `backendNodeId`. The agent sees small numbers (`[12]`); the daemon maps
-  each to a node id per tab, numbers them from one counter shared by every tab (so a ref from another
-  tab or an old page misses, never hits the wrong element), and drops the map when the document changes.
-  Nothing is written into the page.
+  each to a node id per tab and numbers them from one counter shared by every tab, so a ref from another
+  tab misses. Within a tab a ref names the element as a user sees it, not one node: when the page
+  re-renders it or the next page has it again (same role, name and place, the only one so on both
+  readings), it keeps its number, so `click 31` on "Next" works page after page. An element that is not
+  unique gets a new number, so an old ref misses rather than hits something else. Nothing is written
+  into the page.
 
 The accessibility tree alone is not enough: it omits the text of `aria-hidden` content, and sites put
 visible facts there (Google Flights' times, airports and prices).

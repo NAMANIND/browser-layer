@@ -36,10 +36,13 @@ export type Node = {
 
 // Refs are small numbers the agent types. Each maps to the browser's own node id within a frame scope
 // ('' for the page and its same-process frames, the frame id for a frame with its own engine session).
-// Numbers come from one counter shared by every tab and are never reused, so a ref from an old page or
-// another tab can only miss, never hit the wrong element.
-export type Refs = { byNode: Map<string, number>; byRef: Map<number, { scope: string; id: number }>; counter: { next: number } }
-export const newRefs = (counter = { next: 1 }): Refs => ({ byNode: new Map(), byRef: new Map(), counter })
+// Numbers come from one counter shared by every tab, so a ref from another tab can only miss. Within a
+// tab an element keeps its ref while it stays the same element to a user: re-rendered, or on the next
+// page, an element with the same role, name and place, the only one so on both readings, gets its old
+// number back (byIdentity). Anything else gets a new number, so an old ref misses rather than hits
+// something else.
+export type Refs = { byNode: Map<string, number>; byRef: Map<number, { scope: string; id: number }>; byIdentity: Map<string, number>; counter: { next: number } }
+export const newRefs = (counter = { next: 1 }): Refs => ({ byNode: new Map(), byRef: new Map(), byIdentity: new Map(), counter })
 
 // ARIA widget roles: the things a user operates. Everything else is content.
 const WIDGETS = new Set(['button', 'checkbox', 'combobox', 'link', 'listbox', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'radio', 'searchbox', 'slider', 'spinbutton', 'switch', 'tab', 'textbox', 'treeitem'])
@@ -217,9 +220,20 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     }
   }
 
-  const refFor = (id: number) => {
-    let ref = refs.byNode.get(`${scope}:${id}`)
-    if (!ref) { ref = refs.counter.next++; refs.byNode.set(`${scope}:${id}`, ref); refs.byRef.set(ref, { scope, id }) }
+  // identity: role, name and place of the element; seen holds this reading's, 0 when not unique.
+  const taken = new Set<number>(), seen = new Map<string, number>(), moved = new Map<string, number>()
+  const refFor = (id: number, identity?: string) => {
+    const node = `${scope}:${id}`, same = identity && refs.byIdentity.get(identity)
+    let ref = refs.byNode.get(node)
+    if (!ref && same && !taken.has(same)) {
+      const old = refs.byRef.get(same)
+      if (old) refs.byNode.delete(`${old.scope}:${old.id}`)
+      ref = same
+      moved.set(identity, same)
+    }
+    if (!ref) ref = refs.counter.next++
+    refs.byNode.set(node, ref); refs.byRef.set(ref, { scope, id }); taken.add(ref)
+    if (identity) seen.set(identity, seen.has(identity) ? 0 : ref)
     return ref
   }
   const hasRef = (nodes: Node[]): boolean => nodes.some(n => n.ref || (n.children && hasRef(n.children)))
@@ -252,6 +266,7 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     const cls = attr(i, 'class')?.trim()
     // Segments are split by a control character and classes by spaces: neither can occur in a class name.
     const key = ROWS.has(role) ? '' : `${path}${SEGMENT}${str(nodeName[i]).toLowerCase()}${cls ? ` ${cls.split(/\s+/).join(' ')}` : ''}`
+    const as = (r: string, name = '') => [scope, r, name, key].join(SEGMENT)
     const inner = marked || COLLECTIONS.has(role)
     // An iframe's content is its frame's document: in this snapshot, or read through its own session.
     const frame = d.contentDoc.get(i)
@@ -261,7 +276,7 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     const children = perKid.flat()
     const canvas = drawn.get(backendNodeId[i]) as { lines: string[]; runs: [string, number, number][] } | undefined
     // A canvas with drawn text is content the map points to; it gets a ref so the agent can read it.
-    if (canvas?.lines?.length) return [{ ref: refFor(backendNodeId[i]), role: 'canvas', block: true, drawn: canvas.runs, children: canvas.lines.map(t => ({ block: true, children: [{ text: String(t) }] })) }]
+    if (canvas?.lines?.length) return [{ ref: refFor(backendNodeId[i], as('canvas')), role: 'canvas', block: true, drawn: canvas.runs, children: canvas.lines.map(t => ({ block: true, children: [{ text: String(t) }] })) }]
     // Generated content (::before, ::after, ::marker) is a pseudo element carrying its own layout text,
     // and a field of its own: a bullet or a rank is not part of the text beside it.
     if (str(nodeName[i]).startsWith('::')) return l === undefined || hidden ? [] : [{ key, children: [{ text: str(doc.layout.text[l]) }] }]
@@ -273,7 +288,7 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
       const value = a!.value?.value
       const name = squash(String(a!.name?.value ?? ''))
       return [{
-        ref: refFor(backendNodeId[i]), role, name, nameShown: content(textOf(children)).includes(content(name)), states, url, block, key,
+        ref: refFor(backendNodeId[i], as(role, name)), role, name, nameShown: content(textOf(children)).includes(content(name)), states, url, block, key,
         reveals: revealsOf(d, i, limits.revealItems), popup,
         value: value === undefined || value === '' ? undefined : String(value),
         children: hasRef(children) ? children : picturesIn(children).length ? picturesIn(children) : undefined,
@@ -281,9 +296,12 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     }
     if (role === 'heading') return [{ role, level: statesOf(a!).level, block: true, children }]
     // Landmarks get refs so the agent can zoom into a region.
-    if (LANDMARKS.has(role)) return [{ ref: refFor(backendNodeId[i]), role, name: squash(String(a!.name?.value ?? '')), block: true, children }]
+    if (LANDMARKS.has(role)) {
+      const name = squash(String(a!.name?.value ?? ''))
+      return [{ ref: refFor(backendNodeId[i], as(role, name)), role, name, block: true, children }]
+    }
     // Collections get refs so the agent can ask for their records.
-    if (COLLECTIONS.has(role)) return [{ ref: refFor(backendNodeId[i]), role, block: true, children }]
+    if (COLLECTIONS.has(role)) return [{ ref: refFor(backendNodeId[i], as(role)), role, block: true, children }]
     if (ROWS.has(role)) return [{ row: true, block: true, children }]
     if (CELLS.has(role)) return [{ cell: true, header: role === 'columnheader', block: true, key, children }]
     // An element made clickable by a script, with no role and no controls inside: the page never says it is
@@ -291,13 +309,13 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     const plain = !role || role === 'generic' || role === 'none' || role === 'image' || role === 'StaticText'
     if (plain && !quiet && l !== undefined && !hidden && (clicked.has(backendNodeId[i]) || CLICK_ATTRS.some(h => attr(i, h) !== undefined)) && !hasRef(children)) {
       const name = squash(textOf(children)) || squash(attr(i, 'aria-label') ?? attr(i, 'title') ?? '')
-      return [{ ref: refFor(backendNodeId[i]), role: 'clickable', name, nameShown: true, states: hovered.has(backendNodeId[i]) ? ['reacts to hover'] : [], block, key, children: [] }]
+      return [{ ref: refFor(backendNodeId[i], as('clickable', name)), role: 'clickable', name, nameShown: true, states: hovered.has(backendNodeId[i]) ? ['reacts to hover'] : [], block, key, children: [] }]
     }
     // A picture is not read out (rule 5), but its address is data that records carry. A data: URL is the
     // picture itself inline, not an address.
     const source = d.sourceOf.get(i)
     if (source && /^https?:/.test(source) && l !== undefined && !hidden) return [{ role: 'image', url: source, key }]
-    if (!marked && (!role || role === 'generic' || role === 'none') && block && markRecords(d, i, perKid)) return [{ ref: refFor(backendNodeId[i]), role: 'list', block: true, key, children }]
+    if (!marked && (!role || role === 'generic' || role === 'none') && block && markRecords(d, i, perKid)) return [{ ref: refFor(backendNodeId[i], as('list')), role: 'list', block: true, key, children }]
     return block ? [{ block: true, key, children }] : children
   }
 
@@ -337,6 +355,18 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
   // WAI-ARIA: while a modal dialog is open, content outside it is not available. The view is the dialog.
   const modal = ax.find(n => !n.ignored && n.backendDOMNodeId && n.properties?.some(p => p.name === 'modal' && p.value.value === true))
   const at = modal ? docs[0].backendNodeId.indexOf(modal.backendDOMNodeId!) : -1
-  if (at >= 0) return { block: true, children: [{ ref: refFor(modal!.backendDOMNodeId!), role: 'dialog', name: squash(String(modal!.name?.value ?? '')), block: true, children: walk(docs[0], at, false, false) }] }
-  return { block: true, children: walk(docs[0], 0, false, false) }
+  const tree = at >= 0
+    ? { block: true, children: [{ ref: refFor(modal!.backendDOMNodeId!), role: 'dialog', name: squash(String(modal!.name?.value ?? '')), block: true, children: walk(docs[0], at, false, false) }] }
+    : { block: true, children: walk(docs[0], 0, false, false) }
+  // An old number moved to an element that turned out not to be unique here goes back to a new number.
+  const renumber = new Map<number, number>()
+  for (const [identity, ref] of seen) {
+    if (ref) { refs.byIdentity.set(identity, ref); continue }
+    refs.byIdentity.delete(identity)
+    const was = moved.get(identity)
+    if (was) { const at = refs.byRef.get(was)!; refs.byRef.delete(was); const ref = refs.counter.next++; refs.byRef.set(ref, at); refs.byNode.set(`${at.scope}:${at.id}`, ref); renumber.set(was, ref) }
+  }
+  const fix = (n: Node) => { if (n.ref && renumber.has(n.ref)) n.ref = renumber.get(n.ref); n.children?.forEach(fix) }
+  if (renumber.size) fix(tree)
+  return tree
 }

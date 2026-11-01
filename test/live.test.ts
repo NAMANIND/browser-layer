@@ -129,7 +129,9 @@ const server = createServer((req, res) => {
   // A page to read twice: a counter that changes one line, among lines that stay.
   if (req.url === '/counter') return page('counter', `<h1>Counter</h1>${'<p>A line that stays the same on every read of this page.</p>'.repeat(20)}<p id="c">count 0</p><button onclick="c.textContent = 'count ' + (+c.textContent.split(' ')[1] + 1)">Add</button>`)
   // A control the page replaces with a new element, as apps re-render a list.
-  if (req.url === '/rerender') return page('rerender', `<button id="t">Target</button><button onclick="t.replaceWith(Object.assign(document.createElement('button'), { id: 't', textContent: 'Target' }))">Swap</button>`)
+  if (req.url === '/rerender') return page('rerender', `<p id="s">not yet</p><button id="t" onclick="s.textContent = 'hit'">Target</button><button onclick="t.replaceWith(t.cloneNode(true))">Swap</button>`)
+  const results = req.url?.match(/^\/results\/(\d)$/)
+  if (results) return page(`results ${results[1]}`, `<main><p>Page ${results[1]}</p>${'<button>Add to cart</button>'.repeat(+results[1])}</main><nav aria-label="Pagination"><a href="/results/${+results[1] + 1}">Next</a></nav>`)
   // A page laid out as three same-looking columns, each holding a region (a web app's shell): layout, not records.
   if (req.url === '/shell') return page('shell', ['<nav aria-label="Folders"><a href="/in">Inbox</a><a href="/sent">Sent</a></nav>',
     '<header><h2>Mail</h2><input aria-label="Search mail"></header>', '<main><h2>Hello</h2><p>The message.</p></main>']
@@ -703,11 +705,20 @@ test('tab on a page already open switches to its tab; tabs lists them by last us
   assert.match(list[1], /^  2 .*\/products .* used \d+ s ago$/)
 })
 
-test('a ref whose element the page replaced says so plainly', async () => {
-  const page = await run('tab', `${base}/rerender`)
-  const target = ref(page.out, /button "Target"/)
+test('an element keeps its ref when the page re-renders it', async () => {
+  const target = ref((await run('tab', `${base}/rerender`)).out, /button "Target"/)
   await run('click', 'Swap')
-  assert.match((await run('click', target)).out, new RegExp(`\\[${target}\\] is not on the page any more \\(it changed\\) — run: browser-layer map`))
+  await run('click', target)
+  assert.match((await run('read')).out, /hit/)
+})
+
+test('the same element on the next page keeps its ref; one that is no longer unique does not', async () => {
+  const first = (await run('tab', `${base}/results/1`)).out
+  const next = ref(first, /link "Next"/), add = ref(first, /button "Add to cart"/)
+  const second = (await run('click', next)).out
+  assert.match(second, /results\/2/)
+  assert.equal(ref(second, /link "Next"/), next)
+  assert.match((await run('click', add)).out, new RegExp(`\\[${add}\\] is not on the page`))
 })
 
 test('columns that hold parts of the page are layout, not records; cards that hold a form are records', async () => {
