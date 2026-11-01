@@ -109,6 +109,10 @@ type Req = { id: number; method: string; url: string; status: number; type: stri
 type Frame = { cdp: CDPSession; owner: { scope: string; id: number } }
 type Tab = {
   id: number; session: string; page: Page; cdp: CDPSession; refs: Refs; doc: number; shown: Map<string, { doc: number; text: string }>
+  // read: the whole page as the agent last read it, so reading it again answers with what changed.
+  read?: { doc: number; text: string }
+  // used: when a command last acted on this tab; `tabs` lists by it.
+  used: number
   pending: Map<Request, number>; standing: Set<string>; net: Req[]; netId: number; frames: Map<string, Frame>; dialog?: Dialog; opened: number[]
   downloads: { file: string; size: number; url: string }[]; saving: Promise<void>[]; status?: number
 }
@@ -278,9 +282,26 @@ async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<st
   return `${head}\n\n${pages[page - 1]}${more}${cut}`
 }
 
+// Reading the same page again answers with what changed since the agent last read it: the rest is already
+// in its context. Nothing changed is one line; a page that mostly changed, or a new one, reads whole. Only
+// a read that fit one answer is remembered: of a longer page the agent has seen just the first part.
+async function reread(tab: Tab, full: boolean): Promise<string> {
+  const text = await textOf(tab)
+  const before = tab.read?.doc === tab.doc && !full ? tab.read.text : undefined
+  tab.read = text.length <= policy['render.pageChars'] ? { doc: tab.doc, text } : undefined
+  if (before === text) return `${await header(tab)}  — no change since your last read (read --full shows it again)`
+  if (before !== undefined) {
+    const { removed, added } = diffLines(before.split('\n'), text.split('\n'))
+    const lines = [...removed.map(l => `- ${l}`), ...added.map(l => `+ ${l}`)].join('\n')
+    if (lines.length < text.length / 2) return `${await header(tab)}  — ${removed.length} line${removed.length === 1 ? '' : 's'} gone, ${added.length} new since your last read (read --full shows it all)\n\n${lines}`
+  }
+  return view(tab, 1, text)
+}
+
 function need(session: string): Tab {
   const tab = tabs.get(current.get(session) ?? 0)
   if (!tab) throw new Error(`no live tab in session "${session}" — run: browser-layer tab <url>`)
+  tab.used = Date.now()
   return tab
 }
 
@@ -288,8 +309,12 @@ function own(session: string, id: number): Tab {
   const tab = tabs.get(id)
   if (!tab) throw new Error(`no tab ${id}`)
   if (tab.session !== session) throw new Error(`tab ${id} belongs to session "${tab.session}", not "${session}"`)
+  tab.used = Date.now()
   return tab
 }
+
+const ago = (t: number) => { const s = Math.round((Date.now() - t) / 1000); return s < 120 ? `${s} s ago` : s < 7200 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago` }
+const pageOf = (url: string) => url.split('#')[0]
 
 // After an action the agent already holds the page, so it gets the lines that changed: the complete
 // answer to what the action did. A new document is answered with its map, as opening one is.
@@ -416,12 +441,15 @@ function withUrl(url: string) {
 }
 
 // Every page the agent can use, whether it opened it or the site did (a pop-up), is set up here.
+// One ref counter for every tab: a ref names one element in the whole browser (reader Refs).
+const refCounter = { next: 1 }
+
 async function setupTab(session: string, page: Page): Promise<Tab> {
   const cdp = await ctx.newCDPSession(page)
   await cdp.send('Accessibility.enable')
   await cdp.send('Animation.enable')
   await cdp.send('Animation.setPlaybackRate', { playbackRate: MOTION_RATE })
-  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(), doc: 0, shown: new Map(), pending: new Map(), standing: new Set(), net: [], netId: 0, frames: new Map(), opened: [], downloads: [], saving: [] }
+  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(refCounter), used: Date.now(), doc: 0, shown: new Map(), pending: new Map(), standing: new Set(), net: [], netId: 0, frames: new Map(), opened: [], downloads: [], saving: [] }
   // A new document can reuse node ids, so old refs are dropped; numbering continues, never reused.
   // Only a new document invalidates node ids. pushState and hash changes (navigatedWithinDocument)
   // keep the same nodes, so refs and the agent's view of the page stay valid.
@@ -548,6 +576,14 @@ async function run(c: Command): Promise<string> {
   }
   switch (c.cmd) {
     case 'tab': {
+      // A page already open in this session is switched to, as a browser's "switch to tab" does: no second
+      // copy to load and keep track of.
+      const open = [...tabs.values()].find(t => t.session === c.session && pageOf(t.page.url()) === pageOf(new URL(withUrl(c.url ?? 'about:blank')).href))
+      if (open) {
+        open.used = Date.now()
+        current.set(c.session, open.id)
+        return mapView(open, undefined, '', 'already open here, so this is that tab (reload loads it again)')
+      }
       const tab = await newTab(c.session, c.url ?? 'about:blank')
       await settle(tab)
       return mapView(tab)
@@ -571,10 +607,11 @@ async function run(c: Command): Promise<string> {
       return mapView(tab)
     }
     case 'tabs': {
-      const mine = [...tabs.values()].filter(t => t.session === c.session)
+      // The session's activity map: its tabs, most recently used first.
+      const mine = [...tabs.values()].filter(t => t.session === c.session).sort((a, b) => b.used - a.used)
       if (!mine.length) return `no live tabs in session "${c.session}"`
       return (await Promise.all(mine.map(async t =>
-        `${t.id === current.get(c.session) ? '*' : ' '} ${t.id}  ${t.page.url()}  "${await t.page.title().catch(() => '')}"`))).join('\n')
+        `${t.id === current.get(c.session) ? '*' : ' '} ${t.id}  ${t.page.url()}  "${await t.page.title().catch(() => '')}"  used ${ago(t.used)}`))).join('\n')
     }
     case 'use': {
       current.set(c.session, own(c.session, c.id!).id)
@@ -592,7 +629,8 @@ async function run(c: Command): Promise<string> {
     }
     case 'read': {
       const ref = c.ref === undefined ? undefined : Number(c.ref)
-      if (!c.out) return view(need(c.session), c.page ?? 1, undefined, ref)
+      if (!c.out && (ref !== undefined || c.page)) return view(need(c.session), c.page ?? 1, undefined, ref)
+      if (!c.out) return reread(need(c.session), !!c.full)
       const text = await textOf(need(c.session), ref)
       return saved(c.out, text, `${text.split('\n').length} lines, ${text.length} chars`)
     }

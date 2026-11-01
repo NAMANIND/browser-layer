@@ -124,6 +124,8 @@ const server = createServer((req, res) => {
   if (req.url === '/api') return page('api', `<p id="o">loading</p><script>
     fetch('/api/items', { headers: { authorization: 'Bearer secret-token' } }).then(r => r.json()).then(j => o.textContent = j.items.join(', '))
     fetch('/collect?event=view'); navigator.sendBeacon('/beacon-in', 'x')</script>`)
+  // A page to read twice: a counter that changes one line, among lines that stay.
+  if (req.url === '/counter') return page('counter', `<h1>Counter</h1>${'<p>A line that stays the same on every read of this page.</p>'.repeat(20)}<p id="c">count 0</p><button onclick="c.textContent = 'count ' + (+c.textContent.split(' ')[1] + 1)">Add</button>`)
   // A control the page replaces with a new element, as apps re-render a list.
   if (req.url === '/rerender') return page('rerender', `<button id="t">Target</button><button onclick="t.replaceWith(Object.assign(document.createElement('button'), { id: 't', textContent: 'Target' }))">Swap</button>`)
   // A page laid out as three same-looking columns, each holding a region (a web app's shell): layout, not records.
@@ -509,7 +511,7 @@ test('repeated cards without list markup are records; repeated paragraphs are no
 test('reading never changes the page', async () => {
   await run('tab', `${base}/watch`)
   await run('read')
-  const r = await run('read')
+  const r = await run('read', '--full')
   assert.match(r.out, /mutations: 0/)
   assert.match(r.out, /\[\d+\] link "a link"/)
 })
@@ -521,7 +523,7 @@ test('actions answer with what changed; a new page answers with its map', async 
   assert.match(more.out, /lines gone, \d+ new, settled: idle in \d+ ms \(full page: browser-layer read\)/)
   assert.match(more.out, /^\+ loaded more$/m)
   assert.doesNotMatch(more.out, /story 5/)
-  assert.match((await run('read')).out, /story 5[\s\S]*loaded more/)
+  assert.match((await run('read', '--full')).out, /story 5[\s\S]*loaded more/)
   const next = await run('click', ref(full.out, /link "next page"/))
   assert.match(next.out, /^tab \d+ .*\/page\/next/)
   assert.match(next.out, /read <ref> opens a region/)
@@ -657,6 +659,8 @@ test('a result bigger than one answer goes whole to a file with --out; find page
   const dir = mkdtempSync(join(tmpdir(), 'out-'))
   const read = await run('read')
   assert.match(read.out, /… more below: browser-layer read --page 2, or --out <file> for all \d+ pages/)
+  // Of a page longer than one answer the agent saw only the first part, so reading it again is never a diff.
+  assert.match((await run('read')).out, /\(page 1 of \d+\)/)
   assert.match((await run('read', '--out', join(dir, 'page.txt'))).out, /^saved .*page\.txt: 4\d\d lines, \d+ chars$/m)
   assert.equal(readFileSync(join(dir, 'page.txt'), 'utf8').split('\n').filter(l => l.includes('A repository description')).length, 400)
   const find = (await run('find', 'repository description', '--page', '2')).out
@@ -664,6 +668,37 @@ test('a result bigger than one answer goes whole to a file with --out; find page
   assert.match(find, /… more: browser-layer find repository description --page 3, or --out <file> for all 400/)
   assert.match((await run('find', 'repository description', '--out', join(dir, 'hits.txt'))).out, /saved .*hits\.txt: 400 lines/)
   assert.equal(readFileSync(join(dir, 'hits.txt'), 'utf8').trim().split('\n').length, 400)
+})
+
+test('reading a page again answers with what changed since the last read; --full gives it all', async () => {
+  await run('tab', `${base}/counter`)
+  assert.match((await run('read')).out, /count 0/)
+  assert.match((await run('read')).out, /— no change since your last read \(read --full shows it again\)/)
+  await run('click', 'Add')
+  const again = (await run('read')).out
+  assert.match(again, /— \d+ lines? gone, \d+ new since your last read \(read --full shows it all\)/)
+  assert.match(again, /^- count 0$/m)
+  assert.match(again, /^\+ count 1$/m)
+  assert.doesNotMatch(again, /stays the same/)
+  assert.match((await run('read', '--full')).out, /stays the same[\s\S]*count 1/)
+})
+
+test('a ref from another tab never acts on the current one: refs are unique across the browser', async () => {
+  const add = ref((await run('tab', `${base}/counter`)).out, /button "Add"/)
+  await run('tab', `${base}/products`)
+  assert.match((await run('click', add)).out, new RegExp(`\\[${add}\\] is not on the page`))
+})
+
+test('tab on a page already open switches to its tab; tabs lists them by last use', async () => {
+  await run('stop')
+  await run('tab', `${base}/counter`)
+  await run('tab', `${base}/products`)
+  const again = (await run('tab', `${base}/counter`)).out
+  assert.match(again, /^tab 1 .*\/counter .* — already open here, so this is that tab \(reload loads it again\)/m)
+  const list = (await run('tabs')).out.trim().split('\n')
+  assert.equal(list.length, 2)
+  assert.match(list[0], /^\* 1 .*\/counter .* used \d+ s ago$/)
+  assert.match(list[1], /^  2 .*\/products .* used \d+ s ago$/)
 })
 
 test('a ref whose element the page replaced says so plainly', async () => {

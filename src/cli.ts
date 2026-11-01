@@ -24,7 +24,8 @@ Live tabs (a headless browser kept alive in the background; runs the page's JS):
   browser-layer tab <url>               open a live tab (it becomes current); answers with the page map
   browser-layer go <url> | back         navigate the current tab
   browser-layer map                     the page as regions: fields, actions, lists, links, with refs
-  browser-layer read [ref] [--page N]   the whole page, or one region / control by ref (paged)
+  browser-layer read [ref] [--page N]   the whole page, or one region / control by ref (paged); read
+                                        again, the page answers with what changed (--full: all of it)
   --out <file>                          on read, find and get: the whole result to a file, not the answer
   browser-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]
                                         a list or table from the map as records (TSV);
@@ -294,6 +295,7 @@ async function main() {
     if (cmd === 'allow') [c.text, c.dir] = [target, rest[0]]
     if (cmd === 'explore' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: browser-layer explore [ref]')
     if (cmd === 'menu') c.text = [target, ...rest].filter(Boolean).join(' ')
+    if (cmd === 'read') c.full = argv.includes('--full')
     if (cmd === 'read' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: browser-layer read [ref] [--page N]')
     if (cmd === 'get') c.ref = target && /^\d+$/.test(target) ? target : fail('usage: browser-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]')
     if (cmd === 'type' || cmd === 'pick') c.text = rest.join(' ')

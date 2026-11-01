@@ -36,9 +36,10 @@ export type Node = {
 
 // Refs are small numbers the agent types. Each maps to the browser's own node id within a frame scope
 // ('' for the page and its same-process frames, the frame id for a frame with its own engine session).
-// Numbers are never reused within a tab, so a ref from an old page can only miss, never hit the wrong element.
-export type Refs = { byNode: Map<string, number>; byRef: Map<number, { scope: string; id: number }>; next: number }
-export const newRefs = (): Refs => ({ byNode: new Map(), byRef: new Map(), next: 1 })
+// Numbers come from one counter shared by every tab and are never reused, so a ref from an old page or
+// another tab can only miss, never hit the wrong element.
+export type Refs = { byNode: Map<string, number>; byRef: Map<number, { scope: string; id: number }>; counter: { next: number } }
+export const newRefs = (counter = { next: 1 }): Refs => ({ byNode: new Map(), byRef: new Map(), counter })
 
 // ARIA widget roles: the things a user operates. Everything else is content.
 const WIDGETS = new Set(['button', 'checkbox', 'combobox', 'link', 'listbox', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'radio', 'searchbox', 'slider', 'spinbutton', 'switch', 'tab', 'textbox', 'treeitem'])
@@ -218,7 +219,7 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
 
   const refFor = (id: number) => {
     let ref = refs.byNode.get(`${scope}:${id}`)
-    if (!ref) { ref = refs.next++; refs.byNode.set(`${scope}:${id}`, ref); refs.byRef.set(ref, { scope, id }) }
+    if (!ref) { ref = refs.counter.next++; refs.byNode.set(`${scope}:${id}`, ref); refs.byRef.set(ref, { scope, id }) }
     return ref
   }
   const hasRef = (nodes: Node[]): boolean => nodes.some(n => n.ref || (n.children && hasRef(n.children)))

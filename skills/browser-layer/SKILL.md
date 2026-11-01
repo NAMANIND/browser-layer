@@ -20,130 +20,72 @@ A browser for agents. A page comes back as a short text map of its regions and c
 action answers with what changed, and lists and tables come back as records. Read the page as
 text; never ask for pixels to understand it.
 
-## Setup (once)
-
-```bash
-command -v browser-layer || npm install -g browser-layer   # needs Node.js 22+
-browser-layer browser                                      # which browser it drives
-```
-
-If it says no browser was found, run `browser-layer install` (Linux servers: `--with-deps`).
-`browser-layer help` lists every command for the installed version. Read it once per task.
+Install once with `npm install -g browser-layer` (Node.js 22+); `browser-layer install` gets a
+browser if none is found. `browser-layer help` lists every command.
 
 ## The loop
 
 1. `browser-layer tab <url>` opens a live tab and answers with the **map**: regions, fields,
-   actions, lists and links, each with a ref like `[15]`.
-2. Act on a ref, or on a control's name: `click 31`, `click "Next"`, `type 15 Mumbai --enter`,
+   actions, lists and links, each with a ref like `[15]`. Keep one tab open for each site the task uses
+   and switch between them with `use <id>`: each stays as you left it, nothing reloads (`tabs` lists
+   them). Move within a site with `go <url>`; `close` a tab you are done with.
+2. Act on a ref or a control's name: `click 31`, `click "Next"`, `type 15 Mumbai --enter`,
    `pick 22 "Economy"`, `check 40`.
-3. Every action answers with **what changed** (`- old line` / `+ new line`), a new page's map,
-   or the new records in a table. That answer is the new state. Do not re-read the page after it.
-4. Go deeper only where you need to: `read <ref>` for one region in full, `find <text>` for the
-   lines that mention something, `get <ref>` for a list or table as records.
-
-## Example
+3. Every action answers with **what changed**, a new page's map, or the new records in a table.
+   That answer is the new state; reading the page again answers with what changed since your last
+   read.
+4. Go deeper only where you need to: `read <ref>` for one region, `find <text>` for the lines that
+   mention something, `get <ref>` for a list or table as records (`--urls` adds their addresses).
 
 ```text
 $ browser-layer tab shop.example.com/orders
-tab 1  https://shop.example.com/orders  "Orders"
-
 [40] main
-  headings: Orders
   [52] table of 30: columns Order · Status · Total
   actions: [61] button "Next" · [62] button "Export CSV"
-
 $ browser-layer get 52 --sort c3 --desc --limit 2
-tab 1  https://shop.example.com/orders  "Orders"  — [52] table: 30 records, 3 columns (sorted by c3 descending, first 2)
-
 c1 Order	c2 Status	c3 Total
 ORD-17	Paid	₹9,450
 ORD-04	Refunded	₹8,200
-
-$ browser-layer click "Next"
-tab 1  https://shop.example.com/orders  "Orders"  — new records in [52] table, settled: idle in 412 ms
-…the next 30 orders, as records…
 ```
 
-## Habits that save steps
+## Habits
 
-| Do | Instead of |
-| --- | --- |
-| Chain known steps in one shell call: `type 7 550000 && type 8 20 && click 27` | One command per turn |
-| `get <ref> --sort c2 --desc --limit 5` on a `list of N` / `table of N` from the map; add `--urls` when you need each record's link and picture addresses | Reading the whole page, or `eval` with querySelector |
-| `find Python` when a menu or page is long | Scrolling through the full text |
-| Open a filtered URL directly when the task allows it (`/trending/python?since=weekly`) | Clicking through filters you could put in the URL |
-| `click "Next"` by name when the name is unique | `map` just to find one ref |
-| `wait "Market Cap"` when content loads late | Repeating `read` until it appears |
-| `net`, `net show <#>`, then `net save <#> <file>`, when the data comes from an API call | Reconstructing it from the rendered page |
-| `browser-layer open <url>` for a static page that needs no JavaScript | A live tab |
-
-## Getting all of it, and showing it is all
-
-- A list is complete only when you can show it ended: the site's own total (`412 results`) matches
-  what you collected, the last page has no Next, or `scroll` brings no new rows three times. Until
-  then say how many of how many, never "all" or "none".
-- Walk every page: `click "Next"` (or the page's own URL parameter, `?page=3`) until it ends, keeping
-  the same page size and sort. Open the detail page when the list does not show what you need.
-- The page's data usually comes from an API, with every field and often the total count. `net` lists
-  the calls, `net show <#>` previews one (request, response, the first part of the body), and
-  `net save <#> data.json` writes the whole answer to a file: read it with `jq` or a script, not by
-  printing it. For the next page or other filters, call the same API from the page, which sends the
-  site's own cookies: `browser-layer eval "await (await fetch('/api/search?page=2')).json()" > p2.json`.
-  A site's `robots.txt` and `sitemap.xml` list pages its menus do not.
-- A big result belongs in a file, not in your context: `get <ref> --out ads.tsv`, `find "ID:" --out ids.txt`
-  or `read --out page.txt` write it whole, then work on the file with `grep`, `jq` or a script. Read
-  pages (`--page 2`) only for what you need to look at. Save what you have collected as you go, so a
-  task that runs out of time still leaves a result.
-- After typing into a filter or search, check the answer: the results, their count or the URL should
-  change. A suggestion list needs a pick before the filter applies.
-- Keep to what the task asks for: its site, query, filters and dates; add none of your own. When the
-  site drops or changes one (a redirect to another view, a filter that does not stick), set the same
-  thing another way, through the page's own controls or the URL as the site itself writes it, and
-  check that it took.
-
-Refs stay valid on the same page; after a new page loads, use the refs from its map. A name that
-matches more than one control is an error that lists the refs: pick one.
+- Chain known steps in one call: `type 7 550000 >/dev/null && click 27`. Only the last answer
+  needs reading; a failure still shows.
+- Put filters in the URL when the site does (`?q=python&page=2`); `wait "<text>"` when content loads
+  late; `open <url>` for a static page that needs no JavaScript.
+- The data usually comes from an API: `net` lists the calls, `net show <#>` previews one,
+  `net save <#> data.json` writes it whole. More pages from the same API:
+  `eval "await (await fetch('/api/x?page=2')).json()" > p2.json` (the site's own cookies go along).
+- A big result goes to a file, not your context: `get <ref> --out rows.tsv`, `find <text> --out
+  hits.txt`, `read --out page.txt`; then `grep`, `jq` or a script.
+- A list is complete only when you can show it ended: the site's total matches, the last page has
+  no Next, or `scroll` brings nothing new three times. Until then say how many of how many.
+- After a filter or search, check that the results, their count or the URL changed. When the site
+  drops a setting you were given, set it another way (its own controls, the URL as it writes it).
+  Add no filters of your own.
+- **Deliver as you go.** Write the deliverable itself early and update it with each finding, so
+  stopping at any moment still leaves your best result. Mark what you have not checked as
+  unchecked; never fill it in.
+- **Know when to stop.** When two different ways to the same thing have failed, report it as
+  unavailable and move on; do not repeat the same kind of attempt.
 
 ## Answers you will see
 
-- `— 2 lines gone, 5 new` — the action worked; those lines are what changed.
-- `— new records in [12] table` — the next page of a table; the records follow.
-- `+ [1022] menu of 847: …` — a long list, shown as one line. `find <text>` or `read 1022` goes in.
-- `blocked: …` — the site refused this browser or shows a CAPTCHA. Never solve or evade the check,
-  but do not give up on the first wall either: a block often covers one page, not the site. Try the
-  normal ways in, in turn: the same page after a short wait; the site's home page, then its own search
-  or menus; another URL for the same content (a category page, another region of the site); the
-  site's API (`net`) or `browser-layer open <url>`; its sitemap; an archived copy; another source with
-  the same facts. When a search engine is walled, go to the site directly. If it stays blocked, tell
-  the person: they can run `browser-layer show`, clear it in that window, then `browser-layer hide`.
-  Report what you could not reach as unavailable, never as empty.
-- `covered by <div> "…"` — a banner or pop-up is over the control. Close it with its own button
-  (Accept, Close, ×) or `press Escape`, then act again.
-- `the page did not answer in 75 s` — the page is stuck. `close` it and open it again; other tabs
-  keep working.
+- `blocked: …` — the site refused this browser or shows a CAPTCHA. Never solve or evade it. A block
+  often covers one page: try the site's home page or search, another URL for the same content, its
+  API or sitemap, or another source. If it stays blocked, a person can clear it: `browser-layer show`,
+  then `hide`. Report what you could not reach as unavailable, never as empty.
+- `covered by <div> "…"` — a pop-up is over the control: close it with its own button or
+  `press Escape`.
 - A page whose content is pictures (a scanned book, a map, a video) or that asks you to turn off an
-  ad blocker: `browser-layer allow images`, then `reload`.
-- `settled: deadline 5000 ms (the page kept changing)` — the page is still busy; `wait <text>`
-  for what you need.
+  ad blocker: `allow images`, then `reload`.
 
 ## When a person is involved
 
-- **Sign-in:** never type passwords. Ask the person to run `browser-layer login <url>`, sign in
-  in the window that opens, and close it. The agent's browser is signed in from then on.
-- **Watching:** `browser-layer show` makes the browser a visible window; `hide` makes it headless.
-- **Pictures:** `browser-layer screenshot [ref] [file] [--full]` saves a PNG of the tab, one
-  region (`screenshot 160 list.png`), or the whole page, when a person asks for one. Images and
-  fonts are not loaded unless `allow images` was given for the site, so they are missing from it.
-- **Irreversible steps** (submit an application, pay, send, delete): stop and confirm with the
-  person first unless they already said to do it.
+- **Sign-in:** never type passwords. The person runs `browser-layer login <url>` and signs in there.
+- **Irreversible steps** (submit, pay, send, delete): confirm first unless they already said to.
+- `screenshot [ref] [file] [--full]` saves a picture when a person wants one.
+- Several agents at once: give each its own `--session <name>`.
 
-## Several agents at once
-
-Give each its own session so their tabs do not collide: `--session <name>` or
-`BROWSER_LAYER_SESSION=<name>`. Cookies are shared between sessions; `--profile <name>` is a
-separate browser with its own cookies.
-
-## Done
-
-`browser-layer stop` closes the browser when the task is over. It also stops by itself after 30
-idle minutes.
+`browser-layer stop` closes the browser when the task is over.

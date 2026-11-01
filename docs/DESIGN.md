@@ -46,7 +46,7 @@ headings and fields, walk a list item by item, and act. It rests on standards ev
 |---|---|---|
 | **Map** | The page as regions, each with its fields (and values), options, actions, headings, collections (record count and first item, or a table's columns) and links; named when few, counted when many. Opening a page answers with the map. | `tab`, `go`, `map` |
 | **Zoom** | One region, collection or control in full text. | `read <ref>` |
-| **Whole page** | Everything, paged. | `read` |
+| **Whole page** | Everything, paged. Read again, only what changed since the last read (`--full`: all of it). | `read` |
 | **Act** | Fill, pick, click by ref; the answer is what changed (§4.4). | `type`, `pick`, `click`, `press` |
 | **Data** | A list or table as records (TSV): sorted as numbers, limited, column-picked (§4.5). | `get <ref>` |
 
@@ -98,7 +98,8 @@ Each fact comes from the browser source that is authoritative for it:
 - **What things are:** the accessibility tree (CDP `Accessibility`) — roles, names (Accessible Name
   Computation), values and states, as the browser maps ARIA and HTML. We never reimplement those specs.
 - **Identity:** the browser's `backendNodeId`. The agent sees small numbers (`[12]`); the daemon maps
-  each to a node id per tab, never reuses a number, and drops the map when the document changes.
+  each to a node id per tab, numbers them from one counter shared by every tab (so a ref from another
+  tab or an old page misses, never hits the wrong element), and drops the map when the document changes.
   Nothing is written into the page.
 
 The accessibility tree alone is not enough: it omits the text of `aria-hidden` content, and sites put
@@ -251,7 +252,7 @@ always open: actions settle in 0.4–1.4 s instead of the 5 s deadline.
 
 | Capability | Commands |
 |---|---|
-| Navigation | `tab <url>`, `go <url>`, `back`, `forward`, `reload`, `tabs`, `use`, `close` |
+| Navigation | `tab <url>` (a page already open in the session switches to its tab), `go <url>`, `back`, `forward`, `reload`, `tabs` (by last use), `use`, `close` |
 | Reading | `map`, `read [ref] [--page N]`, `find <text>`, `get <ref>` (records), `wait [--gone] <text>` |
 | Menus | `explore [ref]`, `menu "A > B > C"` |
 | Pointer | `click`, `dblclick`, `rightclick`, `hover`, `drag <ref> <onto ref>` (pointer drags and HTML drag and drop) |
