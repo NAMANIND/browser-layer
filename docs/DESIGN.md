@@ -53,6 +53,13 @@ headings and fields, walk a list item by item, and act. It rests on standards ev
 The agent decides how deep to go. The tool never decides for it what matters; it makes every level cheap
 to reach.
 
+**Each thing is shown once.** Everything an answer gives stays in the agent's context and is paid for on
+every later step, so nothing is given twice. Reading a page again answers with what changed. A region the
+agent was already shown in this tab, exactly as it is now (a site's menus and footer on its next page),
+is one line in the map that answers a page load and in `read`: `[16] navigation — shown before,
+unchanged`. Its ref still works (refs stay with the element, §3), and `read <ref>`, `read --full` and
+`map` show it whole.
+
 ## 2. Evidence this design rests on
 
 From `bench/RESULTS.md` (five live sites, 31 Oct 2026):

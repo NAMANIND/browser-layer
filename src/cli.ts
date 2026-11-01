@@ -11,64 +11,32 @@ import { live, VERSION } from './client.js'
 import { findBrowser, PROFILE_FLAGS } from './browser.js'
 import type { Command } from './daemon.js'
 
-const HELP = `browser-layer — websites as text and verbs for agents.
+const HELP = `browser-layer — websites as text and verbs for agents. <ref> is a number from the map, or a control's name.
 
-Fast path (plain HTTP, no browser):
-  browser-layer open <url>              read a page
-  browser-layer open <ref>              follow link [ref] from the last page
-  browser-layer do <verb> k=v ...       run a verb from the last page
-  browser-layer verbs                   list verbs on the last page
-  --json                                structured output instead of text
+Plain HTTP, no browser:  open <url>|<ref> · verbs · do <verb> k=v ... · --json
+Live tabs (headless browser, runs the page's JS):
+  tab <url>                    open a tab (current; an open page is switched to); answers with the map
+  go <url> · back · forward · reload · tabs · use <id> · close [id] · stop
+  map                          regions, fields, actions, lists and links, with refs
+  read [ref] [--page N] [--full]   the page or one region; read again: what changed
+  find <text> [--page N]       lines that contain it
+  get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]   a list or table as records (TSV)
+  --out <file>                 on open, read, find, get: the whole result to a file
+  click · dblclick · rightclick · hover <ref>      check · uncheck <ref>      submit <ref>
+  type <ref> <text> [--enter] [--keys]   pick <ref> <option>   press <key>   drag <ref> <onto ref>
+  scroll [ref] [down|up|top|bottom]   upload <ref> <file...>   wait [--gone] <text>
+  dialog accept [text] | dismiss   explore [ref] (open menus, list them)   menu "A > B > C"
+  eval <js>                    run JavaScript in the page; the result as JSON
+  net [--all] · net show <#> · net save <#> <file>   the page's requests and their bodies
+  cookies [domain] · cookies clear [domain] · storage local|session [clear]
+  allow <perm>[,perm] [lat,lon]   grant to the current site (images loads pictures, off by default)
+  screenshot [ref] [file] [--full]   a PNG for a person
+Pop-ups open as tabs and become current; downloads are saved and reported.
 
-Live tabs (a headless browser kept alive in the background; runs the page's JS):
-  browser-layer tab <url>               open a live tab (it becomes current); answers with the page map
-  browser-layer go <url> | back         navigate the current tab
-  browser-layer map                     the page as regions: fields, actions, lists, links, with refs
-  browser-layer read [ref] [--page N]   the whole page, or one region / control by ref (paged); read
-                                        again, the page answers with what changed (--full: all of it)
-  --out <file>                          on open, read, find and get: the whole result to a file, not the answer
-  browser-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]
-                                        a list or table from the map as records (TSV);
-                                        --urls adds each record's link and picture addresses
-  browser-layer click <ref>             click control [ref]; any <ref> of an action may be its name: click "Next"
-  browser-layer type <ref> <text>       fill [ref]; add --enter to press Enter after
-  browser-layer pick <ref> <option>     choose an option in a select
-  browser-layer press <key>             press a key or combo (Enter, Escape, Control+A, Shift+Tab…)
-  browser-layer dblclick | rightclick | hover <ref>
-  browser-layer scroll [ref] [down|up|top|bottom]   wheel or jump; new rows come back as changes
-  browser-layer upload <ref> <file...>  a file input, or a button that opens a file chooser
-  browser-layer wait [--gone] <text>    until the text appears (or is gone)
-  browser-layer dialog accept [text] | dialog dismiss   answer an alert / confirm / prompt
-  browser-layer forward | reload
-  browser-layer eval <js>               run JavaScript in the page; prints the result as JSON
-  browser-layer screenshot [ref] [file] [--full]   save a PNG of the tab, or of one region, when a person wants one (read the page as text)
-  browser-layer allow <perm>[,perm] [lat,lon]   grant geolocation, notifications… to the current site;
-                                        images lets it load images, fonts and video (off by default)
-  browser-layer find <text> [--page N]  the lines of the page that contain it
-  browser-layer check | uncheck <ref>   set a checkbox (repeatable: only clicks if it must change)
-  browser-layer submit <ref>            submit the form a field is in, as its submit button would
-  browser-layer drag <ref> <onto ref>   pointer drag, and HTML drag and drop
-  browser-layer type <ref> <text> --keys    one key event per character, for fields that listen to keys
-  browser-layer cookies [domain] | cookies clear [domain]     names and expiry; values are never shown
-  browser-layer storage local|session [clear]                the current site's web storage
-  browser-layer explore [ref]           open every declared menu / pop-up, list what it holds, close it
-  browser-layer menu "A > B > C"        run a menu path by names (File > Download > CSV)
-  Pop-ups open as tabs in the same session and become current; downloads are saved and reported.
-  browser-layer net [--all]             requests the page made (the API under the UI); trackers hidden
-  browser-layer net show <#>            one request in full: headers (secrets redacted) and bodies
-  browser-layer net save <#> <file>     the whole response body of one request, to a file
-  browser-layer tabs | use <id> | close [id] | stop
-
-Watch: browser-layer show makes the current browser a visible window to watch (tabs reopen); it is
-headless again after hide, or once that window is closed. The agent's browser is never visible otherwise.
-Sign-in: browser-layer login <url> opens a normal browser window on the agent's profile; sign in, quit it,
-and the agent's browser is signed in from then on.
-Browser: the first of Chrome, Edge or Chromium installed (BROWSER_LAYER_BROWSER=<path> picks one);
-browser-layer install downloads Chromium when there is none. browser-layer browser says which is used.
-Version: browser-layer --version prints it; browser-layer update installs the latest from npm.
-Profiles: --profile <name> is a separate browser (own profile, cookies, daemon).
-Sessions: --session <name> (or BROWSER_LAYER_SESSION) gives each agent its own
-last page and live tabs. Default is "default". Cookies are shared.`
+show / hide: watch the browser in a window. login <url>: a person signs in; the agent stays signed in.
+--session <name> (BROWSER_LAYER_SESSION): an agent's own tabs, cookies shared. --profile <name>: a separate browser.
+BROWSER_LAYER_BROWSER=<path> picks the browser.
+install · browser · update · --version`
 
 const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'allow', 'explore', 'menu', 'check', 'uncheck', 'submit', 'drag', 'find', 'cookies', 'storage', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop', 'screenshot'])
 

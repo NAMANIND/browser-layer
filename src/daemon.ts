@@ -111,6 +111,9 @@ type Tab = {
   id: number; session: string; page: Page; cdp: CDPSession; refs: Refs; doc: number; shown: Map<string, { doc: number; text: string }>
   // read: the whole page as the agent last read it, so reading it again answers with what changed.
   read?: { doc: number; text: string }
+  // seen: each region's full text as last shown in a map (map) or in full (text), by ref, across the
+  // tab's pages: a site's menus and footer are shown once, not on every page (render Seen).
+  seen: { map: Map<number, string>; text: Map<number, string> }
   // used: when a command last acted on this tab; `tabs` lists by it.
   used: number
   pending: Map<Request, number>; standing: Set<string>; net: Req[]; netId: number; frames: Map<string, Frame>; dialog?: Dialog; opened: number[]
@@ -243,11 +246,15 @@ function blocked(tab: Tab, tree: Node): string {
   return `\nblocked: ${why}. Do not solve or evade the check. Try another normal way in first: the site's home page or its own search, a different page of the site, or this page again after a short wait. If it stays blocked, a person can clear it: browser-layer show, clear it in that window, then browser-layer hide\n`
 }
 
-// Opening a page answers with its map (DESIGN §1a); read and read <ref> go deeper.
-async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>, settled = '', note = ''): Promise<string> {
+// Opening a page answers with its map (DESIGN §1a); read and read <ref> go deeper. A map that answers a
+// page load shows regions already shown, unchanged, in one line; one the agent asks for (map, use, a
+// switch to an open tab) is whole, since that is when it wants every ref again.
+async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>, settled = '', note = '', whole = false): Promise<string> {
   const { tree, origin, text } = snap ?? await snapshot(tab)
   remember(tab, text)
-  const map = renderMap(tree, origin, caps(), policy['render.mapFew'])
+  const now = new Map<number, string>()
+  const map = renderMap(tree, origin, caps(), policy['render.mapFew'], { before: whole ? new Map() : tab.seen.map, now })
+  for (const [ref, whole] of now) tab.seen.map.set(ref, whole)
   return `${await header(tab)}${note ? `  — ${note}` : ''}${settled ? `  — settled: ${settled}` : ''}\n${blocked(tab, tree)}\n${map}\n\n(read <ref> opens a region · read gives the whole page)`
 }
 
@@ -286,7 +293,9 @@ async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<st
 // in its context. Nothing changed is one line; a page that mostly changed, or a new one, reads whole. Only
 // a read that fit one answer is remembered: of a longer page the agent has seen just the first part.
 async function reread(tab: Tab, full: boolean): Promise<string> {
-  const text = await textOf(tab)
+  const snap = await snapshot(tab)
+  remember(tab, snap.text)
+  const text = snap.text
   const before = tab.read?.doc === tab.doc && !full ? tab.read.text : undefined
   tab.read = text.length <= policy['render.pageChars'] ? { doc: tab.doc, text } : undefined
   if (before === text) return `${await header(tab)}  — no change since your last read (read --full shows it again)`
@@ -295,7 +304,13 @@ async function reread(tab: Tab, full: boolean): Promise<string> {
     const lines = [...removed.map(l => `- ${l}`), ...added.map(l => `+ ${l}`)].join('\n')
     if (lines.length < text.length / 2) return `${await header(tab)}  — ${removed.length} line${removed.length === 1 ? '' : 's'} gone, ${added.length} new since your last read (read --full shows it all)\n\n${lines}`
   }
-  return view(tab, 1, text)
+  // Regions already shown in full, unchanged, are one line each, when the rest fits one answer: a page
+  // that needs --page N reads whole, so its pages stay the same between calls.
+  const now = new Map<number, string>()
+  const short = renderText(snap.tree, snap.origin, caps(), { before: full ? new Map() : tab.seen.text, now })
+  if (short.length > policy['render.pageChars']) return view(tab, 1, text)
+  for (const [ref, whole] of now) { tab.seen.text.set(ref, whole); tab.seen.map.set(ref, whole) }
+  return view(tab, 1, short)
 }
 
 function need(session: string): Tab {
@@ -449,7 +464,7 @@ async function setupTab(session: string, page: Page): Promise<Tab> {
   await cdp.send('Accessibility.enable')
   await cdp.send('Animation.enable')
   await cdp.send('Animation.setPlaybackRate', { playbackRate: MOTION_RATE })
-  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(refCounter), used: Date.now(), doc: 0, shown: new Map(), pending: new Map(), standing: new Set(), net: [], netId: 0, frames: new Map(), opened: [], downloads: [], saving: [] }
+  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(refCounter), used: Date.now(), doc: 0, shown: new Map(), seen: { map: new Map(), text: new Map() }, pending: new Map(), standing: new Set(), net: [], netId: 0, frames: new Map(), opened: [], downloads: [], saving: [] }
   // A new document can reuse node ids, so old refs are dropped; numbering continues, never reused.
   // Only a new document invalidates node ids. pushState and hash changes (navigatedWithinDocument)
   // keep the same nodes, so refs and the agent's view of the page stay valid.
@@ -582,7 +597,7 @@ async function run(c: Command): Promise<string> {
       if (open) {
         open.used = Date.now()
         current.set(c.session, open.id)
-        return mapView(open, undefined, '', 'already open here, so this is that tab (reload loads it again)')
+        return mapView(open, undefined, '', 'already open here, so this is that tab (reload loads it again)', true)
       }
       const tab = await newTab(c.session, c.url ?? 'about:blank')
       await settle(tab)
@@ -615,10 +630,10 @@ async function run(c: Command): Promise<string> {
     }
     case 'use': {
       current.set(c.session, own(c.session, c.id!).id)
-      return mapView(need(c.session))
+      return mapView(need(c.session), undefined, '', '', true)
     }
     case 'map':
-      return mapView(need(c.session))
+      return mapView(need(c.session), undefined, '', '', true)
     case 'get': {
       const tab = need(c.session)
       const { tree, origin } = await snapshot(tab)

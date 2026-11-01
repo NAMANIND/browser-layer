@@ -266,7 +266,9 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     const cls = attr(i, 'class')?.trim()
     // Segments are split by a control character and classes by spaces: neither can occur in a class name.
     const key = ROWS.has(role) ? '' : `${path}${SEGMENT}${str(nodeName[i]).toLowerCase()}${cls ? ` ${cls.split(/\s+/).join(' ')}` : ''}`
-    const as = (r: string, name = '') => [scope, r, name, key].join(SEGMENT)
+    // Identity leaves classes out: pages put their own on <body> (page-Paris), and an element's change with
+    // its state (active, open).
+    const as = (r: string, name = '') => [scope, r, name, key.split(SEGMENT).map(t => t.split(' ')[0]).join(SEGMENT)].join(SEGMENT)
     const inner = marked || COLLECTIONS.has(role)
     // An iframe's content is its frame's document: in this snapshot, or read through its own session.
     const frame = d.contentDoc.get(i)

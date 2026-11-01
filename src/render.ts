@@ -6,6 +6,13 @@ const SEP = '\u0001'
 
 // urls (get --urls): links give their full address and pictures theirs; otherwise both are left out.
 export type Caps = { nameChars: number; labelChars: number; urls?: boolean }
+// The full text of each region the agent has already been shown (before), by ref; a region shown again
+// exactly as it was answers in one line. now collects this answer's regions, for the caller to keep.
+export type Seen = { before: Map<number, string>; now: Map<number, string> }
+const unchanged = (n: Node, whole: string, seen: Seen) => {
+  seen.now.set(n.ref!, whole)
+  return seen.before.get(n.ref!) === whole
+}
 
 const isRegion = (n: Node) => n.ref !== undefined && (n.role === 'dialog' || LANDMARKS.has(n.role ?? ''))
 const clipTo = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
@@ -40,7 +47,7 @@ export function itemsLine(n: Node, origin: string, caps: Caps, few: number): str
   return `[${n.ref}] ${n.role} of ${items.length}: ${items.slice(0, few).map(c => control(c, origin, caps).trim()).join(' · ')} …`
 }
 
-export function renderText(root: Node, origin: string, caps: Caps): string {
+export function renderText(root: Node, origin: string, caps: Caps, seen?: Seen): string {
   const lines: string[] = []
   let line = ''
   // Parts of a row are joined by ' · ', except next to a part that is only punctuation or symbols
@@ -57,6 +64,10 @@ export function renderText(root: Node, origin: string, caps: Caps): string {
     if (n.role === 'image') { if (caps.urls) line += `${SEP}${n.url}${SEP}`; return }
     if (isRegion(n)) {
       flush()
+      if (seen && unchanged(n, renderText({ block: true, children: [n] }, origin, caps), seen)) {
+        lines.push(`${regionLine(n, caps)} — shown before, unchanged`)
+        return
+      }
       line = regionLine(n, caps)
       flush()
       for (const c of n.children ?? []) visit(c, false)
@@ -101,9 +112,9 @@ const FIELDS = new Set(['textbox', 'searchbox', 'combobox', 'checkbox', 'radio',
 
 // The page as regions, the way screen-reader users survey it: per landmark its headings, collections
 // (item count and the first item), fields, actions and links. Named when few, counted when many.
-export function renderMap(root: Node, origin: string, caps: Caps, few: number): string {
+export function renderMap(root: Node, origin: string, caps: Caps, few: number, seen?: Seen): string {
   const out: string[] = []
-  const summarize = (title: string, nodes: Node[]) => {
+  const summarize = (title: string, nodes: Node[], region?: Node) => {
     const headings: string[] = []
     const lists: string[] = []
     const fields: Node[] = []
@@ -161,7 +172,8 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number): 
     named('links', links)
     if (text) out.push(`  text: ${text} chars`)
     if (out.length > body) out.splice(body, 0, title)
-    nested.forEach(r => summarize(regionLine(r, caps), r.children ?? []))
+    if (region && seen && unchanged(region, renderText({ block: true, children: [region] }, origin, caps), seen) && out.length > body + 1) out.splice(body, Infinity, `${title} — shown before, unchanged`)
+    nested.forEach(r => summarize(regionLine(r, caps), r.children ?? [], r))
   }
   summarize('page (outside any region)', root.children ?? [])
   const closed = withRefs(root).filter(isTrigger).length
