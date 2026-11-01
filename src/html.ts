@@ -151,7 +151,8 @@ export function readHtml(html: string, url: string, status: number): Page {
       if (attr(el, 'required') !== undefined) states.push('required')
       const value = el.tagName === 'textarea' ? textOf(el) : el.tagName === 'select' ? squash(textOf(el.childNodes.filter(isEl).find(o => attr(o, 'selected') !== undefined) ?? el.childNodes.filter(isEl)[0] ?? el)) : role === 'textbox' || role === 'searchbox' ? attr(el, 'value') : undefined
       const ref = next++
-      const href = role === 'link' && attr(el, 'href') ? new URL(attr(el, 'href')!, base).href : undefined
+      // An address that does not parse goes nowhere, as in a browser (HTML: the link has no URL).
+      const href = role === 'link' && URL.canParse(attr(el, 'href') ?? '', base) ? new URL(attr(el, 'href')!, base).href : undefined
       if (href) links[ref] = href
       return [{ ref, role, name, nameShown: content(plainText(children)).includes(content(name)), states, url: href, block, value: value || undefined, children: hasRef(children) ? children : undefined }]
     }
@@ -191,7 +192,7 @@ function forms(all: El[], byId: Map<string, El>, ancestors: (el: El) => Generato
     return legend ? squash(textOf(legend)) : ''
   }
   const used = new Map<string, number>()
-  return all.filter(el => el.tagName === 'form' && !hiddenEl(el)).map((form, index) => {
+  return all.filter(el => el.tagName === 'form' && !hiddenEl(el)).flatMap((form, index) => {
     const controls = all.filter(el => LISTED.has(el.tagName) && ownerOf(el) === form && !disabled(el) && ![...ancestors(el)].some(a => a.tagName === 'datalist'))
     const type = (el: El) => (el.tagName === 'input' ? attr(el, 'type')?.toLowerCase() ?? 'text' : el.tagName === 'button' ? attr(el, 'type')?.toLowerCase() ?? 'submit' : el.tagName)
     const submitter = controls.find(el => (el.tagName === 'button' || el.tagName === 'input') && (type(el) === 'submit' || type(el) === 'image'))
@@ -233,7 +234,10 @@ function forms(all: El[], byId: Map<string, El>, ancestors: (el: El) => Generato
       fields.push({ name, type: t, label: label(el), required: attr(el, 'required') !== undefined, value: el.tagName === 'textarea' ? textOf(el) : attr(el, 'value') ?? '', dirname })
     }
     const method = ((submitter && attr(submitter, 'formmethod')) ?? attr(form, 'method') ?? 'get').toLowerCase() === 'post' ? 'POST' : 'GET'
-    const action = new URL((submitter && attr(submitter, 'formaction')) || attr(form, 'action') || page, base).href
+    const target = (submitter && attr(submitter, 'formaction')) || attr(form, 'action') || page
+    // HTML form submission: an action that does not parse cannot be submitted, so it is no verb.
+    if (!URL.canParse(target, base)) return []
+    const action = new URL(target, base).href
     const enc = ((submitter && attr(submitter, 'formenctype')) ?? attr(form, 'enctype') ?? '').toLowerCase()
     const enctype = enc === 'multipart/form-data' || enc === 'text/plain' ? enc : 'application/x-www-form-urlencoded'
     const id = attr(form, 'id') || attr(form, 'name') || attr(form, 'aria-label') || new URL(action).pathname.split('/').filter(Boolean).pop() || `form${index + 1}`
@@ -241,6 +245,6 @@ function forms(all: El[], byId: Map<string, El>, ancestors: (el: El) => Generato
     const n = (used.get(name) ?? 0) + 1
     used.set(name, n)
     if (n > 1) name = `${name}-${n}`
-    return { name: `${name}.submit`, method, action, enctype, fields }
+    return [{ name: `${name}.submit`, method, action, enctype, fields }]
   })
 }

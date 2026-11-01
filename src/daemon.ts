@@ -842,7 +842,7 @@ async function run(c: Command): Promise<string> {
       const tab = need(c.session)
       const { result, exceptionDetails } = await tab.cdp.send('Runtime.evaluate', { expression: c.text ?? '', awaitPromise: true, returnByValue: true, replMode: true })
       if (exceptionDetails) throw new Error(exceptionDetails.exception?.description?.split('\n')[0] ?? exceptionDetails.text)
-      return result.value === undefined ? String(result.description ?? 'undefined') : JSON.stringify(result.value, null, 2)
+      return result.value === undefined ? String(result.description ?? 'undefined') : JSON.stringify(result.value)
     }
     case 'net': {
       const tab = need(c.session)

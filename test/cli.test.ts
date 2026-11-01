@@ -169,5 +169,5 @@ test('GET verbs become a query, JSON comes back as JSON', async () => {
   await run('open', `${base}/contact`)
   const { code, out } = await run('do', 'search', 'q=shoes')
   assert.equal(code, 0, out)
-  assert.match(out, /"q": "shoes"/)
+  assert.match(out, /"q":"shoes"/)
 })

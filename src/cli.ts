@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { readFileSync, rmSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { Field, Verb } from './html.js'
 import { home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
@@ -26,7 +26,7 @@ Live tabs (a headless browser kept alive in the background; runs the page's JS):
   browser-layer map                     the page as regions: fields, actions, lists, links, with refs
   browser-layer read [ref] [--page N]   the whole page, or one region / control by ref (paged); read
                                         again, the page answers with what changed (--full: all of it)
-  --out <file>                          on read, find and get: the whole result to a file, not the answer
+  --out <file>                          on open, read, find and get: the whole result to a file, not the answer
   browser-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]
                                         a list or table from the map as records (TSV);
                                         --urls adds each record's link and picture addresses
@@ -97,28 +97,33 @@ function fieldLine(f: Field): string {
 // Hidden fields and the submitter are sent as the page set them; the agent sees what it can fill.
 const verbView = (v: Verb, from: string) => [`  ${v.name} → ${v.method} ${short(v.action, from)}`, ...v.fields.filter(f => f.type !== 'hidden' && f.type !== 'submit').map(fieldLine)].join('\n')
 
-// A fetched page reads like a live one: the same tree and renderer, plus its forms as verbs.
-async function show(res: Response, json: boolean) {
+// The most of a non-HTML body (JSON, text) an answer shows; --out writes all of it.
+const BODY_CHARS = 8000
+
+// A fetched page reads like a live one: the same tree and renderer, plus its forms as verbs. JSON is
+// printed compact: indentation is for eyes, and for an agent only tokens. --out writes the whole result.
+async function show(res: Response, json: boolean, out?: string) {
   if (!/html|xml/.test(res.type) && res.body.trimStart()[0] !== '<') {
-    let body = res.body
-    try { body = JSON.stringify(JSON.parse(body), null, 2) } catch {}
-    console.log(json ? JSON.stringify({ url: res.url, status: res.status, type: res.type, body: res.body }) : `${res.url}  [${res.status}]  ${res.type}\n\n${body.slice(0, 8000)}`)
-    return
+    if (json) return console.log(JSON.stringify({ url: res.url, status: res.status, type: res.type, body: res.body }))
+    if (out) { writeFileSync(out, res.body); return console.log(`saved ${out}: ${res.body.length} chars`) }
+    const more = res.body.length > BODY_CHARS ? `\n… ${res.body.length - BODY_CHARS} more chars: --out <file> writes it all` : ''
+    return console.log(`${res.url}  [${res.status}]  ${res.type}\n\n${res.body.slice(0, BODY_CHARS)}${more}`)
   }
   // The HTML parser is loaded here, not at startup: live-tab commands never need it.
   const { readHtml } = await import('./html.js')
   const page = readHtml(res.body, res.url, res.status)
   saveLastPage(session, { url: page.url, links: page.links, verbs: page.verbs })
-  if (json) return console.log(JSON.stringify(page, null, 2))
+  if (json) return console.log(JSON.stringify(page))
   const policy = loadPolicy()
   const text = renderText(page.tree, new URL(page.url).origin, { nameChars: policy['render.nameChars'], labelChars: policy['render.labelChars'] })
+  if (out) { writeFileSync(out, `${text}\n`); return console.log(`saved ${out}: ${text.split('\n').length} lines, ${text.length} chars`) }
   const [first, ...more] = paginate(text, policy['render.pageChars'])
-  const out = [`${page.url}  [${page.status}]${page.title ? `  "${page.title}"` : ''}`, '', first]
-  if (more.length) out.push(`… ${more.join('\n').length} more chars: browser-layer tab ${page.url} reads it all`)
-  if (page.verbs.length) out.push('', 'verbs:', ...page.verbs.map(v => verbView(v, page.url)))
+  const lines = [`${page.url}  [${page.status}]${page.title ? `  "${page.title}"` : ''}`, '', first]
+  if (more.length) lines.push(`… ${more.join('\n').length} more chars: --out <file> writes it all`)
+  if (page.verbs.length) lines.push('', 'verbs:', ...page.verbs.map(v => verbView(v, page.url)))
   // Little to read but scripts to run: the page is built in the browser, which the fast path never runs.
-  if (text.length < policy['http.shellChars'] && page.scripts) out.push('', `this page builds itself with JavaScript; browser-layer tab ${page.url} runs it`)
-  console.log(out.join('\n').trimEnd())
+  if (text.length < policy['http.shellChars'] && page.scripts) lines.push('', `this page builds itself with JavaScript; browser-layer tab ${page.url} runs it`)
+  console.log(lines.join('\n').trimEnd())
 }
 
 function needPage(): Saved {
@@ -186,6 +191,7 @@ async function main() {
   const cols = take('--cols')?.split(',').map(c => c.trim())
   // The daemon runs elsewhere, so the file is resolved against the agent's working directory here.
   const out = take('--out')
+  const file = out === undefined ? undefined : resolve(out)
   session = take('--session') ?? session
   // A profile is a separate browser: its own Chrome profile, cookies and daemon, under <home>/profiles.
   const profile = take('--profile')
@@ -270,7 +276,7 @@ async function main() {
   }
 
   if (LIVE.has(cmd)) {
-    const c: Command = { cmd, session, page, limit, sort, cols, desc: argv.includes('--desc'), urls: argv.includes('--urls'), out: out === undefined ? undefined : resolve(out), gone: argv.includes('--gone'), keys: argv.includes('--keys'), enter: argv.includes('--enter'), all: argv.includes('--all') }
+    const c: Command = { cmd, session, page, limit, sort, cols, desc: argv.includes('--desc'), urls: argv.includes('--urls'), out: file, gone: argv.includes('--gone'), keys: argv.includes('--keys'), enter: argv.includes('--enter'), all: argv.includes('--all') }
     if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: browser-layer ${cmd} <url>`)
     if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)
     if (cmd === 'net' && target) {
@@ -310,12 +316,12 @@ async function main() {
     if (/^\d+$/.test(target)) {
       url = needPage().links[Number(target)] ?? fail(`[${target}] is not a link on the last page`)
     } else if (!/^https?:\/\//i.test(target)) url = `https://${target}`
-    return show(await request(url), json)
+    return show(await request(url), json, file)
   }
 
   if (cmd === 'verbs') {
     const page = needPage()
-    return console.log(json ? JSON.stringify(page.verbs, null, 2) : page.verbs.map(v => verbView(v, page.url)).join('\n') || 'no verbs on this page')
+    return console.log(json ? JSON.stringify(page.verbs) : page.verbs.map(v => verbView(v, page.url)).join('\n') || 'no verbs on this page')
   }
 
   if (cmd === 'do' && target) {
@@ -332,10 +338,10 @@ async function main() {
     if (method === 'GET') {
       const url = new URL(verb.action)
       url.search = body.toString()
-      return show(await request(url.href), json)
+      return show(await request(url.href), json, file)
     }
     const headers: Record<string, string> = type ? { 'content-type': type } : {}
-    return show(await request(verb.action, { method, body: body instanceof FormData ? body : body.toString(), headers: { ...headers, referer: page.url, origin: new URL(page.url).origin } }), json)
+    return show(await request(verb.action, { method, body: body instanceof FormData ? body : body.toString(), headers: { ...headers, referer: page.url, origin: new URL(page.url).origin } }), json, file)
   }
 
   if (cmd && cmd !== 'help' && cmd !== '--help' && cmd !== '-h') {

@@ -124,6 +124,8 @@ const server = createServer((req, res) => {
   if (req.url === '/api') return page('api', `<p id="o">loading</p><script>
     fetch('/api/items', { headers: { authorization: 'Bearer secret-token' } }).then(r => r.json()).then(j => o.textContent = j.items.join(', '))
     fetch('/collect?event=view'); navigator.sendBeacon('/beacon-in', 'x')</script>`)
+  // One link and one form whose address is not a valid URL, among ordinary content.
+  if (req.url === '/badlink') return page('badlink', '<p>Still readable.</p><a href="https://exa mple.com/">broken</a><a href="/about">About</a><form action="https://exa mple.com/go"><input name="q"></form>')
   // A page to read twice: a counter that changes one line, among lines that stay.
   if (req.url === '/counter') return page('counter', `<h1>Counter</h1>${'<p>A line that stays the same on every read of this page.</p>'.repeat(20)}<p id="c">count 0</p><button onclick="c.textContent = 'count ' + (+c.textContent.split(' ')[1] + 1)">Add</button>`)
   // A control the page replaces with a new element, as apps re-render a list.
@@ -886,6 +888,26 @@ test('elements made clickable only by a script get refs; wrappers and root liste
   assert.match(page.out, /button "Real button"/)
   assert.doesNotMatch(page.out, /clickable "Real button"|clickable "Delegated"/)
   assert.match((await run('click', ref(page.out, /clickable "Open report"/))).out, /report opened/)
+})
+
+test('a link or form whose address is not a valid URL does not stop the page from reading', async () => {
+  const out = (await run('open', `${base}/badlink`)).out
+  assert.match(out, /Still readable\./)
+  assert.match(out, /link "broken"/)
+  assert.match(out, /link "About"/)
+  await run('tab', `${base}/badlink`)
+  const live = (await run('read', '--full')).out
+  assert.match(live, /Still readable\./)
+  assert.match(live, /link "broken"/)
+})
+
+test('open answers JSON compactly, says what it cut, and writes it all with --out', async () => {
+  const shown = (await run('open', `${base}/api/catalog`)).out
+  assert.match(shown, /^\[\{"id":0,"name":"item 0"\},\{"id":1/m)
+  assert.match(shown, /… \d+ more chars: --out <file> writes it all$/m)
+  const file = join(mkdtempSync(join(tmpdir(), 'open-')), 'catalog.json')
+  assert.match((await run('open', `${base}/api/catalog`, '--out', file)).out, /^saved .*catalog\.json: \d+ chars$/m)
+  assert.equal(JSON.parse(readFileSync(file, 'utf8')).length, 500)
 })
 
 test('a static page reads the same over plain HTTP and in a live tab: same roles and names', async () => {

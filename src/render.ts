@@ -16,7 +16,8 @@ export function control(n: Node, origin: string, caps: Caps): string {
   const clip = (s: string, max = caps.nameChars) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
   const bits = [n.value === undefined ? '' : `= ${JSON.stringify(clip(n.value))}`, ...(n.states ?? [])].filter(Boolean)
   let dest = ''
-  if (n.url) {
+  // An address that does not parse goes nowhere, as in a browser; the link still shows.
+  if (n.url && URL.canParse(n.url, origin)) {
     // The ref is how the agent acts; a link target is shown only when it adds something.
     const u = new URL(n.url, origin)
     if (caps.urls) dest = ` → ${u.href}`
