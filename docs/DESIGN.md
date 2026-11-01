@@ -19,7 +19,8 @@ calling an API with `curl` next time). This tool is the browser, not a second ag
 2. **Know before triggering.** What the page will reveal (hover menus, collapsed sections, popups) is
    read from its structure first. Events are fired only for content that does not exist yet.
 3. **No pixels, minimum rendering work.** The agent never gets pixels. Decoration (images, fonts,
-   media, animation) is never loaded. Painting is removed when we own the engine (§8).
+   media, animation) is not loaded, unless the agent allows it for a site (`allow images`) whose content is
+   only pictures (a scanned book, a map, a video) or that will not work without it. Painting is removed when we own the engine (§8).
 4. **Fast because of less, not because of tricks.** Fewer bytes, fewer steps, deltas instead of
    full re-reads.
 
@@ -28,8 +29,10 @@ calling an API with `curl` next time). This tool is the browser, not a second ag
 MCP or other agent protocols (the agent has a terminal), learning and replay inside the tool,
 vision (`screenshot` saves a picture for a person or a judge; the agent reads text), cloud or
 multi-user hosting, anti-bot evasion. The browser says it is automated; a site that refuses it (HTTP
-403 or 429) or puts a CAPTCHA in front of the page is reported as `blocked:` with the way out, a
-person clearing it in the `show` window, and the session carries on with what they cleared.
+403 or 429) or puts a CAPTCHA in front of the page is reported as `blocked:` with the ways out: the
+site's normal way in (its home page or search, another page, a retry after a wait), since a block
+often covers one page and not the site, and then a person clearing it in the `show` window, after
+which the session carries on with what they cleared.
 
 ## 1a. How a website reaches an agent
 
@@ -112,7 +115,8 @@ visible facts there (Google Flights' times, airports and prices).
 4. Lines follow CSS: an element whose `display` is not inline-level starts a new line. Elements with a
    row role (`row`, `listitem`, `option`, `menuitem*`, `treeitem`) are one line, with ` · ` between
    their blocks. Headings print with their level (`## Title`).
-5. Images are not shown; their alt text is the name of the control they sit in.
+5. Images are not shown; their alt text is the name of the control they sit in. Their address (the
+   image's current source, HTML) is kept for records (§4.5).
 6. A control's name gets `render.nameChars` when everything it says is on screen (letters and digits
    of the name contained in its visible text); otherwise it is a label only assistive tech hears and
    gets `render.labelChars`.
@@ -191,6 +195,10 @@ list as one line, as the map does: its size and first items; `find` or `read <re
   built from one template share a path for the same field, so a field's path is its column, and an
   optional part (a badge) gets its own column instead of shifting the others. Columns whose every value
   is punctuation only are dropped. Columns are `c1…cN`; no names are invented.
+- **Addresses on request:** `get --urls` gives each link's full URL and each picture's address (its
+  current source; inline `data:` pictures have none), each once per record, since stores link a card's
+  picture, title and price to one page. Without it, and in reading and the map, both are left out: a
+  store's tracked links are hundreds of characters each.
 - **Sorting** uses the standard collator with numeric ordering, after removing digit-group separators
   and turning 12-hour times into 24-hour ones. Empty values sort last.
 
@@ -255,8 +263,8 @@ always open: actions settle in 0.4–1.4 s instead of the 5 s deadline.
 | Downloads | Saved under `<home>/downloads`, reported by the action that caused them |
 | Frames | Read and act inside frames by ref, cross-origin included |
 | Storage | `cookies [domain]` (names, never values), `cookies clear [domain]`, `storage local\|session [clear]`, `eval <js>` |
-| Network | `net [--all]`, `net show <#>` (headers with credentials redacted, bodies) |
-| Permissions | `allow <permission>[,…] [lat,lon]` per site; everything else denied |
+| Network | `net [--all]`, `net show <#>` (headers with credentials redacted, bodies), `net save <#> <file>` (the whole response body) |
+| Permissions | `allow <permission>[,…] [lat,lon]` per site; everything else denied. `allow images` lets the site load images, fonts and media |
 | Profiles and sign-in | `--profile <name>` is a separate browser; `login <url>` opens a normal Chrome window on the agent's profile (no automation attached) for the person to sign in, with the same mock keychain as the agent's browser so the session decrypts |
 | Watching | `show` makes the current browser a visible window; `hide`, a closed window or any restart makes it headless again |
 
@@ -288,6 +296,7 @@ Keys are added when the phase that uses them lands.
 | `render.labelChars` | 40 | Cap for labels only assistive tech hears |
 | `render.mapFew` | 8 | In the map, controls are named up to this many per kind, counted above |
 | `actions.timeoutMs` | 5000 | Wait for a control to be ready before pointer input |
+| `command.timeoutMs` | 75000 | A command still running after this fails, so a page that stopped answering cannot hold the others (under the CLI's 90 s wait) |
 | `wait.timeoutMs` | 15000 | How long `wait` looks for its text |
 | `explore.depth` | 2 | Levels of submenus `explore` opens |
 | `explore.max` | 40 | Most menus one `explore` opens |
@@ -300,8 +309,10 @@ Keys are added when the phase that uses them lands.
 | `sessions.max` | 8 | Parallel sessions |
 | `load.timeoutMs` | 30000 | Navigation timeout |
 | `viewport.width` / `.height` | 1280 / 900 | Layout size; decides responsive variants |
+| `blocked.controls` | 30 | A CAPTCHA frame on a page with fewer controls than this is a human check in front of the page; on a fuller page it guards one form |
 | `network.keep` | 300 | Requests kept per tab |
-| `network.bodyChars` | 4000 | Body cap in `net show` |
+| `network.bodyChars` | 4000 | Body cap in `net show` (`net save` writes the whole body) |
+| `network.keepBytes` | 5000000 | API answers (fetch, XHR) up to this size are kept when they arrive, since the browser drops them once the page moves on |
 | `daemon.idleMs` | 1800000 | Idle shutdown |
 
 ## 10. Runtime and storage

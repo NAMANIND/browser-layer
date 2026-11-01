@@ -1,5 +1,5 @@
 import { parse, type DefaultTreeAdapterMap } from 'parse5'
-import { COLLECTIONS, LANDMARKS, type Node } from './reader.js'
+import { COLLECTIONS, LANDMARKS, SPACE, type Node } from './reader.js'
 
 // The fast path: HTML as the server sent it, parsed as a browser would (parse5 implements the HTML
 // parsing algorithm) with scripting off, so <noscript> content is there and nothing runs. The result
@@ -26,7 +26,7 @@ const KNOWN_ROLES = new Set([...WIDGETS, ...ROWS, ...LANDMARKS, ...COLLECTIONS, 
 const SECTIONING = new Set(['article', 'aside', 'main', 'nav', 'section'])
 
 const attr = (el: El, name: string) => el.attrs.find(a => a.name === name)?.value
-const squash = (s: string) => s.replace(/\s+/g, ' ').trim()
+const squash = (s: string) => s.replace(SPACE, ' ').trim()
 const isEl = (n: Child): n is El => 'tagName' in n
 
 function hiddenEl(el: El): boolean {

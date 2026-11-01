@@ -46,15 +46,32 @@ const WIDGETS = new Set(['button', 'checkbox', 'combobox', 'link', 'listbox', 'm
 const ROWS = new Set(['row', 'listitem', 'option', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'treeitem'])
 // ARIA landmarks: the regions a page is made of, as screen-reader users jump between them.
 export const LANDMARKS = new Set(['banner', 'navigation', 'main', 'search', 'complementary', 'contentinfo', 'region', 'form'])
+// Landmarks that divide a page itself, never found inside one of its records.
+const PAGE_PARTS = new Set(['banner', 'main', 'contentinfo', 'navigation', 'complementary'])
 // Containers whose items are a collection: a list of results, a table of rows, a set of tabs.
 export const COLLECTIONS = new Set(['list', 'table', 'grid', 'treegrid', 'tree', 'menu', 'menubar', 'tablist', 'radiogroup'])
 const CELLS = new Set(['cell', 'gridcell', 'columnheader', 'rowheader'])
 export const TABLES = new Set(['table', 'grid', 'treegrid'])
+// Whitespace with any invisible format characters (Unicode Cf: zero-width joiners, soft hyphens) around it
+// reads as one space: emails pad their preview text with rows of them. One alone inside a word (an emoji
+// sequence, a joiner in a script that needs it) has no whitespace and stays.
+export const SPACE = /[\s\p{Cf}]*\s[\s\p{Cf}]*/gu
 // Separates the segments of a field path (Node.key).
 export const SEGMENT = '\u001e'
 
 // Every node with a ref, in page order.
 export const withRefs = (n: Node): Node[] => [...(n.ref ? [n] : []), ...(n.children ?? []).flatMap(withRefs)]
+
+// The pictures among nodes, however deep: what a link or a row shows besides its text.
+export const picturesIn = (nodes: Node[]): Node[] => nodes.flatMap(c => (c.role === 'image' ? [c] : picturesIn(c.children ?? [])))
+
+// Frames of the common CAPTCHA providers (DESIGN §1).
+const CHECKS = /^https:\/\/(www\.google\.com\/recaptcha|www\.recaptcha\.net|[\w.]*hcaptcha\.com|challenges\.cloudflare\.com)\//
+// A human check stands in front of the page when its frame is on a page with almost nothing else to act
+// on (a challenge page). On a page full of controls it guards one form (sign-up, contact), and the page
+// itself is readable.
+export const humanCheck = (frameUrls: string[], tree: Node, fewest: number) =>
+  frameUrls.some(u => CHECKS.test(u)) && withRefs(tree).length < fewest
 // WAI-ARIA: a control that declares it opens something (aria-haspopup, or aria-expanded=false) and is
 // enabled. Comboboxes open value lists (fonts, sizes), not commands, so they are left out.
 const OPENERS = new Set(['button', 'menuitem', 'link', 'tab'])
@@ -133,8 +150,11 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     const kids: number[][] = nodeType.map(() => [])
     parentIndex.forEach((p: number, i: number) => { if (p >= 0) kids[p].push(i) })
     const rare = doc.nodes.contentDocumentIndex ?? { index: [], value: [] }
+    // The address each picture chose (HTML: an img's current source, after srcset), resolved.
+    const sources = doc.nodes.currentSourceURL ?? { index: [], value: [] }
     return {
       doc, nodeType, nodeName, nodeValue, backendNodeId, kids,
+      sourceOf: new Map<number, string>(sources.index.map((n: number, k: number) => [n, str(sources.value[k])])),
       layoutOf: new Map<number, number>(doc.layout.nodeIndex.map((n: number, l: number) => [n, l])),
       contentDoc: new Map<number, number>(rare.index.map((n: number, k: number) => [n, rare.value[k]])),
       attr: (i: number, name: string) => {
@@ -203,7 +223,7 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
   }
   const hasRef = (nodes: Node[]): boolean => nodes.some(n => n.ref || (n.children && hasRef(n.children)))
   const textOf = (nodes: Node[]): string => nodes.map(n => n.text ?? textOf(n.children ?? [])).join('')
-  const squash = (s: string) => s.replace(/\s+/g, ' ').trim()
+  const squash = (s: string) => s.replace(SPACE, ' ').trim()
   // Content, not formatting: "Airport Mumbai (BOM)" is on screen as "Airport MumbaiBOM 15 km away".
   const content = (s: string) => s.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase()
 
@@ -255,7 +275,7 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
         ref: refFor(backendNodeId[i]), role, name, nameShown: content(textOf(children)).includes(content(name)), states, url, block, key,
         reveals: revealsOf(d, i, limits.revealItems), popup,
         value: value === undefined || value === '' ? undefined : String(value),
-        children: hasRef(children) ? children : undefined,
+        children: hasRef(children) ? children : picturesIn(children).length ? picturesIn(children) : undefined,
       }]
     }
     if (role === 'heading') return [{ role, level: statesOf(a!).level, block: true, children }]
@@ -272,6 +292,10 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
       const name = squash(textOf(children)) || squash(attr(i, 'aria-label') ?? attr(i, 'title') ?? '')
       return [{ ref: refFor(backendNodeId[i]), role: 'clickable', name, nameShown: true, states: hovered.has(backendNodeId[i]) ? ['reacts to hover'] : [], block, key, children: [] }]
     }
+    // A picture is not read out (rule 5), but its address is data that records carry. A data: URL is the
+    // picture itself inline, not an address.
+    const source = d.sourceOf.get(i)
+    if (source && /^https?:/.test(source) && l !== undefined && !hidden) return [{ role: 'image', url: source, key }]
     if (!marked && (!role || role === 'generic' || role === 'none') && block && markRecords(d, i, perKid)) return [{ ref: refFor(backendNodeId[i]), role: 'list', block: true, key, children }]
     return block ? [{ block: true, key, children }] : children
   }
@@ -288,6 +312,10 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
       collect(n)
       return boxes.length === 1 && !boxes[0].ref ? parts(boxes[0], need) : Math.min(boxes.length, need)
     }
+    // A record is content: one that holds a part of the page's own layout (WAI-ARIA's page-level landmarks:
+    // its banner, main area, footer, navigation, sidebar) is that layout, as a web app's shell repeats a
+    // column per part. A form is not one of them: a product card holds its Add to cart form.
+    const holdsRegion = (n: Node): boolean => (n.children ?? []).some(c => (c.ref && PAGE_PARTS.has(c.role ?? '')) || holdsRegion(c))
     // A class only one sibling has (item-3) is that sibling's identity, not its template.
     const classes = (c: number) => (d.attr(c, 'class') ?? '').split(/\s+/).filter(Boolean)
     const siblingsWith = new Map<string, number>()
@@ -295,7 +323,7 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     const groups = new Map<string, Node[]>()
     d.kids[i].forEach((c, k) => {
       const [only, ...rest] = perKid[k] ?? []
-      if (d.nodeType[c] !== 1 || rest.length || !only?.block || parts(only, limits.minParts) < limits.minParts) return
+      if (d.nodeType[c] !== 1 || rest.length || !only?.block || parts(only, limits.minParts) < limits.minParts || holdsRegion(only)) return
       const sig = [str(d.nodeName[c]), ...classes(c).filter(t => (siblingsWith.get(t) ?? 0) > 1)].join(' ')
       groups.set(sig, [...(groups.get(sig) ?? []), only])
     })

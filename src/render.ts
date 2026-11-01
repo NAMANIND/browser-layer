@@ -1,10 +1,11 @@
-import { cellsOf, COLLECTIONS, isHeaderRow, isTrigger, LANDMARKS, rowsOf, withRefs, type Node } from './reader.js'
+import { cellsOf, COLLECTIONS, isHeaderRow, isTrigger, LANDMARKS, rowsOf, SPACE, withRefs, type Node } from './reader.js'
 
 // Text for the agent: blocks start lines, rows read as one line with ' · ' between their parts,
 // controls inline as [ref] role "name". All shortening happens here, never in the reader.
 const SEP = '\u0001'
 
-export type Caps = { nameChars: number; labelChars: number }
+// urls (get --urls): links give their full address and pictures theirs; otherwise both are left out.
+export type Caps = { nameChars: number; labelChars: number; urls?: boolean }
 
 const isRegion = (n: Node) => n.ref !== undefined && (n.role === 'dialog' || LANDMARKS.has(n.role ?? ''))
 const clipTo = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
@@ -18,7 +19,8 @@ export function control(n: Node, origin: string, caps: Caps): string {
   if (n.url) {
     // The ref is how the agent acts; a link target is shown only when it adds something.
     const u = new URL(n.url, origin)
-    if (u.origin !== origin) dest = ` → ${u.host}`
+    if (caps.urls) dest = ` → ${u.href}`
+    else if (u.origin !== origin) dest = ` → ${u.host}`
     else if (!n.name) dest = ` → ${clip(`${u.pathname}${u.search}`)}`
   }
   // A label only assistive tech hears usually repeats what the row shows; it gets less room.
@@ -44,13 +46,14 @@ export function renderText(root: Node, origin: string, caps: Caps): string {
   // (a dash, a bullet), which reads as a space: "• 7:00 AM – 9:10 AM".
   const mark = /^[\p{P}\p{S}]+$/u
   const flush = () => {
-    const parts = line.split(SEP).map(p => p.replace(/\s+/g, ' ').trim()).filter(Boolean)
+    const parts = line.split(SEP).map(p => p.replace(SPACE, ' ').trim()).filter(Boolean)
     const t = parts.reduce((acc, p, i) => (i === 0 ? p : `${acc}${mark.test(p) || mark.test(parts[i - 1]) ? ' ' : ' · '}${p}`), '')
     if (t) lines.push(t)
     line = ''
   }
   const visit = (n: Node, inRow: boolean) => {
     if (n.text !== undefined) { line += n.text; return }
+    if (n.role === 'image') { if (caps.urls) line += `${SEP}${n.url}${SEP}`; return }
     if (isRegion(n)) {
       flush()
       line = regionLine(n, caps)
@@ -111,7 +114,9 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number): 
     const walk = (n: Node) => {
       if (n.text !== undefined) { text += n.text.trim().length; return }
       if (isRegion(n)) { nested.push(n); return }
-      if (n.role === 'heading') { headings.push(renderText({ block: true, children: n.children }, origin, caps)); return }
+      // A heading names a part of the page; one wrapped around a whole region (an app's banner) is markup
+      // misuse, and the region is what the map shows.
+      if (n.role === 'heading' && !withRefs(n).some(isRegion)) { headings.push(renderText({ block: true, children: n.children }, origin, caps)); return }
       if (COLLECTIONS.has(n.role ?? '')) {
         // A table's header row is its schema: counted out of the records, shown as the column names.
         const all = rowsOf(n)

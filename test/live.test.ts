@@ -86,6 +86,17 @@ const server = createServer((req, res) => {
   if (req.url === '/paged') return page('paged', `<main><table id="t"></table><button onclick="go(1)">Next</button><button>Delete</button><button>Delete all</button></main>
     <script>let p = 0; const go = d => { p += d; t.innerHTML = '<tr><th>Order</th><th>Status</th></tr>' + Array.from({ length: 30 }, (_, i) => '<tr><td>ORD-' + (p * 30 + i) + '</td><td>Paid</td></tr>').join('') }; go(0)</script>`)
   // A site that turns automated browsers away.
+  // A page whose script never returns once its button is clicked: its renderer stops answering.
+  if (req.url === '/freeze') return page('freeze', '<button onclick="for (;;) {}">Freeze</button>')
+  // Product cards: the picture sits inside the product's link (one link hidden from assistive tech, as stores
+  // do for a duplicate image link); one picture is inline data, not a URL.
+  if (req.url === '/products') return page('products', `<ul>${[['Lamp', 500], ['Desk', 7200], ['Chair', 3100]].map(([name, price], i) =>
+    `<li><a href="/p/${i + 1}"${i === 1 ? ' aria-hidden="true" tabindex="-1"' : ''}><img src="${i === 2 ? 'data:image/gif;base64,R0lGODlhAQABAAAAACw=' : `/img/${i + 1}.jpg`}" alt="${name}"></a><h3><a href="/p/${i + 1}">${name}</a></h3><a href="/p/${i + 1}#reviews">reviews</a><span>₹${price}</span></li>`).join('')}</ul>`)
+  // An image that says on the page whether it loaded.
+  if (req.url === '/pictured') return page('pictured', `<img src="/pixel.gif" onload="p.textContent = 'image loaded'" onerror="p.textContent = 'image missing'"><p id="p">waiting</p>`)
+  if (req.url === '/pixel.gif') { res.setHeader('content-type', 'image/gif'); return res.end(Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64')) }
+  // Taller than Chrome can capture in one picture.
+  if (req.url === '/tall') return page('tall', '<div style="height: 30000px">top</div>')
   if (req.url === '/refused') { res.statusCode = 403; return page('403 Forbidden', '<h1>403 Forbidden</h1>') }
   // A filter menu of 900 choices, hidden until its button opens it (GitHub's language picker).
   if (req.url === '/longmenu') return page('longmenu', `<main><h1>Trending</h1>${'<p>A repository description long enough to make the page bigger than the menu it opens.</p>'.repeat(400)}<button aria-haspopup="menu" onclick="m.hidden = false">Language: Any</button>
@@ -113,6 +124,17 @@ const server = createServer((req, res) => {
   if (req.url === '/api') return page('api', `<p id="o">loading</p><script>
     fetch('/api/items', { headers: { authorization: 'Bearer secret-token' } }).then(r => r.json()).then(j => o.textContent = j.items.join(', '))
     fetch('/collect?event=view'); navigator.sendBeacon('/beacon-in', 'x')</script>`)
+  // A control the page replaces with a new element, as apps re-render a list.
+  if (req.url === '/rerender') return page('rerender', `<button id="t">Target</button><button onclick="t.replaceWith(Object.assign(document.createElement('button'), { id: 't', textContent: 'Target' }))">Swap</button>`)
+  // A page laid out as three same-looking columns, each holding a region (a web app's shell): layout, not records.
+  if (req.url === '/shell') return page('shell', ['<nav aria-label="Folders"><a href="/in">Inbox</a><a href="/sent">Sent</a></nav>',
+    '<header><h2>Mail</h2><input aria-label="Search mail"></header>', '<main><h2>Hello</h2><p>The message.</p></main>']
+    .map(r => `<div class="col"><p>part</p>${r}</div>`).join('') +
+    // Cards that each hold a form (Add to cart) are still records.
+    ['Lamp', 'Desk', 'Chair'].map(n => `<div class="card"><h3>${n}</h3><form aria-label="Add ${n}"><button>Add to cart</button></form></div>`).join(''))
+  // An API answer longer than net show prints.
+  if (req.url === '/catalog') return page('catalog', `<p id="o">loading</p><script>fetch('/api/catalog').then(r => r.json()).then(j => o.textContent = j.length + ' items')</script>`)
+  if (req.url === '/api/catalog') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(Array.from({ length: 500 }, (_, i) => ({ id: i, name: `item ${i}` })))) }
   if (req.url === '/api/items') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ items: ['tea', 'coffee'] })) }
   if (req.url?.startsWith('/collect') || req.url === '/beacon-in') { res.statusCode = 204; return res.end() }
   if (req.url === '/where') return page('where', `<button onclick="navigator.geolocation.getCurrentPosition(p => o.textContent = 'at ' + p.coords.latitude, e => o.textContent = 'denied')">Locate</button><p id="o">unknown</p>`)
@@ -227,7 +249,7 @@ const server = createServer((req, res) => {
 
 const home = mkdtempSync(join(tmpdir(), 'al-'))
 // Short waits so the failure paths (covered, never quiet) are tested in seconds, not the defaults.
-writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'actions.timeoutMs': 1500, 'settle.deadlineMs': 2000, 'wait.timeoutMs': 3000 }))
+writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'actions.timeoutMs': 1500, 'settle.deadlineMs': 2000, 'wait.timeoutMs': 3000, 'command.timeoutMs': 8000 }))
 const upload = join(home, 'upload-test.txt')
 writeFileSync(upload, 'resume')
 // Deep enough that home/daemon.sock passes the ~104-byte Unix socket path limit.
@@ -403,7 +425,7 @@ test('a long list an action reveals is one line; find and read go in', async () 
 })
 
 test('a page that refuses the browser says so, and how a person can clear it', async () => {
-  assert.match((await run('tab', `${base}/refused`)).out, /\nblocked: the site refused this browser \(HTTP 403\)\. The agent cannot pass it; a person can: browser-layer show/)
+  assert.match((await run('tab', `${base}/refused`)).out, /\nblocked: the site refused this browser \(HTTP 403\)\. Do not solve or evade the check\. Try another normal way in first: .*If it stays blocked, a person can clear it: browser-layer show/)
   assert.doesNotMatch((await run('go', `${base}/longmenu`)).out, /blocked:/)
 })
 
@@ -418,6 +440,42 @@ test('a daemon from another version (the CLI was updated) stops, and the next co
   assert.deepEqual(JSON.parse(reply), { ok: false, stale: true })
   assert.match((await run('tabs')).out, /no live tabs/)
   assert.match((await run('tab', `${base}/longmenu`)).out, /"longmenu"/)
+})
+
+test('a page that stops answering does not stop the browser: the command says so, other tabs still work', async () => {
+  await run('tab', `${base}/freeze`)
+  const frozen = await run('click', 'Freeze')
+  assert.match(frozen.out, /did not answer in 8 s/)
+  assert.match((await run('tab', `${base.replace('127.0.0.1', 'localhost')}/longmenu`)).out, /"longmenu"/)
+})
+
+test('get --urls gives each record its links and pictures, each address once; plain get and reading leave them out', async () => {
+  const list = (await run('tab', `${base}/products`)).out.match(/\[(\d+)\] list of 3/)![1]
+  assert.doesNotMatch((await run('get', list)).out, /\/p\/1|\/img\//)
+  const rows = (await run('get', list, '--urls')).out.split('\n').filter(l => /Lamp|Desk|Chair/.test(l))
+  assert.match(rows[0], new RegExp(`→ ${base}/p/1\t.*${base}/img/1\.jpg`))
+  assert.equal(rows[0].split(`${base}/p/1`).length, 2)
+  assert.match(rows[1], new RegExp(`${base}/img/2\.jpg`))
+  const file = join(mkdtempSync(join(tmpdir(), 'out-')), 'products.tsv')
+  assert.match((await run('get', list, '--urls', '--out', file)).out, /saved .*products\.tsv: 3 records, \d+ columns/)
+  assert.equal(readFileSync(file, 'utf8').trim().split('\n').length, 4)
+  assert.doesNotMatch(rows[2], /data:|\/img\//)
+  assert.doesNotMatch((await run('read')).out, /img\/1\.jpg|\/p\/1/)
+})
+
+test('images are not loaded until the agent allows them for a site', async () => {
+  await run('tab', `${base}/pictured`)
+  assert.match((await run('read')).out, /image missing/)
+  assert.match((await run('allow', 'images')).out, /allowed images for http:\/\/127\.0\.0\.1:\d+ \(reload to load them\)/)
+  await run('reload')
+  assert.match((await run('read')).out, /image loaded/)
+})
+
+test('a whole-page screenshot taller than Chrome can capture stops at the limit and says so', async () => {
+  await run('tab', `${base}/tall`)
+  const file = join(mkdtempSync(join(tmpdir(), 'shot-')), 'tall.png')
+  assert.match((await run('screenshot', file, '--full')).out, /saved .*tall\.png \(the first 16384 px of 30\d{3}\)/)
+  assert.equal(readFileSync(file).readUInt32BE(20), 16384)
 })
 
 test('screenshot saves a PNG of the tab: the visible part, the whole page, or one region', async () => {
@@ -592,6 +650,43 @@ test('net lists the API the page used, hides trackers, and shows one request wit
   assert.match(one, /authorization: <redacted>/)
   assert.doesNotMatch(one, /secret-token/)
   assert.match(one, /response body:\n\{"items":\["tea","coffee"\]\}/)
+})
+
+test('a result bigger than one answer goes whole to a file with --out; find pages through its matches', async () => {
+  await run('tab', `${base}/longmenu`)
+  const dir = mkdtempSync(join(tmpdir(), 'out-'))
+  const read = await run('read')
+  assert.match(read.out, /… more below: browser-layer read --page 2, or --out <file> for all \d+ pages/)
+  assert.match((await run('read', '--out', join(dir, 'page.txt'))).out, /^saved .*page\.txt: 4\d\d lines, \d+ chars$/m)
+  assert.equal(readFileSync(join(dir, 'page.txt'), 'utf8').split('\n').filter(l => l.includes('A repository description')).length, 400)
+  const find = (await run('find', 'repository description', '--page', '2')).out
+  assert.match(find, /^400 lines with "repository description" \(21–40\)/)
+  assert.match(find, /… more: browser-layer find repository description --page 3, or --out <file> for all 400/)
+  assert.match((await run('find', 'repository description', '--out', join(dir, 'hits.txt'))).out, /saved .*hits\.txt: 400 lines/)
+  assert.equal(readFileSync(join(dir, 'hits.txt'), 'utf8').trim().split('\n').length, 400)
+})
+
+test('a ref whose element the page replaced says so plainly', async () => {
+  const page = await run('tab', `${base}/rerender`)
+  const target = ref(page.out, /button "Target"/)
+  await run('click', 'Swap')
+  assert.match((await run('click', target)).out, new RegExp(`\\[${target}\\] is not on the page any more \\(it changed\\) — run: browser-layer map`))
+})
+
+test('columns that hold parts of the page are layout, not records; cards that hold a form are records', async () => {
+  const map = (await run('tab', `${base}/shell`)).out
+  assert.equal(map.match(/list of 3/g)?.length, 1)
+  assert.match(map, /list of 3: ### Lamp/)
+})
+
+test('an API answer outlives the page that asked for it, and net save writes it whole', async () => {
+  await openRead(`${base}/catalog`)
+  const id = (await run('net')).out.match(/^#(\d+) +GET +200 +\/api\/catalog/m)![1]
+  await run('go', `${base}/longmenu`)
+  assert.match((await run('net', 'show', id)).out, /response body:\n\[\{"id":0,"name":"item 0"\}.*… \(\d+ more chars: browser-layer net save \d+ <file> writes it all\)/s)
+  const file = join(mkdtempSync(join(tmpdir(), 'net-')), 'catalog.json')
+  assert.match((await run('net', 'save', id, file)).out, new RegExp(`saved .*catalog\\.json \\(\\d+ bytes, application/json\\)`))
+  assert.equal(JSON.parse(readFileSync(file, 'utf8')).length, 500)
 })
 
 test('permissions are denied until allowed for the site; geolocation takes coordinates', async () => {

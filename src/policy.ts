@@ -10,6 +10,7 @@ export const DEFAULTS = {
   'settle.quietMs': 400,
   'settle.deadlineMs': 5000,
   'actions.timeoutMs': 5000,
+  'command.timeoutMs': 75000,
   'wait.timeoutMs': 15000,
   'explore.depth': 2,
   'http.shellChars': 200,
@@ -23,8 +24,10 @@ export const DEFAULTS = {
   'data.rows': 20,
   'data.minRepeats': 3,
   'data.minParts': 2,
+  'blocked.controls': 30,
   'network.keep': 300,
   'network.bodyChars': 4000,
+  'network.keepBytes': 5_000_000,
   'daemon.idleMs': 30 * 60 * 1000,
 }
 

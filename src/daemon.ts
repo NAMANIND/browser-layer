@@ -1,13 +1,13 @@
 // The background process that keeps live tabs alive between CLI calls.
 // It owns one headless Chrome, a persistent profile, and a socket the CLI talks to.
 import { createServer } from 'node:http'
-import { chmodSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium, type BrowserContext, type CDPSession, type Dialog, type Page, type Request } from 'playwright-core'
 import { isTracker } from './trackers.js'
 import { findBrowser } from './browser.js'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
-import { COLLECTIONS, LANDMARKS, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
+import { COLLECTIONS, LANDMARKS, humanCheck, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
 import { diffLines, findRef, itemsLine, paginate, renderMap, renderText } from './render.js'
 import { call, drag, fill, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
 import { query, records, toTsv, type Query } from './data.js'
@@ -16,6 +16,11 @@ import { loadPolicy, type Policy } from './policy.js'
 
 // Decoration the agent never needs; DESIGN §1 principle 3. Never requested.
 const DECORATION = new Set(['image', 'font', 'media'])
+// Sites the agent let load decoration (`allow images`), by the origin of the page they are on.
+const pictured = new Set<string>()
+const siteOf = (r: Request) => { try { return new URL(r.frame().page().url()).origin } catch { return '' } }
+// The tallest picture Chrome captures (its GPU texture limit); a taller whole-page screenshot crashes the tab.
+const SHOT_MAX_PX = 16384
 // The most text runs remembered per canvas, and how close (px) runs must be vertically to share a line.
 const CANVAS_RUNS = 5000
 const CANVAS_LINE_PX = 4
@@ -95,7 +100,8 @@ const headerLines = (h: Record<string, string>) =>
 // Requests that carry no data for the agent: beacons, 204 No Content, and the tracker list.
 const noise = (r: Req) => r.kind === 'ping' || r.status === 204 || isTracker(r.url)
 
-type Req = { id: number; method: string; url: string; status: number; type: string; kind: string; post?: string; request: Request }
+// body: an API answer (fetch, XHR), kept when it arrives: the browser drops it once the page moves on.
+type Req = { id: number; method: string; url: string; status: number; type: string; kind: string; post?: string; request: Request; body?: Buffer }
 // shown: the last full text the agent received per context (the page, or a modal dialog by name), so
 // actions answer with what changed even when a dialog opens over the page and closes again.
 // frames: cross-origin frames with their own engine session, and the iframe element that owns each.
@@ -107,7 +113,7 @@ type Tab = {
   downloads: { file: string; size: number; url: string }[]; saving: Promise<void>[]; status?: number
 }
 export type Command = {
-  cmd: string; session: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean
+  cmd: string; session: string; urls?: boolean; out?: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean
   page?: number; files?: string[]; dir?: string; gone?: boolean; keys?: boolean; to?: string; full?: boolean; version?: string
 } & Query
 
@@ -151,6 +157,7 @@ function track(tab: Tab) {
     const kind = r.resourceType()
     if (kind !== 'document' && kind !== 'xhr' && kind !== 'fetch' && kind !== 'ping') return
     const res = await r.response().catch(() => null)
+    const body = kind === 'xhr' || kind === 'fetch' ? await res?.body().catch(() => undefined) : undefined
     tab.net.push({
       id: ++tab.netId,
       method: r.method(),
@@ -160,6 +167,7 @@ function track(tab: Tab) {
       kind,
       post: printable(r.postData(), 300)?.replace(/\s+/g, ' '),
       request: r,
+      body: body && body.length <= policy['network.keepBytes'] ? body : undefined,
     })
     if (tab.net.length > policy['network.keep']) tab.net.shift()
   })
@@ -220,15 +228,15 @@ const header = async (tab: Tab) => {
   return `tab ${tab.id}  ${tab.page.url()}${title ? `  "${title}"` : ''}`
 }
 
-// A page that turned the agent away: the site refused this browser, or put a human check from one of the
-// common CAPTCHA providers in front of it. The agent cannot pass either (DESIGN §1: no anti-bot evasion);
-// a person can, once, in the visible window, and the session carries on from there.
-const CHECKS = /^https:\/\/(www\.google\.com\/recaptcha|www\.recaptcha\.net|[\w.]*hcaptcha\.com|challenges\.cloudflare\.com)\//
-function blocked(tab: Tab): string {
-  const check = tab.page.frames().some(f => CHECKS.test(f.url()))
+// A page that turned the agent away: the site refused this browser, or put a human check in front of it.
+// The agent never solves or evades either (DESIGN §1: no anti-bot evasion), but a block often covers one
+// page and not the site: the normal way in (home page, the site's own search, another page, a retry after
+// a wait) is tried first, and a person can clear it in the window.
+function blocked(tab: Tab, tree: Node): string {
+  const check = humanCheck(tab.page.frames().map(f => f.url()), tree, policy['blocked.controls'])
   if (!check && tab.status !== 403 && tab.status !== 429) return ''
   const why = check ? 'a human check (CAPTCHA) is on this page' : `the site refused this browser (HTTP ${tab.status})`
-  return `\nblocked: ${why}. The agent cannot pass it; a person can: browser-layer show, clear it in that window, then browser-layer hide\n`
+  return `\nblocked: ${why}. Do not solve or evade the check. Try another normal way in first: the site's home page or its own search, a different page of the site, or this page again after a short wait. If it stays blocked, a person can clear it: browser-layer show, clear it in that window, then browser-layer hide\n`
 }
 
 // Opening a page answers with its map (DESIGN §1a); read and read <ref> go deeper.
@@ -236,26 +244,36 @@ async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>, se
   const { tree, origin, text } = snap ?? await snapshot(tab)
   remember(tab, text)
   const map = renderMap(tree, origin, caps(), policy['render.mapFew'])
-  return `${await header(tab)}${note ? `  — ${note}` : ''}${settled ? `  — settled: ${settled}` : ''}\n${blocked(tab)}\n${map}\n\n(read <ref> opens a region · read gives the whole page)`
+  return `${await header(tab)}${note ? `  — ${note}` : ''}${settled ? `  — settled: ${settled}` : ''}\n${blocked(tab, tree)}\n${map}\n\n(read <ref> opens a region · read gives the whole page)`
+}
+
+// The page's text, or one region's, as the agent reads it.
+async function textOf(tab: Tab, ref?: number): Promise<string> {
+  const snap = await snapshot(tab)
+  if (ref === undefined) {
+    remember(tab, snap.text)
+    return snap.text
+  }
+  const node = findRef(snap.tree, ref)
+  if (!node) throw new Error(`[${ref}] is not on the page — run: browser-layer map`)
+  return renderText({ block: true, children: [node] }, snap.origin, caps())
+}
+
+// A result bigger than one answer belongs in a file the agent's own tools read (grep, jq, a script), not in
+// its context: --out writes it whole, and the answer says how much and where.
+const saved = (file: string, body: string, what: string) => {
+  writeFileSync(file, `${body}\n`)
+  return `saved ${file}: ${what}`
 }
 
 async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<string> {
-  if (text === undefined) {
-    const snap = await snapshot(tab)
-    text = snap.text
-    if (ref === undefined) remember(tab, text)
-    else {
-      const node = findRef(snap.tree, ref)
-      if (!node) throw new Error(`[${ref}] is not on the page — run: browser-layer map`)
-      text = renderText({ block: true, children: [node] }, snap.origin, caps())
-    }
-  }
+  if (text === undefined) text = await textOf(tab, ref)
   const truncated = text.length > policy['render.maxChars']
   if (truncated) text = text.slice(0, text.lastIndexOf('\n', policy['render.maxChars']))
   const pages = paginate(text, policy['render.pageChars'])
   if (page < 1 || page > pages.length) throw new Error(`page ${page} does not exist; this view has ${pages.length}`)
   const head = `${await header(tab)}${pages.length > 1 ? `  (page ${page} of ${pages.length})` : ''}`
-  const more = page < pages.length ? `\n… more below: browser-layer read${ref === undefined ? '' : ` ${ref}`} --page ${page + 1}` : ''
+  const more = page < pages.length ? `\n… more below: browser-layer read${ref === undefined ? '' : ` ${ref}`} --page ${page + 1}, or --out <file> for all ${pages.length} pages` : ''
   const cut = truncated && page === pages.length ? '\n… (view ceiling reached; the page is larger than this)' : ''
   return `${head}\n\n${pages[page - 1]}${more}${cut}`
 }
@@ -332,14 +350,16 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
 }
 
 // A collection as records (TSV): sorted and column-picked as asked; without a limit, as many as fit one page.
-function recordsView(node: Node, origin: string, q: Query): string {
-  const all = records(node, origin, caps())
+function recordsView(node: Node, origin: string, q: Query & { out?: string }): string {
+  const all = records(node, origin, { ...caps(), urls: q.urls })
   const out = query(all, q)
+  if (q.out) return saved(q.out, toTsv(out), `${out.rows.length} records, ${out.columns.length} columns (TSV)`)
   let size = 0
   const fits = out.rows.findIndex(r => (size += r.join('\t').length + 1) > policy['render.pageChars'])
   if (q.limit === undefined && fits >= 0) out.rows = out.rows.slice(0, fits)
   const what = [q.sort ? `sorted by ${q.sort}${q.desc ? ' descending' : ''}` : '', out.rows.length < all.rows.length ? `first ${out.rows.length}` : ''].filter(Boolean).join(', ')
-  return `[${node.ref}] ${node.role}: ${all.rows.length} records, ${all.columns.length} columns${what ? ` (${what})` : ''}\n\n${toTsv(out)}`
+  const rest = q.limit === undefined && out.rows.length < all.rows.length ? `\n… ${all.rows.length - out.rows.length} more records: --limit, --cols, or --out <file> for all` : ''
+  return `[${node.ref}] ${node.role}: ${all.rows.length} records, ${all.columns.length} columns${what ? ` (${what})` : ''}\n\n${toTsv(out)}${rest}`
 }
 
 // The engine session for a cross-origin frame. Playwright gives such a frame its own session; the frame
@@ -386,7 +406,8 @@ async function act(tab: Tab, ref: string | undefined, fn: (t: Target) => Promise
     await fn(t)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    throw new Error(/No node with given id|Could not find node/i.test(msg) ? `[${ref}] is not on the page — run: browser-layer read` : `cannot act on [${ref}]: ${msg}`)
+    // The engine's ways of saying the element left the page: apps re-render, replacing what was read.
+    throw new Error(/No node with given id|No node found|Could not find node|detached from document/i.test(msg) ? `[${ref}] is not on the page any more (it changed) — run: browser-layer map` : `cannot act on [${ref}]: ${msg}`)
   }
 }
 
@@ -569,8 +590,12 @@ async function run(c: Command): Promise<string> {
       if (!records(node, origin, caps()).rows.length) throw new Error(`[${c.ref}] has no rows; get works on the lists and tables the map shows`)
       return `${await header(tab)}  — ${recordsView(node, origin, c)}`
     }
-    case 'read':
-      return view(need(c.session), c.page ?? 1, undefined, c.ref === undefined ? undefined : Number(c.ref))
+    case 'read': {
+      const ref = c.ref === undefined ? undefined : Number(c.ref)
+      if (!c.out) return view(need(c.session), c.page ?? 1, undefined, ref)
+      const text = await textOf(need(c.session), ref)
+      return saved(c.out, text, `${text.split('\n').length} lines, ${text.length} chars`)
+    }
     case 'click':
     case 'dblclick':
     case 'rightclick':
@@ -615,8 +640,14 @@ async function run(c: Command): Promise<string> {
       if (!want) throw new Error('usage: browser-layer find <text>')
       const hits = (await snapshot(tab)).text.split('\n').filter(l => l.toLowerCase().includes(want))
       if (!hits.length) return `"${c.text}" is not on the page`
-      const shown = hits.slice(0, policy['data.rows'])
-      return `${hits.length} lines with "${c.text}"${hits.length > shown.length ? ` (first ${shown.length})` : ''}\n\n${shown.join('\n')}`
+      if (c.out) return saved(c.out, hits.join('\n'), `${hits.length} lines with "${c.text}"`)
+      const per = policy['data.rows']
+      const page = c.page ?? 1
+      const from = (page - 1) * per
+      if (from >= hits.length) throw new Error(`page ${page} does not exist; the matches fill ${Math.ceil(hits.length / per)}`)
+      const shown = hits.slice(from, from + per)
+      const more = from + per < hits.length ? `\n… more: browser-layer find ${c.text} --page ${page + 1}, or --out <file> for all ${hits.length}` : ''
+      return `${hits.length} lines with "${c.text}"${hits.length > per ? ` (${from + 1}–${from + shown.length})` : ''}\n\n${shown.join('\n')}${more}`
     }
     case 'cookies': {
       // Cookie values are credentials, so they are never shown; names, sites and expiry are.
@@ -738,13 +769,17 @@ async function run(c: Command): Promise<string> {
       const perms = (c.text ?? '').split(',').filter(Boolean)
       if (!perms.length) throw new Error('usage: browser-layer allow <permission>[,permission] [latitude,longitude]')
       const origin = new URL(tab.page.url()).origin
-      await ctx.grantPermissions(perms, { origin })
+      // `images` is not a browser permission: it lets the site's pages load their decoration (DECORATION),
+      // for content that is only pictures (a scanned book, a map, a video) or a page that will not work without.
+      if (perms.includes('images')) pictured.add(origin)
+      const granted = perms.filter(p => p !== 'images')
+      if (granted.length) await ctx.grantPermissions(granted, { origin })
       if (c.dir) {
         const [latitude, longitude] = c.dir.split(',').map(Number)
         if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error(`expected latitude,longitude, got "${c.dir}"`)
         await ctx.setGeolocation({ latitude, longitude })
       }
-      return `allowed ${perms.join(', ')} for ${origin}${c.dir ? ` at ${c.dir}` : ''}`
+      return `allowed ${perms.join(', ')} for ${origin}${c.dir ? ` at ${c.dir}` : ''}${perms.includes('images') ? ' (reload to load them)' : ''}`
     }
     case 'screenshot': {
       // A picture for a person (or a judge): the agent reads the page as text. Images and fonts are
@@ -760,8 +795,10 @@ async function run(c: Command): Promise<string> {
         const [sx, sy] = (await tab.page.evaluate('[scrollX, scrollY]')) as [number, number]
         clip = { x: left + ox + sx, y: top + oy + sy, width: right - left, height: bottom - top }
       })
+      const height = c.full && !clip ? (await tab.page.evaluate('document.documentElement.scrollHeight')) as number : 0
+      if (height > SHOT_MAX_PX) clip = { x: 0, y: 0, width: policy['viewport.width'], height: SHOT_MAX_PX }
       await tab.page.screenshot({ path: c.files![0], fullPage: !!c.full || !!clip, clip })
-      return `saved ${c.files![0]}`
+      return `saved ${c.files![0]}${height > SHOT_MAX_PX ? ` (the first ${SHOT_MAX_PX} px of ${height})` : ''}`
     }
     case 'eval': {
       const tab = need(c.session)
@@ -776,11 +813,21 @@ async function run(c: Command): Promise<string> {
         const r = tab.net.find(n => n.id === c.id)
         if (!r) throw new Error(`no request #${c.id} — run: browser-layer net`)
         const res = await r.request.response().catch(() => null)
-        const body = await res?.text().catch(() => undefined)
+        const body = r.body ?? await res?.body().catch(() => undefined)
+        // The whole answer goes to a file, where the agent's own tools (jq, a script) read it.
+        if (c.files) {
+          if (!body) throw new Error(`#${r.id} has no body the browser still holds`)
+          writeFileSync(c.files[0], body)
+          return `saved ${c.files[0]} (${body.length} bytes, ${r.type || 'unknown type'})`
+        }
+        const text = body?.toString('utf8')
+        const shown = text && printable(text, policy['network.bodyChars'])!
         return [`#${r.id} ${r.method} ${r.url}`, 'request headers:', headerLines(await r.request.allHeaders()),
           ...(r.request.postData() ? ['request body:', printable(r.request.postData(), policy['network.bodyChars'])!] : []),
           `response: ${r.status} ${r.type}`, headerLines((await res?.allHeaders()) ?? {}),
-          ...(body ? ['response body:', printable(body, policy['network.bodyChars'])!] : [])].join('\n')
+          ...(shown ? ['response body:', shown.replace(/ more chars\)$/, ` more chars: browser-layer net save ${r.id} <file> writes it all)`)]
+            : r.kind === 'document' ? [] : ['response body: no longer held by the browser']),
+        ].join('\n')
       }
       const list = c.all ? tab.net : tab.net.filter(r => (r.kind !== 'document' || r.method !== 'GET') && !noise(r))
       if (!list.length) return 'no requests yet'
@@ -828,7 +875,7 @@ async function main() {
     viewport: { width: policy['viewport.width'], height: policy['viewport.height'] },
     reducedMotion: 'reduce',
   })
-  await ctx.route('**/*', r => (DECORATION.has(r.request().resourceType()) ? r.abort() : r.continue()))
+  await ctx.route('**/*', r => (DECORATION.has(r.request().resourceType()) && !pictured.has(siteOf(r.request())) ? r.abort() : r.continue()))
   await ctx.addInitScript(PAGE_HOOKS)
   for (const p of ctx.pages()) await p.close()
   // A page a site opens (window.open, target=_blank, an OAuth pop-up) joins its opener's session.
@@ -882,7 +929,10 @@ async function main() {
         try {
           c.session ||= 'default'
           await pullCookies()
-          const text = await run(c)
+          // A page whose renderer stopped answering (a script that never returns) would hold every later
+          // command behind it; the command fails instead, and other tabs carry on.
+          const text = await Promise.race([run(c), new Promise<never>((_, fail) => setTimeout(() => fail(new Error(
+            `the page did not answer in ${policy['command.timeoutMs'] / 1000} s; it may be stuck: browser-layer close it and open it again`)), policy['command.timeoutMs']))])
           await syncCookies().catch(() => {})
           res.end(JSON.stringify({ ok: true, text }))
         } catch (err) {

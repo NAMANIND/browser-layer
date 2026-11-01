@@ -1,5 +1,5 @@
 import { control, renderText, type Caps } from './render.js'
-import { cellsOf, COLLECTIONS, isHeaderRow, rowsOf, SEGMENT, TABLES, type Node } from './reader.js'
+import { cellsOf, COLLECTIONS, isHeaderRow, picturesIn, rowsOf, SEGMENT, SPACE, TABLES, type Node } from './reader.js'
 
 // A collection as records: columns and rows of cell text. Column ids are always c1…cN; a table's
 // header row also gives them names.
@@ -77,13 +77,22 @@ function listRecords(list: Node, origin: string, caps: Caps): Records {
     const put = (key: string, s: string) => cell.set(key, (cell.get(key) ?? '') + s)
     const visit = (n: Node, key: string) => {
       if (n.text !== undefined) return put(key, n.text)
-      if (n.ref && !COLLECTIONS.has(n.role ?? '')) return put(n.key ? field(n.key) : key, control(n, origin, caps))
+      if (n.role === 'image') return caps.urls && put(n.key ? field(n.key) : key, n.url!)
+      if (n.ref && !COLLECTIONS.has(n.role ?? '')) {
+        put(n.key ? field(n.key) : key, control(n, origin, caps))
+        return picturesIn(n.children ?? []).forEach(p => visit(p, key))
+      }
       const here = n.key ? field(n.key) : key
       for (const c of n.children ?? []) visit(c, here)
     }
     for (const c of row.children ?? []) visit(c, '')
+    // A record names each page once: a store links the picture, the title and the price to one page, and an
+    // address that differs only by its #fragment is a place in that same page (URL standard).
+    const named = new Set<string>()
+    const page = (u: string) => u.split('#')[0]
+    if (caps.urls) for (const [k, v] of cell) cell.set(k, v.replace(/(?:→ )?(https?:\/\/\S+)/g, (m, u) => (named.has(page(u)) ? '' : (named.add(page(u)), m))))
     for (const [k, v] of cell) {
-      const t = v.replace(/\s+/g, ' ').trim()
+      const t = v.replace(SPACE, ' ').trim()
       if (t && !mark.test(t)) cell.set(k, t)
       else cell.delete(k)
       if (cell.has(k) && !keys.includes(k)) keys.push(k)
@@ -101,7 +110,7 @@ const sortKey = (v: string) =>
   v.replace(/(\d)[,  ](?=\d)/g, '$1')
     .replace(/\b(\d{1,2}):(\d\d)\s?([AP])M\b/gi, (_, h, m, p) => `${String((Number(h) % 12) + (p.toUpperCase() === 'P' ? 12 : 0)).padStart(2, '0')}:${m}`)
 
-export type Query = { sort?: string; desc?: boolean; limit?: number; cols?: string[] }
+export type Query = { sort?: string; desc?: boolean; limit?: number; cols?: string[]; urls?: boolean }
 
 export function query(data: Records, q: Query): Records {
   // A column is named by its id (c3) or, in a table, by its header text.

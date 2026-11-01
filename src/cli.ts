@@ -25,8 +25,10 @@ Live tabs (a headless browser kept alive in the background; runs the page's JS):
   browser-layer go <url> | back         navigate the current tab
   browser-layer map                     the page as regions: fields, actions, lists, links, with refs
   browser-layer read [ref] [--page N]   the whole page, or one region / control by ref (paged)
-  browser-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b]
-                                        a list or table from the map as records (TSV)
+  --out <file>                          on read, find and get: the whole result to a file, not the answer
+  browser-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]
+                                        a list or table from the map as records (TSV);
+                                        --urls adds each record's link and picture addresses
   browser-layer click <ref>             click control [ref]; any <ref> of an action may be its name: click "Next"
   browser-layer type <ref> <text>       fill [ref]; add --enter to press Enter after
   browser-layer pick <ref> <option>     choose an option in a select
@@ -39,8 +41,9 @@ Live tabs (a headless browser kept alive in the background; runs the page's JS):
   browser-layer forward | reload
   browser-layer eval <js>               run JavaScript in the page; prints the result as JSON
   browser-layer screenshot [ref] [file] [--full]   save a PNG of the tab, or of one region, when a person wants one (read the page as text)
-  browser-layer allow <perm>[,perm] [lat,lon]   grant geolocation, notifications… to the current site
-  browser-layer find <text>             the lines of the page that contain it
+  browser-layer allow <perm>[,perm] [lat,lon]   grant geolocation, notifications… to the current site;
+                                        images lets it load images, fonts and video (off by default)
+  browser-layer find <text> [--page N]  the lines of the page that contain it
   browser-layer check | uncheck <ref>   set a checkbox (repeatable: only clicks if it must change)
   browser-layer submit <ref>            submit the form a field is in, as its submit button would
   browser-layer drag <ref> <onto ref>   pointer drag, and HTML drag and drop
@@ -52,6 +55,7 @@ Live tabs (a headless browser kept alive in the background; runs the page's JS):
   Pop-ups open as tabs in the same session and become current; downloads are saved and reported.
   browser-layer net [--all]             requests the page made (the API under the UI); trackers hidden
   browser-layer net show <#>            one request in full: headers (secrets redacted) and bodies
+  browser-layer net save <#> <file>     the whole response body of one request, to a file
   browser-layer tabs | use <id> | close [id] | stop
 
 Watch: browser-layer show makes the current browser a visible window to watch (tabs reopen); it is
@@ -179,6 +183,8 @@ async function main() {
   const limit = count('--limit')
   const sort = take('--sort')
   const cols = take('--cols')?.split(',').map(c => c.trim())
+  // The daemon runs elsewhere, so the file is resolved against the agent's working directory here.
+  const out = take('--out')
   session = take('--session') ?? session
   // A profile is a separate browser: its own Chrome profile, cookies and daemon, under <home>/profiles.
   const profile = take('--profile')
@@ -187,7 +193,7 @@ async function main() {
     process.env.BROWSER_LAYER_HOME = join(home(), 'profiles', profile)
   }
   const json = argv.includes('--json')
-  const flags = new Set(['--json', '--enter', '--all', '--desc', '--gone', '--keys', '--full'])
+  const flags = new Set(['--json', '--enter', '--all', '--desc', '--gone', '--keys', '--full', '--urls'])
   const [cmd, target, ...rest] = argv.filter(a => !flags.has(a))
 
   if (cmd === '--version' || cmd === '-v' || cmd === 'version') return console.log(VERSION)
@@ -263,10 +269,14 @@ async function main() {
   }
 
   if (LIVE.has(cmd)) {
-    const c: Command = { cmd, session, page, limit, sort, cols, desc: argv.includes('--desc'), gone: argv.includes('--gone'), keys: argv.includes('--keys'), enter: argv.includes('--enter'), all: argv.includes('--all') }
+    const c: Command = { cmd, session, page, limit, sort, cols, desc: argv.includes('--desc'), urls: argv.includes('--urls'), out: out === undefined ? undefined : resolve(out), gone: argv.includes('--gone'), keys: argv.includes('--keys'), enter: argv.includes('--enter'), all: argv.includes('--all') }
     if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: browser-layer ${cmd} <url>`)
     if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)
-    if (cmd === 'net' && target) c.id = target === 'show' && /^#?\d+$/.test(rest[0] ?? '') ? Number(rest[0].replace('#', '')) : fail('usage: browser-layer net [--all] | net show <#>')
+    if (cmd === 'net' && target) {
+      if (!['show', 'save'].includes(target) || !/^#?\d+$/.test(rest[0] ?? '') || (target === 'save' && !rest[1])) fail('usage: browser-layer net [--all] | net show <#> | net save <#> <file>')
+      c.id = Number(rest[0].replace('#', ''))
+      if (target === 'save') c.files = [resolve(rest[1])]
+    }
     if (['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload', 'check', 'uncheck', 'submit', 'drag'].includes(cmd)) c.ref = target ?? fail(`usage: browser-layer ${cmd} <ref>`)
     if (cmd === 'drag') c.to = rest[0] ?? fail('usage: browser-layer drag <ref> <onto ref>')
     if (cmd === 'find') c.text = [target, ...rest].filter(Boolean).join(' ')
@@ -285,7 +295,7 @@ async function main() {
     if (cmd === 'explore' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: browser-layer explore [ref]')
     if (cmd === 'menu') c.text = [target, ...rest].filter(Boolean).join(' ')
     if (cmd === 'read' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: browser-layer read [ref] [--page N]')
-    if (cmd === 'get') c.ref = target && /^\d+$/.test(target) ? target : fail('usage: browser-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b]')
+    if (cmd === 'get') c.ref = target && /^\d+$/.test(target) ? target : fail('usage: browser-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]')
     if (cmd === 'type' || cmd === 'pick') c.text = rest.join(' ')
     if (cmd === 'press') c.key = target ?? fail('usage: browser-layer press <key>')
     const reply = await live(c)
