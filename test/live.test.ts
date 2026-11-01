@@ -129,6 +129,7 @@ const server = createServer((req, res) => {
   // A page to read twice: a counter that changes one line, among lines that stay.
   if (req.url === '/counter') return page('counter', `<h1>Counter</h1>${'<p>A line that stays the same on every read of this page.</p>'.repeat(20)}<p id="c">count 0</p><button onclick="c.textContent = 'count ' + (+c.textContent.split(' ')[1] + 1)">Add</button>`)
   // A control the page replaces with a new element, as apps re-render a list.
+  if (req.url === '/years') return page('years', `<p id="y">none</p>${[2022, 2023].map(n => `<button onclick="y.textContent = 'picked ${n}'">${n}</button>`).join('')}<button onclick="y.textContent = 'picked page'">Page 2023 of 2024</button>`)
   if (req.url === '/rerender') return page('rerender', `<p id="s">not yet</p><button id="t" onclick="s.textContent = 'hit'">Target</button><button onclick="t.replaceWith(t.cloneNode(true))">Swap</button>`)
   const results = req.url?.match(/^\/results\/(\d)$/)
   if (results) return page(`results ${results[1]}`, `<header><a href="/">Home</a> <a href="/deals">Deals</a> <a href="/help">Help</a><p>Free delivery on every order</p></header><main><p>Page ${results[1]}</p>${'<button>Add to cart</button>'.repeat(+results[1])}</main><nav aria-label="Pagination"><a href="/results/${+results[1] + 1}">Next</a></nav>`)
@@ -721,6 +722,13 @@ test('a region already shown, unchanged, is one line on the next page; read --fu
   assert.doesNotMatch(third, /Free delivery/)
   assert.match((await run('read', '--full')).out, /Free delivery/)
   assert.match((await run('read', banner)).out, /Free delivery/)
+})
+
+test('a number that is no ref here clicks the control with exactly that name', async () => {
+  await run('tab', `${base}/years`)
+  await run('click', '2023')
+  assert.match((await run('read')).out, /picked 2023/)
+  assert.match((await run('click', '9999')).out, /\[9999\] is not on the page/)
 })
 
 test('an element keeps its ref when the page re-renders it', async () => {

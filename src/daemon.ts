@@ -566,6 +566,8 @@ async function openRead(tab: Tab, trigger: Node, depth: number, budget: { opens:
 
 // A control can be named instead of numbered: the best match by accessible name (exact, then prefix, then
 // contained). Several equally good matches are an error that lists them; guessing would act on the wrong one.
+// A number is a ref while it is one in this tab; otherwise it may be a control's whole name (a year, a size,
+// a page number), never part of one.
 const fit = (name: string | undefined, want: string) => {
   const n = (name ?? '').toLowerCase()
   return n === want ? 0 : n.startsWith(want) ? 1 : n.includes(want) ? 2 : 3
@@ -573,9 +575,11 @@ const fit = (name: string | undefined, want: string) => {
 const ACTIONS = new Set(['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload', 'check', 'uncheck', 'submit', 'drag'])
 
 async function refNamed(tab: Tab, target: string | undefined): Promise<string | undefined> {
-  if (!target || /^\d+$/.test(target)) return target
+  if (!target || tab.refs.byRef.has(Number(target))) return target
   const want = target.trim().toLowerCase()
-  const hits = withRefs((await snapshot(tab)).tree).filter(n => isItem(n) && fit(n.name, want) < 3)
+  const number = /^\d+$/.test(want)
+  const hits = withRefs((await snapshot(tab)).tree).filter(n => isItem(n) && fit(n.name, want) < (number ? 1 : 3))
+  if (number && !hits.length) return target
   const best = hits.filter(n => fit(n.name, want) === Math.min(...hits.map(h => fit(h.name, want))))
   if (best.length === 1) return String(best[0].ref)
   if (!best.length) throw new Error(`nothing is named "${target}" — run: browser-layer map`)
@@ -584,7 +588,7 @@ async function refNamed(tab: Tab, target: string | undefined): Promise<string | 
 
 async function run(c: Command): Promise<string> {
   beginCommand()
-  if (ACTIONS.has(c.cmd) && (!/^\d+$/.test(c.ref ?? '') || (c.to && !/^\d+$/.test(c.to)))) {
+  if (ACTIONS.has(c.cmd)) {
     const tab = need(c.session)
     c.ref = await refNamed(tab, c.ref)
     c.to = await refNamed(tab, c.to)
