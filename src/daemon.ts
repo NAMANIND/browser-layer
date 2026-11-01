@@ -389,17 +389,21 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
   return [head, '', ...removed.map(l => `- ${l}`), ...shown.map(l => `+ ${l}`)].join('\n').trimEnd()
 }
 
-// A collection as records (TSV): sorted and column-picked as asked; without a limit, as many as fit one page.
+// A collection as records (TSV): sorted, limited and column-picked as asked, and never more than one page
+// in an answer (the column line included); --out writes them all.
 function recordsView(node: Node, origin: string, q: Query & { out?: string }): string {
   const all = records(node, origin, { ...caps(), urls: q.urls })
   const out = query(all, q)
   if (q.out) return saved(q.out, toTsv(out), `${out.rows.length} records, ${out.columns.length} columns (TSV)`)
-  let size = 0
+  const asked = out.rows.length
+  let size = toTsv({ ...out, rows: [] }).length
   const fits = out.rows.findIndex(r => (size += r.join('\t').length + 1) > policy['render.pageChars'])
-  if (q.limit === undefined && fits >= 0) out.rows = out.rows.slice(0, fits)
+  if (fits >= 0) out.rows = out.rows.slice(0, fits)
+  const head = `[${node.ref}] ${node.role}: ${all.rows.length} records, ${all.columns.length} columns`
+  if (!out.rows.length && asked) return `${head} — too wide for one answer: --cols picks columns, read ${node.ref} reads it as text, --out <file> writes all`
   const what = [q.sort ? `sorted by ${q.sort}${q.desc ? ' descending' : ''}` : '', out.rows.length < all.rows.length ? `first ${out.rows.length}` : ''].filter(Boolean).join(', ')
-  const rest = q.limit === undefined && out.rows.length < all.rows.length ? `\n… ${all.rows.length - out.rows.length} more records: --limit, --cols, or --out <file> for all` : ''
-  return `[${node.ref}] ${node.role}: ${all.rows.length} records, ${all.columns.length} columns${what ? ` (${what})` : ''}\n\n${toTsv(out)}${rest}`
+  const rest = out.rows.length < asked || (q.limit === undefined && out.rows.length < all.rows.length) ? `\n… ${all.rows.length - out.rows.length} more records: --limit, --cols, or --out <file> for all` : ''
+  return `${head}${what ? ` (${what})` : ''}\n\n${toTsv(out)}${rest}`
 }
 
 // The engine session for a cross-origin frame. Playwright gives such a frame its own session; the frame

@@ -129,6 +129,7 @@ const server = createServer((req, res) => {
   // A page to read twice: a counter that changes one line, among lines that stay.
   if (req.url === '/counter') return page('counter', `<h1>Counter</h1>${'<p>A line that stays the same on every read of this page.</p>'.repeat(20)}<p id="c">count 0</p><button onclick="c.textContent = 'count ' + (+c.textContent.split(' ')[1] + 1)">Add</button>`)
   // A control the page replaces with a new element, as apps re-render a list.
+  if (req.url === '/longrecords') return page('longrecords', `<ul>${Array.from({ length: 40 }, (_, i) => `<li><b>Item ${i}</b> <span>${'detail '.repeat(140)}</span></li>`).join('')}</ul>`)
   if (req.url === '/years') return page('years', `<p id="y">none</p>${[2022, 2023].map(n => `<button onclick="y.textContent = 'picked ${n}'">${n}</button>`).join('')}<button onclick="y.textContent = 'picked page'">Page 2023 of 2024</button>`)
   if (req.url === '/rerender') return page('rerender', `<p id="s">not yet</p><button id="t" onclick="s.textContent = 'hit'">Target</button><button onclick="t.replaceWith(t.cloneNode(true))">Swap</button>`)
   const results = req.url?.match(/^\/results\/(\d)$/)
@@ -722,6 +723,13 @@ test('a region already shown, unchanged, is one line on the next page; read --fu
   assert.doesNotMatch(third, /Free delivery/)
   assert.match((await run('read', '--full')).out, /Free delivery/)
   assert.match((await run('read', banner)).out, /Free delivery/)
+})
+
+test('records never take more than one page of an answer, even with --limit', async () => {
+  const list = ref((await run('tab', `${base}/longrecords`)).out, /list of 40/)
+  const out = (await run('get', list, '--limit', '40')).out
+  assert.ok(out.length < 16000, `${out.length} chars`)
+  assert.match(out, /… \d+ more records: --limit, --cols, or --out <file> for all/)
 })
 
 test('a number that is no ref here clicks the control with exactly that name', async () => {
