@@ -205,10 +205,16 @@ Branch `hardening` (from `lean-answers`): a daemon that dies mid-command is no l
 request it cannot parse no longer kills it; `sessions.max` and `network.tabBytes` are enforced; an action that
 repeats a call with the same answer says so (`note: the same call gave this same answer N calls ago`).
 
+`npm run stress` (needs `STRESS_DIR`, a clone of browser-use/stress-tests; the pages are not in this repo) drives 13
+of their challenges by command and passes when the page says it completed. The first pages showed real gaps in
+the reader and in `type`/`pick`; now 13 of 13: date, time and colour inputs,
+`contenteditable` editing hosts, hover targets and scroll containers get refs; `type` sets date, time, colour
+and range inputs; `pick` on a multiple select adds. Read time on the corpus is unchanged (scroll containers
+are found in one in-page pass; asking the snapshot for element rects made reads 35–45% slower, so no).
+
 Not done, needs a decision: a timed-out command keeps running (cancelling means threading it through `run()`, so
 split `run()` first); `steps` does not stop on a replaced page (the skill's own example plans across one); the
-browser-use `stress-tests` pages as an offline corpus (a harness that serves and drives their HTML, run only
-with the person's go-ahead since it loads code from outside).
+more of the 60 stress-test pages (iframe-inception, shadow-dom-form, the library forms).
 
 Before any deploy: run the same 24 tasks twice more on the branch, because one run per task is noise.
 

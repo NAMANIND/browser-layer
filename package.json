@@ -38,6 +38,7 @@
     "dev": "tsx src/cli.ts",
     "test": "tsx --test \"test/*.test.ts\"",
     "measure": "tsc && node bench/measure.mjs",
+    "stress": "tsc && node bench/stress.mjs",
     "record": "node bench/record-corpus.mjs",
     "prepack": "npm run build"
   },
