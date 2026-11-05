@@ -355,6 +355,7 @@ Keys are added when the phase that uses them lands.
 | `network.keep` | 300 | Requests kept per tab |
 | `network.bodyChars` | 4000 | Body cap in `net show` (`net save` writes the whole body) |
 | `network.keepBytes` | 5000000 | API answers (fetch, XHR) up to this size are kept when they arrive, since the browser drops them once the page moves on |
+| `network.tabBytes` | 50000000 | Answers kept per tab in all; past it the oldest are let go |
 | `daemon.idleMs` | 1800000 | Idle shutdown |
 
 ## 10. Runtime and storage

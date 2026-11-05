@@ -176,11 +176,13 @@ function toBrowser(c: Cookie) {
 // rotated: the jar is read only when someone else (the fast path) wrote it since this daemon last did.
 const jarStamp = () => statSync(join(home(), 'cookies.json'), { throwIfNoEntry: false })?.mtimeMs ?? 0
 let jarSeen = 0
+let jarWritten = ''
 
 // Before each command: whatever the fast path logged into since, the browser gets too.
 async function pullCookies() {
   if (ATTACH || jarStamp() === jarSeen) return
   jarSeen = jarStamp()
+  jarWritten = ''
   const jar = loadJar().filter(c => !c.expires || c.expires > Date.now())
   if (jar.length) await ctx.addCookies(jar.map(toBrowser)).catch(() => {})
 }
@@ -197,7 +199,11 @@ async function syncCookies() {
     expires: c.expires > 0 ? c.expires * 1000 : undefined,
     secure: c.secure,
   }))
+  // Most commands change no cookie, and a write moves the jar's stamp, which makes every session read it back.
+  const text = JSON.stringify(jar)
+  if (text === jarWritten) return
   saveJar(jar)
+  jarWritten = text
   jarSeen = jarStamp()
 }
 
@@ -223,6 +229,12 @@ function track(tab: Tab) {
       body: body && body.length <= policy['network.keepBytes'] ? body : undefined,
     })
     if (tab.net.length > policy['network.keep']) tab.net.shift()
+    // Held answers are memory: past the tab's budget the oldest are let go (the browser may still have them).
+    let held = tab.net.reduce((sum, n) => sum + (n.body?.length ?? 0), 0)
+    for (const n of tab.net) {
+      if (held <= policy['network.tabBytes']) break
+      if (n.body) { held -= n.body.length; n.body = undefined }
+    }
   })
   page.on('close', () => {
     tabs.delete(tab.id)
@@ -663,6 +675,10 @@ async function setupTab(session: string, page: Page): Promise<Tab> {
 const COMMIT = () => ({ waitUntil: 'commit' as const, timeout: policy['load.timeoutMs'] })
 
 async function newTab(session: string, url: string): Promise<Tab> {
+  const open = new Set([...tabs.values()].map(t => t.session))
+  if (!open.has(session) && open.size >= policy['sessions.max']) {
+    throw new Error(`${open.size} sessions are open, the most there can be: close the tabs of one (browser-layer --session <name> close <id>) or use a session already open`)
+  }
   const tab = await setupTab(session, await ctx.newPage())
   await tab.page.goto(withUrl(url), COMMIT())
   return tab
@@ -1240,7 +1256,13 @@ async function main() {
     req.on('data', c => (body += c))
     req.on('end', () => {
       touch()
-      const c = JSON.parse(body || '{}') as Command
+      let c: Command
+      try {
+        c = JSON.parse(body || '{}') as Command
+      } catch {
+        res.end(JSON.stringify({ ok: false, error: 'the daemon could not read that request' }))
+        return
+      }
       if (c.cmd === 'stop') {
         void shutdown(text => res.end(JSON.stringify({ ok: true, text }), () => process.exit(0)))
         return

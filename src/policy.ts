@@ -35,6 +35,8 @@ export const DEFAULTS = {
   'network.keep': 300,
   'network.bodyChars': 4000,
   'network.keepBytes': 5_000_000,
+  'network.tabBytes': 50_000_000,
+  'sessions.max': 8,
   'daemon.idleMs': 30 * 60 * 1000,
 }
 
