@@ -235,6 +235,7 @@ const server = createServer((req, res) => {
   if (req.url === '/leave') return page('leave', `<input aria-label="Draft"><script>addEventListener('beforeunload', e => { e.preventDefault(); e.returnValue = '' })</script>`)
   if (req.url === '/poll') return void setTimeout(() => res.end('tick'), 1500)
   if (req.url === '/slow') return void setTimeout(() => res.end('slow data'), 800)
+  if (req.url?.startsWith('/lag/')) return void setTimeout(() => { res.setHeader('content-type', 'text/html'); res.end(`<title>lag</title><p>lagged ${req.url}</p>`) }, 2500)
   if (req.url === '/channel') return page('channel', `<p id="o">ready</p>
     <button onclick="o.textContent = 'clicked'">Quick</button>
     <button onclick="fetch('/slow').then(r => r.text()).then(t => o.textContent = 'loaded ' + t)">Load</button>
@@ -394,6 +395,17 @@ test('two commands from cold start one daemon, and both tabs live in it', async 
   const tabs = (await run('--session', 'c', 'tabs')).out
   assert.match(tabs, /page\/one/)
   assert.match(tabs, /page\/two/)
+})
+
+test('sessions run at the same time: slow pages in four sessions take as long as one, and a session keeps its own order', async () => {
+  const t0 = Date.now()
+  const all = await Promise.all(['p', 'q', 'r', 's'].map(s => run('--session', s, 'tab', `${base}/lag/${s}`)))
+  const took = Date.now() - t0
+  for (const r of all) assert.equal(r.code, 0, r.out)
+  assert.ok(took < 2.5 * 2500, `took ${took} ms: one after another would be over ${4 * 2500} ms`)
+  assert.match((await run('--session', 'r', 'read')).out, /lagged \/lag\/r/)
+  assert.match((await run('--session', 'p', 'tabs')).out, /lag\/p/)
+  assert.doesNotMatch((await run('--session', 'p', 'tabs')).out, /lag\/q/)
 })
 
 test('the live view: one line per row, aria-hidden text without refs, hidden labels clipped, links only when useful', async () => {

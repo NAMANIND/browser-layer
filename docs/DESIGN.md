@@ -361,6 +361,10 @@ Keys are added when the phase that uses them lands.
 
 - Daemon per user, started on demand, single instance (lock + liveness), owner-only socket on a short
   path, idle shutdown, `stop` returns after the engine exits.
+- Commands of one session run in order (two into the same tabs would race); sessions own their tabs and
+  run side by side, so agents working in parallel, each in its own `--session`, wait on pages together, not
+  one after another. The cookie jar is read back only when the fast path wrote it, so one session's page
+  rotating a cookie is never undone by another's command.
 - `~/.browser-layer/<profile>/`: browser profile, downloads, HAR logs (bounded, `Cookie` /
   `Authorization` / `Set-Cookie` redacted before disk), daemon log.
 - The `http` engine reads and writes cookies through the browser profile; no separate jar file.

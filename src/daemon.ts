@@ -172,9 +172,15 @@ function toBrowser(c: Cookie) {
   return { name: c.name, value: c.value, domain: c.hostOnly ? c.domain : `.${c.domain}`, path: c.path, expires: c.expires ? c.expires / 1000 : -1, secure: !!c.secure }
 }
 
+// Sessions run side by side, so a stale jar must never overwrite a cookie another session's page just
+// rotated: the jar is read only when someone else (the fast path) wrote it since this daemon last did.
+const jarStamp = () => statSync(join(home(), 'cookies.json'), { throwIfNoEntry: false })?.mtimeMs ?? 0
+let jarSeen = 0
+
 // Before each command: whatever the fast path logged into since, the browser gets too.
 async function pullCookies() {
-  if (ATTACH) return
+  if (ATTACH || jarStamp() === jarSeen) return
+  jarSeen = jarStamp()
   const jar = loadJar().filter(c => !c.expires || c.expires > Date.now())
   if (jar.length) await ctx.addCookies(jar.map(toBrowser)).catch(() => {})
 }
@@ -192,6 +198,7 @@ async function syncCookies() {
     secure: c.secure,
   }))
   saveJar(jar)
+  jarSeen = jarStamp()
 }
 
 function track(tab: Tab) {
@@ -230,11 +237,12 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 // The page's standing connections (a long-poll channel, a stream) are not the action's doing. Requests
 // open when a command begins are standing, and so is a request that reopens one of their channels.
-let commandStart = Date.now()
+const commandStart = new Map<string, number>()
 const channel = (url: string) => { const u = new URL(url); return `${u.origin}${u.pathname}` }
-function beginCommand() {
-  commandStart = Date.now()
+function beginCommand(session: string) {
+  commandStart.set(session, Date.now())
   for (const t of tabs.values()) {
+    if (t.session !== session) continue
     t.standing = new Set([...t.pending.keys()].map(r => channel(r.url())))
     t.startDoc = t.doc
     t.arrived = undefined
@@ -258,11 +266,12 @@ const registrable = (url: string) => {
 // since ad scripts keep making more (results served by another site's API).
 const caused = (tab: Tab) => {
   const site = registrable(tab.page.url())
+  const began = commandStart.get(tab.session) ?? 0
   return [...tab.pending].filter(([r, at]) => {
-    if (at < commandStart || tab.standing.has(channel(r.url())) || r.resourceType() === 'eventsource' || isTracker(r.url())) return false
+    if (at < began || tab.standing.has(channel(r.url())) || r.resourceType() === 'eventsource' || isTracker(r.url())) return false
     if (registrable(r.url()) === site) return true
     if (r.resourceType() !== 'xhr' && r.resourceType() !== 'fetch') return false
-    if (tab.doc === tab.startDoc) return at - commandStart < policy['settle.thirdPartyMs']
+    if (tab.doc === tab.startDoc) return at - began < policy['settle.thirdPartyMs']
     return tab.arrived !== undefined && at - tab.arrived < policy['settle.arrivalMs'] && Date.now() - at < policy['settle.arrivalMs']
   }).length
 }
@@ -758,7 +767,7 @@ async function refNamed(tab: Tab, target: string | undefined): Promise<string | 
 }
 
 async function run(c: Command): Promise<string> {
-  beginCommand()
+  beginCommand(c.session)
   if (ACTIONS.has(c.cmd)) {
     const tab = need(c.session)
     c.ref = await refNamed(tab, c.ref)
@@ -1195,7 +1204,7 @@ async function main() {
     parent.opened.push(tab.id)
   })
 
-  let queue = Promise.resolve()
+  const queues = new Map<string, Promise<void>>()
   let idle: NodeJS.Timeout
   // `stop` answers only after Chrome has exited, so a caller can safely delete the profile next.
   let stopping = false
@@ -1233,10 +1242,11 @@ async function main() {
         void shutdown(() => res.end(JSON.stringify({ ok: false, stale: true }), () => process.exit(0)))
         return
       }
-      // One command at a time: two agents clicking into the same tab at once would race.
-      queue = queue.then(async () => {
+      // One command at a time per session, as in a browser one person clicks one thing at a time: two commands
+      // into the same tabs would race. Sessions own their tabs, so they run side by side.
+      c.session ||= 'default'
+      queues.set(c.session, (queues.get(c.session) ?? Promise.resolve()).then(async () => {
         try {
-          c.session ||= 'default'
           await pullCookies()
           const text = await (c.cmd === 'steps' ? run(c) : limited(c))
           await syncCookies().catch(() => {})
@@ -1244,7 +1254,7 @@ async function main() {
         } catch (err) {
           res.end(JSON.stringify({ ok: false, error: err instanceof Error ? err.message.split('\n')[0] : String(err) }))
         }
-      })
+      }))
     })
   })
   dropSocket()
