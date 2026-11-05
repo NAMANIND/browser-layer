@@ -151,7 +151,7 @@ type Tab = {
   startDoc?: number; arrived?: number
 }
 export type Command = {
-  cmd: string; session: string; urls?: boolean; out?: string; url?: string; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean
+  cmd: string; session: string; urls?: boolean; out?: string; url?: string; pages?: string[]; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean
   page?: number; files?: string[]; dir?: string; gone?: boolean; keys?: boolean; to?: string; full?: boolean; version?: string
   // steps: the commands to run, each with the text it was given as.
   steps?: Command[]; raw?: string
@@ -668,18 +668,27 @@ async function newTab(session: string, url: string): Promise<Tab> {
   return tab
 }
 
-// tab <url>: a page already open in this session is switched to, as a browser's "switch to tab" does (no
-// second copy to load and keep track of); any other opens in a new tab, which becomes current.
-async function openTab(session: string, url: string): Promise<string> {
+// A page already open in this session is switched to, as a browser's "switch to tab" does (no second copy to
+// load and keep track of); any other opens in a new tab.
+async function openTab(session: string, url: string): Promise<{ tab: Tab; text: string }> {
   const open = [...tabs.values()].find(t => t.session === session && pageOf(t.page.url()) === pageOf(new URL(withUrl(url)).href))
   if (open) {
     open.used = Date.now()
-    current.set(session, open.id)
-    return mapView(open, undefined, '', 'already open here, so this is that tab (reload loads it again)', true)
+    return { tab: open, text: await mapView(open, undefined, '', 'already open here, so this is that tab (reload loads it again)', true) }
   }
   const tab = await newTab(session, url)
   const note = await arrive(tab)
-  return mapView(tab, undefined, unusual(await settle(tab)), note)
+  return { tab, text: await mapView(tab, undefined, unusual(await settle(tab)), note) }
+}
+
+// tab <url…>: the pages load together, as a person opens several tabs and then reads them one by one; each
+// answers with its map, and the first is current. One that fails says so and the others still answer.
+async function openTabs(session: string, urls: string[]): Promise<string> {
+  const results = await Promise.allSettled(urls.map(u => openTab(session, u)))
+  const opened = results.flatMap(r => (r.status === 'fulfilled' ? [r.value] : []))
+  if (!opened.length) throw (results[0] as PromiseRejectedResult).reason
+  current.set(session, opened[0].tab.id)
+  return results.map((r, i) => r.status === 'fulfilled' ? r.value.text : `${urls[i]}  → error: ${r.reason instanceof Error ? r.reason.message.split('\n')[0] : r.reason}`).join('\n\n')
 }
 
 // What an action did: a dialog waiting, a pop-up that opened (it becomes current, answered with its
@@ -775,7 +784,7 @@ async function run(c: Command): Promise<string> {
   }
   switch (c.cmd) {
     case 'tab':
-      return openTab(c.session, c.url ?? 'about:blank')
+      return openTabs(c.session, c.pages ?? [c.url ?? 'about:blank'])
     case 'go': {
       const tab = need(c.session)
       // A page can ask before it is left (beforeunload): that dialog waits for the agent like any other.

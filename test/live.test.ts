@@ -408,6 +408,19 @@ test('sessions run at the same time: slow pages in four sessions take as long as
   assert.doesNotMatch((await run('--session', 'p', 'tabs')).out, /lag\/q/)
 })
 
+test('tab with several addresses opens them together, answers with each map, and the first is current', async () => {
+  const urls = ['a', 'b', 'c'].map(s => `${base}/lag/${s}`)
+  const t0 = Date.now()
+  const r = await run('--session', 'multi', 'tab', ...urls, `${base}/page/ok`)
+  assert.ok(Date.now() - t0 < 2 * 2500, `took ${Date.now() - t0} ms`)
+  assert.equal(r.code, 0, r.out)
+  for (const u of ['lag/a', 'lag/b', 'lag/c', 'page/ok']) assert.match(r.out, new RegExp(`tab \\d+  \\S*${u}`))
+  assert.match((await run('--session', 'multi', 'tabs')).out, /^\* \d+  \S*lag\/a/m)
+  const bad = await run('--session', 'multi', 'tab', `${base}/page/ok2`, 'http://127.0.0.1:1/')
+  assert.match(bad.out, /tab \d+  \S*page\/ok2/)
+  assert.match(bad.out, /http:\/\/127\.0\.0\.1:1\/  → error: /)
+})
+
 test('the live view: one line per row, aria-hidden text without refs, hidden labels clipped, links only when useful', async () => {
   const { code, out } = await openRead(`${base}/view`)
   assert.equal(code, 0, out)

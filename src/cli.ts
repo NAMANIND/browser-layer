@@ -15,7 +15,7 @@ const HELP = `browser-layer — websites as text and verbs for agents. <ref> is 
 
 Plain HTTP, no browser:  open <url>|<ref> · verbs · do <verb> k=v ... · --json
 Live tabs (headless browser, runs the page's JS):
-  tab <url>                    open a tab (current; an open page is switched to); answers with the map
+  tab <url…>                   open tabs (several load together; the first is current; an open page is switched to); answers with each map
   go <url> · back · forward · reload · tabs · use <id> · close [id] · stop
   steps '<cmd>; <cmd>; ...'    several commands in one call: actions answer in one line, reads and
                                the last step in full; the first error stops the rest
@@ -208,6 +208,7 @@ type Parsed = ReturnType<typeof parse>
 function liveCommand({ cmd, target, rest, page, limit, sort, cols, file, has }: Parsed): Command {
   const c: Command = { cmd, session, page, limit, sort, cols, desc: has('--desc'), urls: has('--urls'), out: file, gone: has('--gone'), keys: has('--keys'), enter: has('--enter'), all: has('--all') }
   if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: browser-layer ${cmd} <url>`)
+  if (cmd === 'tab' && rest.length) c.pages = [target, ...rest]
   if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)
   if (cmd === 'net' && target) {
     if (!['show', 'save'].includes(target) || !/^#?\d+$/.test(rest[0] ?? '') || (target === 'save' && !rest[1])) fail('usage: browser-layer net [--all] | net show <#> | net save <#> <file>')
