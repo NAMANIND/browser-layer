@@ -1224,3 +1224,20 @@ test('an element that scrolls has a ref, and scroll acts on it', async () => {
   await run('scroll', terms, 'bottom')
   assert.doesNotMatch((await run('click', 'I accept')).out, /disabled/)
 })
+
+test('each loads pages together, runs one read on each, answers per page, and closes the tabs it opened', async () => {
+  await run('tab', `${base}/view`)
+  const urls = ['a', 'b', 'c'].map(s => `${base}/lag/${s}`)
+  const t0 = Date.now()
+  const out = await run('each', 'find lagged', ...urls)
+  assert.ok(Date.now() - t0 < 2.5 * 2500, 'the pages load at the same time, not one after another')
+  assert.equal(out.code, 0, out.out)
+  for (const s of ['a', 'b', 'c']) assert.match(out.out, new RegExp(`/lag/${s}  "lag"[\\s\\S]*?lagged /lag/${s}`))
+  const tabs = (await run('tabs')).out
+  assert.match(tabs, /\/view/)
+  assert.doesNotMatch(tabs, /\/lag\//)
+  assert.match((await run('each', 'find nothing-here', urls[0])).out, /is not on the page/)
+  const action = await run('each', 'click 1', urls[0])
+  assert.equal(action.code, 1)
+  assert.match(action.out, /each only reads/)
+})

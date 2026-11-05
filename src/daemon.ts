@@ -686,15 +686,20 @@ async function newTab(session: string, url: string): Promise<Tab> {
 
 // A page already open in this session is switched to, as a browser's "switch to tab" does (no second copy to
 // load and keep track of); any other opens in a new tab.
-async function openTab(session: string, url: string): Promise<{ tab: Tab; text: string }> {
+async function loadTab(session: string, url: string) {
   const open = [...tabs.values()].find(t => t.session === session && pageOf(t.page.url()) === pageOf(new URL(withUrl(url)).href))
   if (open) {
     open.used = Date.now()
-    return { tab: open, text: await mapView(open, undefined, '', 'already open here, so this is that tab (reload loads it again)', true) }
+    return { tab: open, fresh: false, settled: '', note: 'already open here, so this is that tab (reload loads it again)' }
   }
   const tab = await newTab(session, url)
   const note = await arrive(tab)
-  return { tab, text: await mapView(tab, undefined, unusual(await settle(tab)), note) }
+  return { tab, fresh: true, settled: unusual(await settle(tab)), note }
+}
+
+async function openTab(session: string, url: string): Promise<{ tab: Tab; text: string }> {
+  const { tab, fresh, settled, note } = await loadTab(session, url)
+  return { tab, text: await mapView(tab, undefined, settled, note, !fresh) }
 }
 
 // tab <url…>: the pages load together, as a person opens several tabs and then reads them one by one; each
@@ -854,6 +859,27 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
       if (stop) return [...lines, `stopped at step ${k + 1} of ${list.length}: answer it first`].join('\n')
     }
     return lines.join('\n')
+  },
+  // each '<read>' <url…>: the pages load together and the one read runs on each, answering per page; the tabs it
+  // opened close, so a task over many pages leaves none behind. It reads: acting on several pages at once is
+  // a decision per page.
+  async each(c) {
+    const [read] = c.steps ?? []
+    if (!read || !c.pages?.length) throw new Error("usage: browser-layer each '<read command>' <url…>")
+    if (!READS.has(read.cmd) && read.cmd !== 'eval') throw new Error(`each only reads: ${[...READS, 'eval'].join(', ')}`)
+    const was = current.get(c.session)
+    const loaded = await Promise.allSettled(c.pages.map(u => loadTab(c.session, u)))
+    const answers: string[] = []
+    for (const [k, l] of loaded.entries()) {
+      if (l.status === 'rejected') { answers.push(`${c.pages[k]}  → error: ${l.reason instanceof Error ? l.reason.message.split('\n')[0] : l.reason}`); continue }
+      current.set(c.session, l.value.tab.id)
+      const note = [l.value.note, l.value.settled].filter(Boolean).join('; ')
+      const text = await limited({ ...read, session: c.session }).catch(err => `error: ${err instanceof Error ? err.message.split('\n')[0] : err}`)
+      answers.push(`${await header(l.value.tab)}${note ? `  (${note})` : ''}\n${text}`)
+    }
+    for (const l of loaded) if (l.status === 'fulfilled' && l.value.fresh) await l.value.tab.page.close().catch(() => {})
+    if (was !== undefined && tabs.has(was)) current.set(c.session, was)
+    return answers.join('\n\n')
   },
   async tabs(c) {
     // The session's activity map: its tabs, most recently used first.

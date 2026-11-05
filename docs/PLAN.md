@@ -186,8 +186,8 @@ long tasks but cost score on four of them and did not rescue the two worst runaw
 
 Next phase, in order. Each starts with a failing test and reports numbers before and after.
 
-1. **Many-page tasks.** An agent that reads dozens of pages pays one turn per page. A call that loads a
-   list of pages and extracts the same thing from each, in one answer.
+1. ~~Many-page tasks.~~ Done on `hardening`: `each '<read>' <url…>` (three public pages, the old way took 7 calls and
+   2.9k+ chars, `each` 1 call and 1.7k, and it leaves no tabs open). Not measured on the benchmark yet.
 2. **Smaller answers.** `tab` and action answers are 1.5 to 3 times the size they were in 0.1.3, and every
    later turn re-reads them. Find what the agent does not use. Point it to `--out` for big results.
 3. **Tabs pile up** (median 5 a task, 90th percentile 22). `tabs` shows last use; opening a page that is

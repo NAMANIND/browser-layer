@@ -19,6 +19,7 @@ Live tabs (headless browser, runs the page's JS):
   go <url> · back · forward · reload · tabs · use <id> · close [id] · stop
   steps '<cmd>; <cmd>; ...'    several commands in one call: actions answer in one line, reads and
                                the last step in full; the first error stops the rest
+  each '<read>' <url…>         load pages together, run one read on each, one answer; its tabs close
   map                          regions, fields, actions, lists and links, with refs
   read [ref] [--page N] [--full]   the page or one region; read again: what changed
   find <text> [--page N]       lines that contain it
@@ -362,6 +363,16 @@ async function main() {
     // A step that failed stops a shell chain after this call too.
     if (/\nstopped at step \d+ of \d+/.test(reply.text!)) process.exit(1)
     return
+  }
+
+  if (cmd === 'each') {
+    const [text, ...urls] = [target, ...rest]
+    const [{ raw, words }] = script(text ?? '')
+    const p = parse(words ?? [])
+    if (!text || !urls.length || !LIVE.has(p.cmd) || p.cmd === 'stop' || p.session !== undefined || p.profile !== undefined) fail(`usage: browser-layer each '<read command>' <url…>`)
+    const reply = await live({ cmd: 'each', session, pages: urls, steps: [{ ...liveCommand(p), raw }] })
+    if (!reply.ok) fail(`error: ${reply.error}`)
+    return console.log(reply.text)
   }
 
   if (LIVE.has(cmd)) {

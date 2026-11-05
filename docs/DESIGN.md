@@ -297,7 +297,7 @@ again`, at no cost to any page that has content, and the agent's next read shows
 | Keyboard | `type <ref> <text> [--enter] [--keys]` (replace as typing over a selection; `--keys` sends one key event per character), `press <key or combo>` |
 | Form | `check`, `uncheck` (repeatable), `pick <ref> <option>` (a `<select>`, where a multiple one keeps what is chosen, or an ARIA combobox or listbox opened and its option clicked), `upload <ref> <file…>`, `submit <ref>` (`requestSubmit`) |
 | Scroll | `scroll [ref] [down \| up \| top \| bottom]`; lazily loaded rows come back as changes |
-| Batching | `steps '<cmd>; <cmd>; …'` runs several commands in one call (§1a) |
+| Batching | `steps '<cmd>; <cmd>; …'` runs several commands in one call (§1a); `each '<read>' <url…>` loads the pages together, runs one read (`find`, `read`, `get`, `eval`, …) on each and answers once per page, then closes the tabs it opened: a task over many pages is one turn, not one per page |
 | Dialogs | `alert` / `confirm` / `prompt` / `beforeunload` wait for `dialog accept [text] \| dismiss` |
 | Windows | Pop-ups and `target=_blank` open as tabs in the same session and become current |
 | Downloads | Saved under `<home>/downloads`, reported by the action that caused them |

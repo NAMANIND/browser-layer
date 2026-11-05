@@ -31,7 +31,7 @@ depends on something you cannot see yet.
 
 1. `browser-layer tab <url>` opens a page and answers with its **map**: regions, fields, actions,
    lists and links, each with a ref like `[15]`. Need its text too? `tab <url> && browser-layer read`
-   in the same call. Several sites to visit: `tab <url1> <url2> <url3>` loads them together and answers with each map in one call. Keep one tab per site and switch with `use <id>` (nothing reloads; `tabs` lists
+   in the same call. Several sites to visit: `tab <url1> <url2> <url3>` loads them together and answers with each map in one call. Need the same fact from many pages: `each 'find price' <url1> <url2> …` loads them together, runs the read on each and answers once, closing its tabs. Keep one tab per site and switch with `use <id>` (nothing reloads; `tabs` lists
    them); move within a site with `go <url>`.
 2. Act on a ref or a control's name: `click 31`, `click "Next"`, `type 15 Mumbai --enter`,
    `pick 22 "Economy"`, `check 40`. Every action answers with **what changed** or the new page, with
