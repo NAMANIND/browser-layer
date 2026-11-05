@@ -1166,6 +1166,21 @@ async function run(c: Command): Promise<string> {
   }
 }
 
+// What each session last did and was told. An agent that repeats a call and gets the same answer is not
+// getting anywhere, and it cannot see that from one answer; the tool can. Reads and batches repeat legitimately.
+const history = new Map<string, string[]>()
+function repeated(c: Command, text: string): string {
+  if (READS.has(c.cmd) || c.cmd === 'steps' || c.cmd === 'wait') return text
+  const log = history.get(c.session) ?? []
+  // How long settling took differs on every call, so it is not part of "the same answer".
+  const seen = `${JSON.stringify({ ...c, version: undefined })}\n${text.replace(/\d+ ms/g, '')}`
+  const k = log.lastIndexOf(seen)
+  const ago = log.length - k
+  history.set(c.session, [...log, seen].slice(-10))
+  if (k < 0) return text
+  return `${text}\nnote: the same call gave this same answer ${ago} call${ago === 1 ? '' : 's'} ago; repeating it again changes nothing`
+}
+
 // A page whose renderer stopped answering (a script that never returns) would hold every later command
 // behind it; the command fails instead, and other tabs carry on. Reading the page takes seconds at most, so
 // a read gives up sooner than a command that loads a page. Each of a call's steps has its own limit.
@@ -1279,7 +1294,7 @@ async function main() {
       queues.set(c.session, (queues.get(c.session) ?? Promise.resolve()).then(async () => {
         try {
           await pullCookies()
-          const text = await (c.cmd === 'steps' ? run(c) : limited(c))
+          const text = repeated(c, await (c.cmd === 'steps' ? run(c) : limited(c)))
           await syncCookies().catch(() => {})
           res.end(JSON.stringify({ ok: true, text }))
         } catch (err) {

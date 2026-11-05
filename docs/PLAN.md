@@ -194,12 +194,21 @@ Next phase, in order. Each starts with a failing test and reports numbers before
    already open in another tab says so; a cap per session; `close --all`.
 4. **`get` on varied cards explodes into columns** (optional parts each make one). Needs a standard way to
    keep columns stable.
-5. **A covered control costs a turn** even when the cover is going away. Retry once after a short wait
-   before answering `covered by …`.
-6. **Parallel, what is left:** enforce `sessions.max` (DESIGN §9 lists it; nothing checks it), serialize
-   the cookie-jar write, close an idle session's tabs.
+5. ~~A covered control costs a turn~~ Already handled: `pointAt` polls a covered control for the whole `actions.timeoutMs`
+   (5 s) and answers `covered by …` only if the cover stays. Nothing to add.
+6. **Parallel, what is left:** close an idle session's tabs. (`sessions.max` is enforced and the jar is written only
+   when it changed, on branch `hardening`.)
 7. **Sites refusing the browser.** Steer the agent to the site's API, sitemap or another source before it
    gives up. Headful against headless: parked until someone wants it measured.
+
+Branch `hardening` (from `lean-answers`): a daemon that dies mid-command is no longer asked to run it again; a
+request it cannot parse no longer kills it; `sessions.max` and `network.tabBytes` are enforced; an action that
+repeats a call with the same answer says so (`note: the same call gave this same answer N calls ago`).
+
+Not done, needs a decision: a timed-out command keeps running (cancelling means threading it through `run()`, so
+split `run()` first); `steps` does not stop on a replaced page (the skill's own example plans across one); the
+browser-use `stress-tests` pages as an offline corpus (a harness that serves and drives their HTML, run only
+with the person's go-ahead since it loads code from outside).
 
 Before any deploy: run the same 24 tasks twice more on the branch, because one run per task is noise.
 

@@ -1170,3 +1170,11 @@ test("attached to a person's own Chrome: it works in tabs of its own, leaves the
     rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 })
   }
 })
+
+test('an action that gives the same answer as the same call a moment ago says so', async () => {
+  await run('tab', `${base}/view`)
+  const first = await run('press', 'Escape')
+  assert.doesNotMatch(first.out, /same call/)
+  const again = await run('press', 'Escape')
+  assert.match(again.out, /note: the same call gave this same answer 1 call ago/)
+})
