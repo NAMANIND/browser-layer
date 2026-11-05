@@ -96,7 +96,11 @@ export async function live(c: Command): Promise<Reply> {
     if (c.cmd === 'stop') return { ok: true, text: 'stopped' }
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
-    // ECONNRESET: the daemon was exiting (just after `stop`); like a missing one, start a fresh one.
+    // ECONNRESET: the daemon went away while it held the command, so the command may have run, and running
+    // it again could click or submit twice. Only `stop` (the daemon exiting) is safe to carry on from.
+    if (code === 'ECONNRESET' && c.cmd !== 'stop') {
+      return { ok: false, error: 'the browser stopped while this command ran, so what it did is not known: run browser-layer map to see the page' }
+    }
     if (code !== 'ENOENT' && code !== 'ECONNREFUSED' && code !== 'ECONNRESET') throw err
   }
   // Asking about or stopping a browser that is not running must not start one.
