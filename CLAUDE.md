@@ -22,6 +22,7 @@ Read `docs/DESIGN.md` and `docs/PLAN.md` first. Work only on the current phase.
 
 ## Size
 
-Baseline, 31 Oct 2026: 1,059 lines in `src/` across 8 files. Each phase states how the count moved
+Baseline, 5 Nov 2026: 3,320 lines in `src/` across 12 files (31 Oct: 1,059 in 8, before the commands, frames,
+attach and data layer). Each phase states how the count moved
 and why in its final commit. A phase that grows the code more than its features justify gets trimmed
 before it is called done.

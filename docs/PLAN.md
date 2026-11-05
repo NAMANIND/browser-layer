@@ -212,8 +212,8 @@ the reader and in `type`/`pick`; now 13 of 13: date, time and colour inputs,
 and range inputs; `pick` on a multiple select adds. Read time on the corpus is unchanged (scroll containers
 are found in one in-page pass; asking the snapshot for element rects made reads 35–45% slower, so no).
 
-Not done, needs a decision: a timed-out command keeps running (cancelling means threading it through `run()`, so
-split `run()` first); `steps` does not stop on a replaced page (the skill's own example plans across one); the
+Not done, needs a decision: a timed-out command keeps running (cancelling means threading it through each command; `run()` is now
+a table of one function per command, so that is possible); `steps` does not stop on a replaced page (the skill's own example plans across one); the
 more of the 60 stress-test pages (iframe-inception, shadow-dom-form, the library forms).
 
 Before any deploy: run the same 24 tasks twice more on the branch, because one run per task is noise.
@@ -224,8 +224,6 @@ Carried over:
 - `render.nameChars` (120) trades completeness for tokens; unresolved.
 - Revisit schema.org JSON-LD or microdata as page facts, once measured on a detail-page corpus.
 - Reveal detection does not cover CSS `:hover` rules, React's root-delegated listeners or WebGL text.
-- Housekeeping: `run()` in `daemon.ts` is 373 lines, against "one job per function"; CLAUDE.md's size
-  baseline is stale.
 - The benchmark's own notes (judge cost uncounted, model stalls, one run per task) are in
   `browser-layer-bench/bu-bench/NEXT.md`.
 

@@ -791,6 +791,382 @@ async function refNamed(tab: Tab, target: string | undefined): Promise<string | 
   throw new Error(`${best.length} controls are named "${target}"; use a ref: ${best.slice(0, policy['render.mapFew']).map(n => `[${n.ref}] ${n.role} "${n.name}"`).join(' · ')}`)
 }
 
+async function navigate(c: Command): Promise<string> {
+  const tab = need(c.session)
+  await untilDialog(tab, c.cmd === 'back' ? tab.page.goBack(COMMIT()) : c.cmd === 'forward' ? tab.page.goForward(COMMIT()) : tab.page.reload(COMMIT()))
+  if (tab.dialog) return answer(tab)
+  const note = await arrive(tab)
+  return mapView(tab, undefined, unusual(await settle(tab)), note)
+}
+
+async function pointing(c: Command): Promise<string> {
+  const tab = need(c.session)
+  await pointerAt(tab, c.ref, { clicks: c.cmd === 'dblclick' ? 2 : 1, button: c.cmd === 'rightclick' ? 'right' : 'left', move: c.cmd === 'hover' })
+  return answer(tab)
+}
+
+async function setChecked(c: Command): Promise<string> {
+  const tab = need(c.session)
+  const want = c.cmd === 'check'
+  // Only a box in the other state is clicked, so check and uncheck can be repeated safely.
+  if (await isChecked(targetOf(tab, c.ref)) !== want) await pointerAt(tab, c.ref, {})
+  const out = await answer(tab)
+  return (await isChecked(targetOf(tab, c.ref))) === want ? out : `${out}\nnote: [${c.ref}] is still ${want ? 'unchecked' : 'checked'}`
+}
+
+// One function per command: each takes the command and answers with the text the agent reads.
+const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
+  async tab(c) {
+    return openTabs(c.session, c.pages ?? [c.url ?? 'about:blank'])
+  },
+  async go(c) {
+    const tab = need(c.session)
+    // A page can ask before it is left (beforeunload): that dialog waits for the agent like any other.
+    await untilDialog(tab, tab.page.goto(withUrl(c.url!), COMMIT()))
+    if (tab.dialog) return answer(tab)
+    const note = await arrive(tab)
+    return mapView(tab, undefined, unusual(await settle(tab)), note)
+  },
+  back: navigate,
+  forward: navigate,
+  reload: navigate,
+  async steps(c) {
+    // Several commands in one call, run in order as if sent one by one. A read answers in full, an action
+    // in its first line, the last step in full: what the agent planned ahead needs no answer of its own.
+    // The first error, dialog or block stops the rest, and the answer ends with the page as it is then.
+    const list = c.steps ?? []
+    const lines: string[] = []
+    for (const [k, s] of list.entries()) {
+      s.session = c.session
+      const at = `${k + 1}. ${s.raw ?? s.cmd}`
+      let text: string
+      try {
+        text = await limited(s)
+      } catch (err) {
+        lines.push(`${at}  → error: ${err instanceof Error ? err.message.split('\n')[0] : err}`)
+        const tab = tabs.get(current.get(c.session) ?? 0)
+        lines.push(`stopped at step ${k + 1} of ${list.length}${tab ? '; the page now:' : ''}`)
+        if (tab) lines.push('', await changes(tab))
+        return lines.join('\n')
+      }
+      const stop = / dialog is open: |\nblocked: /.test(text) && k < list.length - 1
+      lines.push(k === list.length - 1 || stop || READS.has(s.cmd) || s.cmd === 'eval' ? `${at}\n${text}` : `${at}  → ${text.split('\n')[0]}`)
+      if (stop) return [...lines, `stopped at step ${k + 1} of ${list.length}: answer it first`].join('\n')
+    }
+    return lines.join('\n')
+  },
+  async tabs(c) {
+    // The session's activity map: its tabs, most recently used first.
+    const mine = [...tabs.values()].filter(t => t.session === c.session).sort((a, b) => b.used - a.used)
+    if (!mine.length) return `no live tabs in session "${c.session}"`
+    return (await Promise.all(mine.map(async t =>
+      `${t.id === current.get(c.session) ? '*' : ' '} ${t.id}  ${t.page.url()}  "${await t.page.title().catch(() => '')}"  used ${ago(t.used)}`))).join('\n')
+  },
+  async use(c) {
+    current.set(c.session, own(c.session, c.id!).id)
+    return mapView(need(c.session), undefined, '', '', true)
+  },
+  async map(c) {
+    return mapView(need(c.session), undefined, '', '', true)
+  },
+  async get(c) {
+    const tab = need(c.session)
+    const { tree, origin } = await snapshot(tab)
+    const node = findRef(tree, Number(c.ref))
+    if (!node) throw new Error(`[${c.ref}] is not on the page — run: browser-layer map`)
+    if (!records(node, origin, caps()).rows.length) throw new Error(`[${c.ref}] has no rows; get works on the lists and tables the map shows`)
+    return `${await header(tab)}  — ${recordsView(node, origin, c)}`
+  },
+  async read(c) {
+    const ref = c.ref === undefined ? undefined : Number(c.ref)
+    if (!c.out && (ref !== undefined || c.page)) return view(need(c.session), c.page ?? 1, undefined, ref)
+    if (!c.out) return reread(need(c.session), !!c.full)
+    const text = await textOf(need(c.session), ref)
+    return saved(c.out, text, `${text.split('\n').length} lines, ${text.length} chars`)
+  },
+  click: pointing,
+  dblclick: pointing,
+  rightclick: pointing,
+  hover: pointing,
+  async type(c) {
+    const tab = need(c.session)
+    // --keys sends one key event per character, for fields that listen to keys rather than input.
+    let held: string | null = null
+    await act(tab, c.ref, async t => {
+      await fill(t, c.keys ? '' : c.text ?? '')
+      if (c.keys) await tab.page.keyboard.type(c.text ?? '')
+      held = await heldBy(t).catch(() => null)
+    })
+    // What did not take is said in the same answer, so the agent does not look again to find out: a
+    // field that changed what was typed (a mask, a limit), and an Enter that did nothing on the page.
+    const words = (s: string) => s.replace(/\s+/g, ' ').trim()
+    const notes = held !== null && words(held) !== words(c.text ?? '') ? [`note: [${c.ref}] holds ${JSON.stringify(words(held).slice(0, policy['render.nameChars']))}, not what was typed`] : []
+    if (!c.enter) return [await answer(tab), ...notes].join('\n')
+    const before = { url: tab.page.url(), doc: tab.doc, text: await tab.page.evaluate('window.__alText?.()').catch(() => -1) }
+    await untilDialog(tab, tab.page.keyboard.press('Enter'))
+    const out = await answer(tab)
+    if (!tab.dialog && tab.doc === before.doc && tab.page.url() === before.url && await tab.page.evaluate('window.__alText?.()').catch(() => -2) === before.text)
+      notes.push('note: Enter changed nothing on the page; the form may need its own button (click it by name)')
+    return [out, ...notes].join('\n')
+  },
+  check: setChecked,
+  uncheck: setChecked,
+  async submit(c) {
+    const tab = need(c.session)
+    await untilDialog(tab, act(tab, c.ref, submit))
+    return answer(tab)
+  },
+  async drag(c) {
+    const tab = need(c.session)
+    const to = targetOf(tab, c.to)
+    await untilDialog(tab, act(tab, c.ref, from => drag(from, to, policy['actions.timeoutMs'])))
+    return answer(tab)
+  },
+  async find(c) {
+    const tab = need(c.session)
+    const want = (c.text ?? '').toLowerCase()
+    if (!want) throw new Error('usage: browser-layer find <text>')
+    const hits = (await snapshot(tab)).text.split('\n').filter(l => l.toLowerCase().includes(want))
+    if (!hits.length) return `"${c.text}" is not on the page`
+    if (c.out) return saved(c.out, hits.join('\n'), `${hits.length} lines with "${c.text}"`)
+    const per = policy['data.rows']
+    const page = c.page ?? 1
+    const from = (page - 1) * per
+    if (from >= hits.length) throw new Error(`page ${page} does not exist; the matches fill ${Math.ceil(hits.length / per)}`)
+    const shown = hits.slice(from, from + per)
+    const more = from + per < hits.length ? `\n… more: browser-layer find ${c.text} --page ${page + 1}, or --out <file> for all ${hits.length}` : ''
+    return `${hits.length} lines with "${c.text}"${hits.length > per ? ` (${from + 1}–${from + shown.length})` : ''}\n\n${shown.join('\n')}${more}`
+  },
+  async cookies(c) {
+    // Cookie values are credentials, so they are never shown; names, sites and expiry are.
+    // Attached, the browser holds a person's every site: only the current page's is the agent's to see or clear.
+    const site = ATTACH ? new URL(need(c.session).page.url()).hostname : c.url
+    if (c.dir === 'clear') {
+      await ctx.clearCookies(site ? { domain: site } : undefined)
+      return `cleared cookies${site ? ` for ${site}` : ''}`
+    }
+    const list = (await ctx.cookies()).filter(k => !site || k.domain.replace(/^\./, '').endsWith(site))
+    if (!list.length) return 'no cookies'
+    return list.map(k => `${k.domain}  ${k.name}  ${k.path}  ${k.expires > 0 ? `until ${new Date(k.expires * 1000).toISOString().slice(0, 10)}` : 'session'}${k.httpOnly ? '  httpOnly' : ''}${k.secure ? '  secure' : ''}`).join('\n')
+  },
+  async storage(c) {
+    const tab = need(c.session)
+    if (c.dir !== 'local' && c.dir !== 'session') throw new Error('usage: browser-layer storage local|session [clear]')
+    const area = `${c.dir}Storage`
+    if (c.text === 'clear') {
+      await tab.page.evaluate(`${area}.clear()`)
+      return `cleared ${area} for ${new URL(tab.page.url()).origin}`
+    }
+    const entries = await tab.page.evaluate(`Object.entries(${area})`) as [string, string][]
+    if (!entries.length) return `${area} is empty for ${new URL(tab.page.url()).origin}`
+    return entries.map(([k, v]) => `${k} = ${v.length > policy['render.nameChars'] ? `${v.slice(0, policy['render.nameChars'] - 1)}…` : v}`).join('\n')
+  },
+  async pick(c) {
+    const tab = need(c.session)
+    try {
+      await act(tab, c.ref, t => pick(t, c.text ?? ''))
+      return answer(tab)
+    } catch (err) {
+      if (!/not a <select>/.test(String(err))) throw err
+    }
+    // A custom dropdown (an ARIA combobox or listbox): opened and its option clicked by name, as a person
+    // picks one. One already open is not clicked shut. An option that is not there closes it again (Escape)
+    // and lists what it offers.
+    const listed = async () => {
+      const tree = (await snapshot(tab)).tree
+      return { open: findRef(tree, Number(c.ref))?.states?.includes('expanded'), options: withRefs(tree).filter(n => n.role === 'option' || n.role === 'menuitemradio' || n.role === 'menuitem') }
+    }
+    let { open, options } = await listed()
+    if (!open || !options.length) {
+      await pointerAt(tab, c.ref, {})
+      await settle(tab, policy['explore.waitMs'])
+      options = (await listed()).options
+    }
+    const want = (c.text ?? '').trim().toLowerCase()
+    const best = options.filter(n => fit(n.name, want) < 3).sort((a, b) => fit(a.name, want) - fit(b.name, want))[0]
+    if (!best) {
+      await tab.page.keyboard.press('Escape')
+      throw new Error(`no option "${c.text}"; options: ${options.slice(0, policy['render.mapFew']).map(o => o.name).join(' | ') || '(none appeared when it opened)'}`)
+    }
+    await pointerAt(tab, String(best.ref), {})
+    return answer(tab)
+  },
+  async press(c) {
+    const tab = need(c.session)
+    await untilDialog(tab, tab.page.keyboard.press(c.key!))
+    return answer(tab)
+  },
+  async upload(c) {
+    const tab = need(c.session)
+    const missing = (c.files ?? []).filter(f => !existsSync(f))
+    if (!c.files?.length || missing.length) throw new Error(missing.length ? `no such file: ${missing.join(', ')}` : 'usage: browser-layer upload <ref> <file...>')
+    // A file input takes the files directly; any other control is clicked and its file chooser answered.
+    await act(tab, c.ref, async t => {
+      if (await isFileInput(t)) return setFiles(t, c.files!)
+      const chooser = tab.page.waitForEvent('filechooser', { timeout: policy['actions.timeoutMs'] })
+      await pointer(t, policy['actions.timeoutMs'])
+      await (await chooser).setFiles(c.files!)
+    })
+    return answer(tab)
+  },
+  async scroll(c) {
+    const tab = need(c.session)
+    const dir = c.dir ?? 'down'
+    const vp = tab.page.viewportSize() ?? { width: policy['viewport.width'], height: policy['viewport.height'] }
+    const t = c.ref ? targetOf(tab, c.ref) : undefined
+    if (dir === 'down' || dir === 'up') await wheel(t, tab.cdp, (dir === 'down' ? 1 : -1) * vp.height * 0.8, [vp.width, vp.height], policy['actions.timeoutMs'])
+    else if (dir === 'top' || dir === 'bottom') {
+      const to = `function () { const e = this === window ? document.scrollingElement : this; e.scrollTo(0, ${dir === 'top' ? 0 : 'e.scrollHeight'}) }`
+      if (t) await call(t, to)
+      else await tab.page.evaluate(`(${to}).call(window)`)
+    } else throw new Error(`scroll takes down, up, top or bottom, not "${dir}"`)
+    return answer(tab)
+  },
+  async wait(c) {
+    const tab = need(c.session)
+    if (!c.text) throw new Error('usage: browser-layer wait [--gone] <text>')
+    const end = Date.now() + policy['wait.timeoutMs']
+    while (((await snapshot(tab)).text.includes(c.text)) === !!c.gone) {
+      if (Date.now() > end) throw new Error(`"${c.text}" ${c.gone ? 'is still on the page' : 'did not appear'} after ${policy['wait.timeoutMs']} ms`)
+      await sleep(250)
+    }
+    return answer(tab)
+  },
+  async dialog(c) {
+    const tab = need(c.session)
+    const d = tab.dialog
+    if (!d) throw new Error('no dialog is open')
+    tab.dialog = undefined
+    if (c.dir === 'accept') await d.accept(c.text)
+    else if (c.dir === 'dismiss') await d.dismiss()
+    else throw new Error('usage: browser-layer dialog accept [text] | dismiss')
+    return answer(tab)
+  },
+  async explore(c) {
+    const tab = need(c.session)
+    const { tree } = await snapshot(tab)
+    const scope = c.ref ? findRef(tree, Number(c.ref)) : tree
+    if (!scope) throw new Error(`[${c.ref}] is not on the page — run: browser-layer map`)
+    const triggers = (isTrigger(scope) ? [scope] : withRefs(scope).filter(isTrigger))
+    if (!triggers.length) return 'nothing here declares a menu or pop-up (aria-haspopup / aria-expanded)'
+    const budget = { opens: policy['explore.max'] }
+    const lines: string[] = []
+    const print = (e: Explored, path: string) => {
+      lines.push(`${path} ▸ ${e.items.map(i => (i.sub ? `${i.name} ▸` : i.name)).join(' · ') || '(nothing appeared)'}`)
+      for (const i of e.items) if (i.sub) print(i.sub, `${path} > ${i.name}`)
+    }
+    for (const t of triggers) {
+      if (budget.opens <= 0) { lines.push(`… stopped after ${policy['explore.max']} opens (explore <ref> looks at one)`); break }
+      const e = await openRead(tab, t, policy['explore.depth'], budget)
+      print(e, `[${t.ref}] ${e.name}`)
+    }
+    return `${await header(tab)}  — ${triggers.length} declared menus and pop-ups, each opened, read and closed\n\n${lines.join('\n')}\n\n(menu "A > B > C" runs one by name)`
+  },
+  async menu(c) {
+    // A path of names: each step is clicked, then looked for among what the previous step opened.
+    const tab = need(c.session)
+    const steps = (c.text ?? '').split('>').map(s => s.trim().toLowerCase()).filter(Boolean)
+    if (!steps.length) throw new Error('usage: browser-layer menu "File > Download > CSV"')
+    for (const [k, step] of steps.entries()) {
+      // Best name match first; among equals, the newest control (the menu just opened) after step one.
+      const hits = withRefs((await snapshot(tab)).tree)
+        .filter(n => isItem(n) && !n.states?.includes('disabled') && fit(n.name, step) < 3)
+        .sort((a, b) => fit(a.name, step) - fit(b.name, step) || (k ? b.ref! - a.ref! : a.ref! - b.ref!))
+      if (!hits.length) throw new Error(`nothing named "${step}"${k ? ` after "${steps.slice(0, k).join(' > ')}"` : ''} — explore lists what menus hold`)
+      await pointerAt(tab, String(hits[0].ref), {})
+      if (k < steps.length - 1) await settle(tab, policy['explore.waitMs'])
+    }
+    return answer(tab)
+  },
+  async allow(c) {
+    // Permissions are denied unless the agent grants them, per site: `allow geolocation 19.07,72.87`.
+    const tab = need(c.session)
+    const perms = (c.text ?? '').split(',').filter(Boolean)
+    if (!perms.length) throw new Error('usage: browser-layer allow <permission>[,permission] [latitude,longitude]')
+    const origin = new URL(tab.page.url()).origin
+    // `images` is not a browser permission: it lets the site's pages load their decoration (DECORATION),
+    // for content that is only pictures (a scanned book, a map, a video) or a page that will not work without.
+    if (perms.includes('images')) pictured.add(origin)
+    const granted = perms.filter(p => p !== 'images')
+    if (ATTACH && (granted.length || c.dir)) throw new Error("allow cannot change a person's own browser; only allow images")
+    if (granted.length) await ctx.grantPermissions(granted, { origin })
+    if (c.dir) {
+      const [latitude, longitude] = c.dir.split(',').map(Number)
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error(`expected latitude,longitude, got "${c.dir}"`)
+      await ctx.setGeolocation({ latitude, longitude })
+    }
+    return `allowed ${perms.join(', ')} for ${origin}${c.dir ? ` at ${c.dir}` : ''}${perms.includes('images') ? ' (reload to load them)' : ''}`
+  },
+  async screenshot(c) {
+    // A picture for a person (or a judge): the agent reads the page as text. Images and fonts are
+    // never loaded (DECORATION), so it shows the page without them. A ref pictures just its box, in
+    // page coordinates so a region taller than the window comes out whole.
+    const tab = need(c.session)
+    let clip: { x: number; y: number; width: number; height: number } | undefined
+    if (c.ref !== undefined) await act(tab, c.ref, async t => {
+      const { model } = await t.cdp.send('DOM.getBoxModel', { backendNodeId: t.id })
+      const [left, top, right, , , bottom] = model.border
+      if (right <= left || bottom <= top) throw new Error('it has no box on the page (hidden or not rendered)')
+      const [ox, oy] = await t.offset()
+      const [sx, sy] = (await tab.page.evaluate('[scrollX, scrollY]')) as [number, number]
+      clip = { x: left + ox + sx, y: top + oy + sy, width: right - left, height: bottom - top }
+    })
+    const height = c.full && !clip ? (await tab.page.evaluate('document.documentElement.scrollHeight')) as number : 0
+    if (height > SHOT_MAX_PX) clip = { x: 0, y: 0, width: policy['viewport.width'], height: SHOT_MAX_PX }
+    await tab.page.screenshot({ path: c.files![0], fullPage: !!c.full || !!clip, clip })
+    return `saved ${c.files![0]}${height > SHOT_MAX_PX ? ` (the first ${SHOT_MAX_PX} px of ${height})` : ''}`
+  },
+  async eval(c) {
+    const tab = need(c.session)
+    const { result, exceptionDetails } = await tab.cdp.send('Runtime.evaluate', { expression: c.text ?? '', awaitPromise: true, returnByValue: true, replMode: true })
+    if (exceptionDetails) throw new Error(exceptionDetails.exception?.description?.split('\n')[0] ?? exceptionDetails.text)
+    return result.value === undefined ? String(result.description ?? 'undefined') : JSON.stringify(result.value)
+  },
+  async net(c) {
+    const tab = need(c.session)
+    if (c.id !== undefined) {
+      // One request in full: what an agent needs to call the same API itself.
+      const r = tab.net.find(n => n.id === c.id)
+      if (!r) throw new Error(`no request #${c.id} — run: browser-layer net`)
+      const res = await r.request.response().catch(() => null)
+      const body = r.body ?? await res?.body().catch(() => undefined)
+      // The whole answer goes to a file, where the agent's own tools (jq, a script) read it.
+      if (c.files) {
+        if (!body) throw new Error(`#${r.id} has no body the browser still holds`)
+        writeFileSync(c.files[0], body)
+        return `saved ${c.files[0]} (${body.length} bytes, ${r.type || 'unknown type'})`
+      }
+      const text = body?.toString('utf8')
+      const shown = text && printable(text, policy['network.bodyChars'])!
+      return [`#${r.id} ${r.method} ${r.url}`, 'request headers:', headerLines(await r.request.allHeaders()),
+        ...(r.request.postData() ? ['request body:', printable(r.request.postData(), policy['network.bodyChars'])!] : []),
+        `response: ${r.status} ${r.type}`, headerLines((await res?.allHeaders()) ?? {}),
+        ...(shown ? ['response body:', shown.replace(/ more chars\)$/, ` more chars: browser-layer net save ${r.id} <file> writes it all)`)]
+          : r.kind === 'document' ? [] : ['response body: no longer held by the browser']),
+      ].join('\n')
+    }
+    const list = c.all ? tab.net : tab.net.filter(r => (r.kind !== 'document' || r.method !== 'GET') && !noise(r))
+    if (!list.length) return 'no requests yet'
+    return list.slice(-40).map(r => {
+      const u = new URL(r.url)
+      const where = u.origin === new URL(tab.page.url()).origin ? `${u.pathname}${u.search}` : `${u.host}${u.pathname}${u.search}`
+      return `#${String(r.id).padEnd(4)} ${r.method.padEnd(6)} ${String(r.status).padEnd(4)} ${where.slice(0, 120)}  ${r.type}${r.post ? `\n      body: ${r.post}` : ''}`
+    }).join('\n') + '\n(net show <#> for headers and bodies)'
+  },
+  async close(c) {
+    const tab = c.id ? own(c.session, c.id) : need(c.session)
+    await tab.page.close()
+    const now = current.get(c.session)
+    return now ? `closed tab ${tab.id}; now on tab ${now}` : `closed tab ${tab.id}; no live tabs left in session "${c.session}"`
+  },
+  async state(c) {
+    return JSON.stringify([...tabs.values()].map(t => ({ session: t.session, url: t.page.url(), current: current.get(t.session) === t.id })))
+  },
+  async ping(c) {
+    return 'ok'
+  },
+}
+
 async function run(c: Command): Promise<string> {
   beginCommand(c.session)
   if (ACTIONS.has(c.cmd)) {
@@ -798,372 +1174,8 @@ async function run(c: Command): Promise<string> {
     c.ref = await refNamed(tab, c.ref)
     c.to = await refNamed(tab, c.to)
   }
-  switch (c.cmd) {
-    case 'tab':
-      return openTabs(c.session, c.pages ?? [c.url ?? 'about:blank'])
-    case 'go': {
-      const tab = need(c.session)
-      // A page can ask before it is left (beforeunload): that dialog waits for the agent like any other.
-      await untilDialog(tab, tab.page.goto(withUrl(c.url!), COMMIT()))
-      if (tab.dialog) return answer(tab)
-      const note = await arrive(tab)
-      return mapView(tab, undefined, unusual(await settle(tab)), note)
-    }
-    case 'back':
-    case 'forward':
-    case 'reload': {
-      const tab = need(c.session)
-      await untilDialog(tab, c.cmd === 'back' ? tab.page.goBack(COMMIT()) : c.cmd === 'forward' ? tab.page.goForward(COMMIT()) : tab.page.reload(COMMIT()))
-      if (tab.dialog) return answer(tab)
-      const note = await arrive(tab)
-      return mapView(tab, undefined, unusual(await settle(tab)), note)
-    }
-    case 'steps': {
-      // Several commands in one call, run in order as if sent one by one. A read answers in full, an action
-      // in its first line, the last step in full: what the agent planned ahead needs no answer of its own.
-      // The first error, dialog or block stops the rest, and the answer ends with the page as it is then.
-      const list = c.steps ?? []
-      const lines: string[] = []
-      for (const [k, s] of list.entries()) {
-        s.session = c.session
-        const at = `${k + 1}. ${s.raw ?? s.cmd}`
-        let text: string
-        try {
-          text = await limited(s)
-        } catch (err) {
-          lines.push(`${at}  → error: ${err instanceof Error ? err.message.split('\n')[0] : err}`)
-          const tab = tabs.get(current.get(c.session) ?? 0)
-          lines.push(`stopped at step ${k + 1} of ${list.length}${tab ? '; the page now:' : ''}`)
-          if (tab) lines.push('', await changes(tab))
-          return lines.join('\n')
-        }
-        const stop = / dialog is open: |\nblocked: /.test(text) && k < list.length - 1
-        lines.push(k === list.length - 1 || stop || READS.has(s.cmd) || s.cmd === 'eval' ? `${at}\n${text}` : `${at}  → ${text.split('\n')[0]}`)
-        if (stop) return [...lines, `stopped at step ${k + 1} of ${list.length}: answer it first`].join('\n')
-      }
-      return lines.join('\n')
-    }
-    case 'tabs': {
-      // The session's activity map: its tabs, most recently used first.
-      const mine = [...tabs.values()].filter(t => t.session === c.session).sort((a, b) => b.used - a.used)
-      if (!mine.length) return `no live tabs in session "${c.session}"`
-      return (await Promise.all(mine.map(async t =>
-        `${t.id === current.get(c.session) ? '*' : ' '} ${t.id}  ${t.page.url()}  "${await t.page.title().catch(() => '')}"  used ${ago(t.used)}`))).join('\n')
-    }
-    case 'use': {
-      current.set(c.session, own(c.session, c.id!).id)
-      return mapView(need(c.session), undefined, '', '', true)
-    }
-    case 'map':
-      return mapView(need(c.session), undefined, '', '', true)
-    case 'get': {
-      const tab = need(c.session)
-      const { tree, origin } = await snapshot(tab)
-      const node = findRef(tree, Number(c.ref))
-      if (!node) throw new Error(`[${c.ref}] is not on the page — run: browser-layer map`)
-      if (!records(node, origin, caps()).rows.length) throw new Error(`[${c.ref}] has no rows; get works on the lists and tables the map shows`)
-      return `${await header(tab)}  — ${recordsView(node, origin, c)}`
-    }
-    case 'read': {
-      const ref = c.ref === undefined ? undefined : Number(c.ref)
-      if (!c.out && (ref !== undefined || c.page)) return view(need(c.session), c.page ?? 1, undefined, ref)
-      if (!c.out) return reread(need(c.session), !!c.full)
-      const text = await textOf(need(c.session), ref)
-      return saved(c.out, text, `${text.split('\n').length} lines, ${text.length} chars`)
-    }
-    case 'click':
-    case 'dblclick':
-    case 'rightclick':
-    case 'hover': {
-      const tab = need(c.session)
-      await pointerAt(tab, c.ref, { clicks: c.cmd === 'dblclick' ? 2 : 1, button: c.cmd === 'rightclick' ? 'right' : 'left', move: c.cmd === 'hover' })
-      return answer(tab)
-    }
-    case 'type': {
-      const tab = need(c.session)
-      // --keys sends one key event per character, for fields that listen to keys rather than input.
-      let held: string | null = null
-      await act(tab, c.ref, async t => {
-        await fill(t, c.keys ? '' : c.text ?? '')
-        if (c.keys) await tab.page.keyboard.type(c.text ?? '')
-        held = await heldBy(t).catch(() => null)
-      })
-      // What did not take is said in the same answer, so the agent does not look again to find out: a
-      // field that changed what was typed (a mask, a limit), and an Enter that did nothing on the page.
-      const words = (s: string) => s.replace(/\s+/g, ' ').trim()
-      const notes = held !== null && words(held) !== words(c.text ?? '') ? [`note: [${c.ref}] holds ${JSON.stringify(words(held).slice(0, policy['render.nameChars']))}, not what was typed`] : []
-      if (!c.enter) return [await answer(tab), ...notes].join('\n')
-      const before = { url: tab.page.url(), doc: tab.doc, text: await tab.page.evaluate('window.__alText?.()').catch(() => -1) }
-      await untilDialog(tab, tab.page.keyboard.press('Enter'))
-      const out = await answer(tab)
-      if (!tab.dialog && tab.doc === before.doc && tab.page.url() === before.url && await tab.page.evaluate('window.__alText?.()').catch(() => -2) === before.text)
-        notes.push('note: Enter changed nothing on the page; the form may need its own button (click it by name)')
-      return [out, ...notes].join('\n')
-    }
-    case 'check':
-    case 'uncheck': {
-      const tab = need(c.session)
-      const want = c.cmd === 'check'
-      // Only a box in the other state is clicked, so check and uncheck can be repeated safely.
-      if (await isChecked(targetOf(tab, c.ref)) !== want) await pointerAt(tab, c.ref, {})
-      const out = await answer(tab)
-      return (await isChecked(targetOf(tab, c.ref))) === want ? out : `${out}\nnote: [${c.ref}] is still ${want ? 'unchecked' : 'checked'}`
-    }
-    case 'submit': {
-      const tab = need(c.session)
-      await untilDialog(tab, act(tab, c.ref, submit))
-      return answer(tab)
-    }
-    case 'drag': {
-      const tab = need(c.session)
-      const to = targetOf(tab, c.to)
-      await untilDialog(tab, act(tab, c.ref, from => drag(from, to, policy['actions.timeoutMs'])))
-      return answer(tab)
-    }
-    case 'find': {
-      const tab = need(c.session)
-      const want = (c.text ?? '').toLowerCase()
-      if (!want) throw new Error('usage: browser-layer find <text>')
-      const hits = (await snapshot(tab)).text.split('\n').filter(l => l.toLowerCase().includes(want))
-      if (!hits.length) return `"${c.text}" is not on the page`
-      if (c.out) return saved(c.out, hits.join('\n'), `${hits.length} lines with "${c.text}"`)
-      const per = policy['data.rows']
-      const page = c.page ?? 1
-      const from = (page - 1) * per
-      if (from >= hits.length) throw new Error(`page ${page} does not exist; the matches fill ${Math.ceil(hits.length / per)}`)
-      const shown = hits.slice(from, from + per)
-      const more = from + per < hits.length ? `\n… more: browser-layer find ${c.text} --page ${page + 1}, or --out <file> for all ${hits.length}` : ''
-      return `${hits.length} lines with "${c.text}"${hits.length > per ? ` (${from + 1}–${from + shown.length})` : ''}\n\n${shown.join('\n')}${more}`
-    }
-    case 'cookies': {
-      // Cookie values are credentials, so they are never shown; names, sites and expiry are.
-      // Attached, the browser holds a person's every site: only the current page's is the agent's to see or clear.
-      const site = ATTACH ? new URL(need(c.session).page.url()).hostname : c.url
-      if (c.dir === 'clear') {
-        await ctx.clearCookies(site ? { domain: site } : undefined)
-        return `cleared cookies${site ? ` for ${site}` : ''}`
-      }
-      const list = (await ctx.cookies()).filter(k => !site || k.domain.replace(/^\./, '').endsWith(site))
-      if (!list.length) return 'no cookies'
-      return list.map(k => `${k.domain}  ${k.name}  ${k.path}  ${k.expires > 0 ? `until ${new Date(k.expires * 1000).toISOString().slice(0, 10)}` : 'session'}${k.httpOnly ? '  httpOnly' : ''}${k.secure ? '  secure' : ''}`).join('\n')
-    }
-    case 'storage': {
-      const tab = need(c.session)
-      if (c.dir !== 'local' && c.dir !== 'session') throw new Error('usage: browser-layer storage local|session [clear]')
-      const area = `${c.dir}Storage`
-      if (c.text === 'clear') {
-        await tab.page.evaluate(`${area}.clear()`)
-        return `cleared ${area} for ${new URL(tab.page.url()).origin}`
-      }
-      const entries = await tab.page.evaluate(`Object.entries(${area})`) as [string, string][]
-      if (!entries.length) return `${area} is empty for ${new URL(tab.page.url()).origin}`
-      return entries.map(([k, v]) => `${k} = ${v.length > policy['render.nameChars'] ? `${v.slice(0, policy['render.nameChars'] - 1)}…` : v}`).join('\n')
-    }
-    case 'pick': {
-      const tab = need(c.session)
-      try {
-        await act(tab, c.ref, t => pick(t, c.text ?? ''))
-        return answer(tab)
-      } catch (err) {
-        if (!/not a <select>/.test(String(err))) throw err
-      }
-      // A custom dropdown (an ARIA combobox or listbox): opened and its option clicked by name, as a person
-      // picks one. One already open is not clicked shut. An option that is not there closes it again (Escape)
-      // and lists what it offers.
-      const listed = async () => {
-        const tree = (await snapshot(tab)).tree
-        return { open: findRef(tree, Number(c.ref))?.states?.includes('expanded'), options: withRefs(tree).filter(n => n.role === 'option' || n.role === 'menuitemradio' || n.role === 'menuitem') }
-      }
-      let { open, options } = await listed()
-      if (!open || !options.length) {
-        await pointerAt(tab, c.ref, {})
-        await settle(tab, policy['explore.waitMs'])
-        options = (await listed()).options
-      }
-      const want = (c.text ?? '').trim().toLowerCase()
-      const best = options.filter(n => fit(n.name, want) < 3).sort((a, b) => fit(a.name, want) - fit(b.name, want))[0]
-      if (!best) {
-        await tab.page.keyboard.press('Escape')
-        throw new Error(`no option "${c.text}"; options: ${options.slice(0, policy['render.mapFew']).map(o => o.name).join(' | ') || '(none appeared when it opened)'}`)
-      }
-      await pointerAt(tab, String(best.ref), {})
-      return answer(tab)
-    }
-    case 'press': {
-      const tab = need(c.session)
-      await untilDialog(tab, tab.page.keyboard.press(c.key!))
-      return answer(tab)
-    }
-    case 'upload': {
-      const tab = need(c.session)
-      const missing = (c.files ?? []).filter(f => !existsSync(f))
-      if (!c.files?.length || missing.length) throw new Error(missing.length ? `no such file: ${missing.join(', ')}` : 'usage: browser-layer upload <ref> <file...>')
-      // A file input takes the files directly; any other control is clicked and its file chooser answered.
-      await act(tab, c.ref, async t => {
-        if (await isFileInput(t)) return setFiles(t, c.files!)
-        const chooser = tab.page.waitForEvent('filechooser', { timeout: policy['actions.timeoutMs'] })
-        await pointer(t, policy['actions.timeoutMs'])
-        await (await chooser).setFiles(c.files!)
-      })
-      return answer(tab)
-    }
-    case 'scroll': {
-      const tab = need(c.session)
-      const dir = c.dir ?? 'down'
-      const vp = tab.page.viewportSize() ?? { width: policy['viewport.width'], height: policy['viewport.height'] }
-      const t = c.ref ? targetOf(tab, c.ref) : undefined
-      if (dir === 'down' || dir === 'up') await wheel(t, tab.cdp, (dir === 'down' ? 1 : -1) * vp.height * 0.8, [vp.width, vp.height], policy['actions.timeoutMs'])
-      else if (dir === 'top' || dir === 'bottom') {
-        const to = `function () { const e = this === window ? document.scrollingElement : this; e.scrollTo(0, ${dir === 'top' ? 0 : 'e.scrollHeight'}) }`
-        if (t) await call(t, to)
-        else await tab.page.evaluate(`(${to}).call(window)`)
-      } else throw new Error(`scroll takes down, up, top or bottom, not "${dir}"`)
-      return answer(tab)
-    }
-    case 'wait': {
-      const tab = need(c.session)
-      if (!c.text) throw new Error('usage: browser-layer wait [--gone] <text>')
-      const end = Date.now() + policy['wait.timeoutMs']
-      while (((await snapshot(tab)).text.includes(c.text)) === !!c.gone) {
-        if (Date.now() > end) throw new Error(`"${c.text}" ${c.gone ? 'is still on the page' : 'did not appear'} after ${policy['wait.timeoutMs']} ms`)
-        await sleep(250)
-      }
-      return answer(tab)
-    }
-    case 'dialog': {
-      const tab = need(c.session)
-      const d = tab.dialog
-      if (!d) throw new Error('no dialog is open')
-      tab.dialog = undefined
-      if (c.dir === 'accept') await d.accept(c.text)
-      else if (c.dir === 'dismiss') await d.dismiss()
-      else throw new Error('usage: browser-layer dialog accept [text] | dismiss')
-      return answer(tab)
-    }
-    case 'explore': {
-      const tab = need(c.session)
-      const { tree } = await snapshot(tab)
-      const scope = c.ref ? findRef(tree, Number(c.ref)) : tree
-      if (!scope) throw new Error(`[${c.ref}] is not on the page — run: browser-layer map`)
-      const triggers = (isTrigger(scope) ? [scope] : withRefs(scope).filter(isTrigger))
-      if (!triggers.length) return 'nothing here declares a menu or pop-up (aria-haspopup / aria-expanded)'
-      const budget = { opens: policy['explore.max'] }
-      const lines: string[] = []
-      const print = (e: Explored, path: string) => {
-        lines.push(`${path} ▸ ${e.items.map(i => (i.sub ? `${i.name} ▸` : i.name)).join(' · ') || '(nothing appeared)'}`)
-        for (const i of e.items) if (i.sub) print(i.sub, `${path} > ${i.name}`)
-      }
-      for (const t of triggers) {
-        if (budget.opens <= 0) { lines.push(`… stopped after ${policy['explore.max']} opens (explore <ref> looks at one)`); break }
-        const e = await openRead(tab, t, policy['explore.depth'], budget)
-        print(e, `[${t.ref}] ${e.name}`)
-      }
-      return `${await header(tab)}  — ${triggers.length} declared menus and pop-ups, each opened, read and closed\n\n${lines.join('\n')}\n\n(menu "A > B > C" runs one by name)`
-    }
-    case 'menu': {
-      // A path of names: each step is clicked, then looked for among what the previous step opened.
-      const tab = need(c.session)
-      const steps = (c.text ?? '').split('>').map(s => s.trim().toLowerCase()).filter(Boolean)
-      if (!steps.length) throw new Error('usage: browser-layer menu "File > Download > CSV"')
-      for (const [k, step] of steps.entries()) {
-        // Best name match first; among equals, the newest control (the menu just opened) after step one.
-        const hits = withRefs((await snapshot(tab)).tree)
-          .filter(n => isItem(n) && !n.states?.includes('disabled') && fit(n.name, step) < 3)
-          .sort((a, b) => fit(a.name, step) - fit(b.name, step) || (k ? b.ref! - a.ref! : a.ref! - b.ref!))
-        if (!hits.length) throw new Error(`nothing named "${step}"${k ? ` after "${steps.slice(0, k).join(' > ')}"` : ''} — explore lists what menus hold`)
-        await pointerAt(tab, String(hits[0].ref), {})
-        if (k < steps.length - 1) await settle(tab, policy['explore.waitMs'])
-      }
-      return answer(tab)
-    }
-    case 'allow': {
-      // Permissions are denied unless the agent grants them, per site: `allow geolocation 19.07,72.87`.
-      const tab = need(c.session)
-      const perms = (c.text ?? '').split(',').filter(Boolean)
-      if (!perms.length) throw new Error('usage: browser-layer allow <permission>[,permission] [latitude,longitude]')
-      const origin = new URL(tab.page.url()).origin
-      // `images` is not a browser permission: it lets the site's pages load their decoration (DECORATION),
-      // for content that is only pictures (a scanned book, a map, a video) or a page that will not work without.
-      if (perms.includes('images')) pictured.add(origin)
-      const granted = perms.filter(p => p !== 'images')
-      if (ATTACH && (granted.length || c.dir)) throw new Error("allow cannot change a person's own browser; only allow images")
-      if (granted.length) await ctx.grantPermissions(granted, { origin })
-      if (c.dir) {
-        const [latitude, longitude] = c.dir.split(',').map(Number)
-        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error(`expected latitude,longitude, got "${c.dir}"`)
-        await ctx.setGeolocation({ latitude, longitude })
-      }
-      return `allowed ${perms.join(', ')} for ${origin}${c.dir ? ` at ${c.dir}` : ''}${perms.includes('images') ? ' (reload to load them)' : ''}`
-    }
-    case 'screenshot': {
-      // A picture for a person (or a judge): the agent reads the page as text. Images and fonts are
-      // never loaded (DECORATION), so it shows the page without them. A ref pictures just its box, in
-      // page coordinates so a region taller than the window comes out whole.
-      const tab = need(c.session)
-      let clip: { x: number; y: number; width: number; height: number } | undefined
-      if (c.ref !== undefined) await act(tab, c.ref, async t => {
-        const { model } = await t.cdp.send('DOM.getBoxModel', { backendNodeId: t.id })
-        const [left, top, right, , , bottom] = model.border
-        if (right <= left || bottom <= top) throw new Error('it has no box on the page (hidden or not rendered)')
-        const [ox, oy] = await t.offset()
-        const [sx, sy] = (await tab.page.evaluate('[scrollX, scrollY]')) as [number, number]
-        clip = { x: left + ox + sx, y: top + oy + sy, width: right - left, height: bottom - top }
-      })
-      const height = c.full && !clip ? (await tab.page.evaluate('document.documentElement.scrollHeight')) as number : 0
-      if (height > SHOT_MAX_PX) clip = { x: 0, y: 0, width: policy['viewport.width'], height: SHOT_MAX_PX }
-      await tab.page.screenshot({ path: c.files![0], fullPage: !!c.full || !!clip, clip })
-      return `saved ${c.files![0]}${height > SHOT_MAX_PX ? ` (the first ${SHOT_MAX_PX} px of ${height})` : ''}`
-    }
-    case 'eval': {
-      const tab = need(c.session)
-      const { result, exceptionDetails } = await tab.cdp.send('Runtime.evaluate', { expression: c.text ?? '', awaitPromise: true, returnByValue: true, replMode: true })
-      if (exceptionDetails) throw new Error(exceptionDetails.exception?.description?.split('\n')[0] ?? exceptionDetails.text)
-      return result.value === undefined ? String(result.description ?? 'undefined') : JSON.stringify(result.value)
-    }
-    case 'net': {
-      const tab = need(c.session)
-      if (c.id !== undefined) {
-        // One request in full: what an agent needs to call the same API itself.
-        const r = tab.net.find(n => n.id === c.id)
-        if (!r) throw new Error(`no request #${c.id} — run: browser-layer net`)
-        const res = await r.request.response().catch(() => null)
-        const body = r.body ?? await res?.body().catch(() => undefined)
-        // The whole answer goes to a file, where the agent's own tools (jq, a script) read it.
-        if (c.files) {
-          if (!body) throw new Error(`#${r.id} has no body the browser still holds`)
-          writeFileSync(c.files[0], body)
-          return `saved ${c.files[0]} (${body.length} bytes, ${r.type || 'unknown type'})`
-        }
-        const text = body?.toString('utf8')
-        const shown = text && printable(text, policy['network.bodyChars'])!
-        return [`#${r.id} ${r.method} ${r.url}`, 'request headers:', headerLines(await r.request.allHeaders()),
-          ...(r.request.postData() ? ['request body:', printable(r.request.postData(), policy['network.bodyChars'])!] : []),
-          `response: ${r.status} ${r.type}`, headerLines((await res?.allHeaders()) ?? {}),
-          ...(shown ? ['response body:', shown.replace(/ more chars\)$/, ` more chars: browser-layer net save ${r.id} <file> writes it all)`)]
-            : r.kind === 'document' ? [] : ['response body: no longer held by the browser']),
-        ].join('\n')
-      }
-      const list = c.all ? tab.net : tab.net.filter(r => (r.kind !== 'document' || r.method !== 'GET') && !noise(r))
-      if (!list.length) return 'no requests yet'
-      return list.slice(-40).map(r => {
-        const u = new URL(r.url)
-        const where = u.origin === new URL(tab.page.url()).origin ? `${u.pathname}${u.search}` : `${u.host}${u.pathname}${u.search}`
-        return `#${String(r.id).padEnd(4)} ${r.method.padEnd(6)} ${String(r.status).padEnd(4)} ${where.slice(0, 120)}  ${r.type}${r.post ? `\n      body: ${r.post}` : ''}`
-      }).join('\n') + '\n(net show <#> for headers and bodies)'
-    }
-    case 'close': {
-      const tab = c.id ? own(c.session, c.id) : need(c.session)
-      await tab.page.close()
-      const now = current.get(c.session)
-      return now ? `closed tab ${tab.id}; now on tab ${now}` : `closed tab ${tab.id}; no live tabs left in session "${c.session}"`
-    }
-    case 'state':
-      return JSON.stringify([...tabs.values()].map(t => ({ session: t.session, url: t.page.url(), current: current.get(t.session) === t.id })))
-    case 'ping':
-      return 'ok'
-    default:
-      throw new Error(`unknown command ${c.cmd}`)
-  }
+  if (!Object.hasOwn(COMMANDS, c.cmd)) throw new Error(`unknown command ${c.cmd}`)
+  return COMMANDS[c.cmd](c)
 }
 
 // What each session last did and was told. An agent that repeats a call and gets the same answer is not
