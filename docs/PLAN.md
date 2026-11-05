@@ -4,21 +4,15 @@ Goes with [DESIGN.md](DESIGN.md). Engine decision: **headless Chrome now, own no
 Each phase ends green and measured before the next one starts. Behavior changes land with a failing
 test first and before/after numbers.
 
-## Where we are (31 Oct 2026)
 
-Working: `open` / `do` / `verbs` over plain HTTP; live tabs over a daemon (`tab`, `read`, `click`,
-`type`, `pick`, `press`, `go`, `back`, `net`); sessions; paging. 13 tests green. Benchmarks in
-`bench/`.
+## Where we are (5 Nov 2026)
 
-Heuristics still in the code, and the phase that removes each:
+Published: 0.1.3 on npm. On the branch `lean-answers`, not yet merged: parallel sessions and `tab <url…>`.
+96 tests green; `npm run measure` exits 0; `src/` is about 3,236 lines in 8 files (the 31 Oct baseline was
+1,059, and the grown code is the commands, frames, attach and data layer listed below).
 
-| Current code | Removed in | Replaced by |
-|---|---|---|
-| ~~`snapshot.ts` `roleOf` / `nameOf`, `isRow`, `destOf`, name caps, `data-al`, blink image flag~~ | P1 ✅ | Reader on DOMSnapshot + accessibility tree, renderer policy, node-id refs, decoration blocked |
-| 400 ms quiet `settle` | P2 | Settle contract, DESIGN §5.3 |
-| `NOISE` regex | P3 | Engine resource types + tracker list data file |
-| `page.ts` form reader, node-html-parser | P5 | parse5 + HTML form submission algorithm |
-| `cookies.json` | P5 | `http` engine uses the browser profile's cookies |
+Every heuristic the 31 Oct plan listed is gone: the 400 ms settle, the `NOISE` regex, `snapshot.ts`,
+`page.ts`, node-html-parser. The old P2 to P6 sections said the same as the sections below and were removed.
 
 ## P0 — Foundations ✅ (31 Oct 2026)
 
@@ -164,52 +158,61 @@ overrides, dirname, multi-select, tree order, CRLF, text/plain); JavaScript-buil
 `page.ts`, `view.ts` and node-html-parser removed. Decided against: reading Chrome's encrypted cookie
 store directly (Chrome internals, not a standard); the two-way jar sync stays. 51 tests green.
 
-Still open:
-P5 fast path on parse5 and the HTML form submission algorithm.
+## Since 31 Oct ✅
 
-## P2 — Actions and settle (superseded by the section above)
+- Releases 0.1.1 to 0.1.3: faster start, false blocks and hung pages fixed, answers shortened, refs that
+  survive a re-render, each part of a site shown once, `help` shorter, pages open as maps again.
+- **Attach** (`fc3d082`): the agent works in a person's own signed-in Chrome, in tabs of its own.
+- **Sessions run side by side** (`0f252e5`): one command queue per session, per-session command state, the
+  cookie jar read back only when changed from outside. Four slow sessions take as long as one.
+- **`tab <url…>`** (`74003e7`): several pages load together and answer with each map.
 
-- Actionability with named failure reasons; trusted input for every pointer and keyboard command in
-  DESIGN §6.
-- Settle contract with reported reason.
+**Benchmark, 24 tasks on both tools (BU Bench V2.1, one run each):**
 
-**Exit:** a never-quiet page reports `deadline` within the policy deadline; a fetch page reports
-`idle`; every action on the corpus returns a delta smaller than a full read.
+| | Score | Money | Time | Timeouts |
+|---|---|---|---|---|
+| Deployed 0.1.3 | 6.69 | $1.32 | 360 min | 8 |
+| `lean-answers` | 8.30 | $2.02 | 285 min | 3 |
+| Browser Harness | 7.15 | $1.95 | 391 min | 7 |
 
-## P3 — Events, windows, files, network
+Where the extra cost sits: each turn is heavier (input +63%, output +86%, reasoning +89%) while requests rose
+only 14%; the cost clusters in runs over about 80 commands that read many pages one turn at a time. About
+half of the lost score is sites refusing a headless browser, the same for both tools.
 
-- Dialogs surfaced and answered; pop-ups and `target=_blank` as tabs; downloads saved and listed;
-  `upload`.
-- Frames, same-origin and cross-origin, read and acted in through their own sessions (DESIGN §4.2 rule 6).
-- HAR logging with redaction; tracker list as data; `net show`.
+Tried and dropped: a note after 80 commands telling the agent to deliver what it has. It cut cost 54% on six
+long tasks but cost score on four of them and did not rescue the two worst runaways.
 
-**Exit:** a fixture with `confirm()`, a pop-up OAuth window, a download and an upload passes end to
-end; no secrets in any file on disk.
+## Open
 
-## P4 — Reveal map
+Next phase, in order. Each starts with a failing test and reports numbers before and after.
 
-- ARIA and HTML reveal sources; CSSOM `:hover` / `:focus-within` analysis; document-start listener
-  hook; `hover` / `focus` return what appeared.
-- Canvas text hook.
+1. **Many-page tasks.** An agent that reads dozens of pages pays one turn per page. A call that loads a
+   list of pages and extracts the same thing from each, in one answer.
+2. **Smaller answers.** `tab` and action answers are 1.5 to 3 times the size they were in 0.1.3, and every
+   later turn re-reads them. Find what the agent does not use. Point it to `--out` for big results.
+3. **Tabs pile up** (median 5 a task, 90th percentile 22). `tabs` shows last use; opening a page that is
+   already open in another tab says so; a cap per session; `close --all`.
+4. **`get` on varied cards explodes into columns** (optional parts each make one). Needs a standard way to
+   keep columns stable.
+5. **A covered control costs a turn** even when the cover is going away. Retry once after a short wait
+   before answering `covered by …`.
+6. **Parallel, what is left:** enforce `sessions.max` (DESIGN §9 lists it; nothing checks it), serialize
+   the cookie-jar write, close an idle session's tabs.
+7. **Sites refusing the browser.** Steer the agent to the site's API, sitemap or another source before it
+   gives up. Headful against headless: parked until someone wants it measured.
 
-**Exit:** fixtures for each source (ARIA menu, `<details>`, CSS hover menu, JS hover menu, render-on-
-hover menu) show their items before any trigger, or are marked when they cannot be known; a canvas
-fixture's drawn text is readable.
+Before any deploy: run the same 24 tasks twice more on the branch, because one run per task is noise.
 
-## P5 — The `http` engine on the specs
-
-- parse5, HTML-AAM roles, the form submission algorithm, shell detection, cookies through the browser
-  profile.
-
-**Exit:** form-submission conformance cases pass; static corpus pages give the same roles and names on
-both engines.
-
-## P6 — Coverage and hardening
-
-- Remaining DESIGN §6 commands: frames, storage, `eval`, permissions, profiles, Chrome cookie import.
-- Live checks (`npm run live`) on the five benchmark sites plus a logged-in Gmail task.
-
-**Exit:** every row in DESIGN §6 has a passing test; live checks green.
+Carried over:
+- P6 exit: every row of DESIGN §6 has a passing test, and the live checks on the five benchmark sites plus a
+  logged-in Gmail task pass. Not confirmed since 31 Oct.
+- `render.nameChars` (120) trades completeness for tokens; unresolved.
+- Revisit schema.org JSON-LD or microdata as page facts, once measured on a detail-page corpus.
+- Reveal detection does not cover CSS `:hover` rules, React's root-delegated listeners or WebGL text.
+- Housekeeping: `run()` in `daemon.ts` is 373 lines, against "one job per function"; CLAUDE.md's size
+  baseline is stale.
+- The benchmark's own notes (judge cost uncounted, model stalls, one run per task) are in
+  `browser-layer-bench/bu-bench/NEXT.md`.
 
 ## Later — own the engine
 
