@@ -44,6 +44,19 @@ const server = createServer((req, res) => {
     res.setHeader('content-type', 'text/html')
     return res.end(`<title>who</title><p>fast cookie: ${/fast=1/.test(req.headers.cookie ?? '') ? 'yes' : 'no'}</p>`)
   }
+  if (req.url === '/controls') {
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<!doctype html><title>controls</title>
+      <label>Day <input type="date" id="d"></label> <label>At <input type="time" id="t"></label>
+      <div id="ce" contenteditable="true">Click here and start typing...</div>
+      <label>Volume <input type="range" id="r" min="0" max="100" value="1"></label>
+      <select id="m" multiple aria-label="Fruit"><option>Apple</option><option>Banana</option><option>Orange</option></select>
+      <div id="terms" style="height:60px;overflow-y:auto"><p style="height:400px">Terms text</p><span id="end">The end</span></div>
+      <button id="ok" disabled>I accept</button>
+      <script>const t = document.getElementById('terms'); t.addEventListener('scroll', () => { if (t.scrollHeight - t.scrollTop <= t.clientHeight + 5) document.getElementById('ok').disabled = false })</script>
+      <div id="hov">Hover over me</div><p id="out"></p>
+      <script>document.getElementById('hov').addEventListener('mouseenter', e => { e.target.textContent = 'Nice hovering!' })</script>`)
+  }
   if (req.url === '/view') {
     res.setHeader('content-type', 'text/html')
     // A result list: each item is one row on screen whatever blocks it is built from.
@@ -1177,4 +1190,37 @@ test('an action that gives the same answer as the same call a moment ago says so
   assert.doesNotMatch(first.out, /same call/)
   const again = await run('press', 'Escape')
   assert.match(again.out, /note: the same call gave this same answer 1 call ago/)
+})
+
+test('date and time inputs, an editing host and a hover target are controls with refs; typing sets them', async () => {
+  const map = (await run('tab', `${base}/controls`)).out
+  const date = ref(map, /date "Day"/)
+  const time = ref(map, /time "At"/)
+  assert.match(map, /textbox .*Click here and start typing/)
+  const hover = ref(map, /clickable "Hover over me"/)
+  await run('type', date, '2026-11-05')
+  await run('type', time, '14:30')
+  await run('type', ref(map, /textbox/), 'banana')
+  assert.equal((await run('eval', "document.getElementById('d').value")).out.trim(), '"2026-11-05"')
+  assert.equal((await run('eval', "document.getElementById('t').value")).out.trim(), '"14:30"')
+  assert.match((await run('eval', "document.getElementById('ce').innerText")).out, /banana/)
+  assert.match((await run('hover', hover)).out, /Nice hovering!/)
+})
+
+test('a range input is set as a whole, and pick on a multiple select adds to the selection', async () => {
+  const map = (await run('tab', `${base}/controls`)).out
+  await run('type', ref(map, /slider "Volume"/), '100')
+  assert.equal((await run('eval', "document.getElementById('r').value")).out.trim(), '"100"')
+  const fruit = ref(map, /listbox "Fruit"/)
+  await run('pick', fruit, 'Apple')
+  await run('pick', fruit, 'Banana')
+  assert.equal((await run('eval', "[...document.getElementById('m').selectedOptions].map(o => o.text).join()")).out.trim(), '"Apple,Banana"')
+})
+
+test('an element that scrolls has a ref, and scroll acts on it', async () => {
+  const map = (await run('tab', `${base}/controls`)).out
+  const terms = ref(map, /scrollable/)
+  assert.match((await run('click', 'I accept')).out, /disabled/)
+  await run('scroll', terms, 'bottom')
+  assert.doesNotMatch((await run('click', 'I accept')).out, /disabled/)
 })

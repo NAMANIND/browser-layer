@@ -45,7 +45,9 @@ export type Refs = { byNode: Map<string, number>; byRef: Map<number, { scope: st
 export const newRefs = (counter = { next: 1 }): Refs => ({ byNode: new Map(), byRef: new Map(), byIdentity: new Map(), counter })
 
 // ARIA widget roles: the things a user operates. Everything else is content.
-const WIDGETS = new Set(['button', 'checkbox', 'combobox', 'link', 'listbox', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'radio', 'searchbox', 'slider', 'spinbutton', 'switch', 'tab', 'textbox', 'treeitem'])
+// Chrome names the date, time and colour inputs by what they hold; to an agent each is one field.
+const FIELD_ROLES: Record<string, string> = { Date: 'date', DateTime: 'datetime', InputTime: 'time', ColorWell: 'color', DisclosureTriangle: 'button' }
+const WIDGETS = new Set(['date', 'datetime', 'time', 'color', 'button', 'checkbox', 'combobox', 'link', 'listbox', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'radio', 'searchbox', 'slider', 'spinbutton', 'switch', 'tab', 'textbox', 'treeitem'])
 // Roles that are one item on screen (a result, a table row): their content reads as one line.
 const ROWS = new Set(['row', 'listitem', 'option', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'treeitem'])
 // ARIA landmarks: the regions a page is made of, as screen-reader users jump between them.
@@ -178,10 +180,13 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
   // Text of a subtree whether rendered or not: hidden popups have no layout to read text from.
   const domText = (d: Doc, i: number): string => (d.nodeType[i] === 3 ? str(d.nodeValue[i]) : d.kids[i].map(c => domText(d, c)).join(' '))
   // Page-side hooks: elements listening for hover, and text drawn on canvases (lines, top to bottom).
-  const [hovered, clicked, drawn] = await Promise.all([
+  const [hovered, clicked, drawn, scrolls] = await Promise.all([
     hooked(cdp, 'window.__alHover ? [...window.__alHover].filter(e => e.isConnected) : []', 'function () { return true }', 300),
     hooked(cdp, 'window.__alClick ? [...window.__alClick].filter(e => e.isConnected) : []', 'function () { return true }', 500),
     hooked(cdp, 'window.__alCanvases ? window.__alCanvases() : []', 'function () { return { lines: window.__alCanvasLines(this), runs: window.__alCanvasRuns(this) } }', 50),
+    // CSSOM View: a box whose content is taller than it, with an overflow-y a user can scroll, is a scroll
+    // container. Heights are read first (cheap); only boxes that overflow have their style looked at.
+    hooked(cdp, `[...document.querySelectorAll('*')].filter(e => e !== document.body && e !== document.documentElement && e.scrollHeight > e.clientHeight + 1 && /^(auto|scroll)$/.test(getComputedStyle(e).overflowY))`, 'function () { return [this.clientHeight, this.scrollHeight] }', 100),
   ])
 
   // What a control reveals that is not on screen: the items of a hidden element it controls, or the
@@ -261,9 +266,8 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     const a = axOf.get(backendNodeId[i])
     const [display, visibility, opacity] = l === undefined ? [] : doc.layout.styles[l].map(str)
     const hidden = l === undefined ? unseen : visibility === 'hidden' || visibility === 'collapse' || unseen || opacity === '0'
-    // Chrome names <summary>'s role DisclosureTriangle; to a user it is a button.
     const raw = !quiet && a && !a.ignored ? String(a.role?.value ?? '') : ''
-    const role = raw === 'DisclosureTriangle' ? 'button' : raw
+    const role = FIELD_ROLES[raw] ?? raw
     const cls = attr(i, 'class')?.trim()
     // Segments are split by a control character and classes by spaces: neither can occur in a class name.
     const key = ROWS.has(role) ? '' : `${path}${SEGMENT}${str(nodeName[i]).toLowerCase()}${cls ? ` ${cls.split(/\s+/).join(' ')}` : ''}`
@@ -314,9 +318,22 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     // An element made clickable by a script, with no role and no controls inside: the page never says it is
     // a button, but it acts as one. It gets a ref, named by its text.
     const plain = !role || role === 'generic' || role === 'none' || role === 'image' || role === 'StaticText'
-    if (plain && !quiet && l !== undefined && !hidden && (clicked.has(backendNodeId[i]) || CLICK_ATTRS.some(h => attr(i, h) !== undefined)) && !hasRef(children)) {
+    const scroll = scrolls.get(backendNodeId[i]) as [number, number] | undefined
+    if (plain && !quiet && l !== undefined && !hidden && scroll) {
+      const name = squash(attr(i, 'aria-label') ?? '')
+      return [{ ref: refFor(backendNodeId[i], as('scrollable', name)), role: 'scrollable', name, nameShown: false, states: [`shows ${scroll[0]} of ${scroll[1]} px`], block, key, children }]
+    }
+    // HTML: an editing host (contenteditable) is a text field however the page marked it up; its content is its value.
+    const editing = attr(i, 'contenteditable')
+    if (plain && !quiet && l !== undefined && !hidden && editing !== undefined && editing !== 'false') {
+      const name = squash(attr(i, 'aria-label') ?? '')
+      return [{ ref: refFor(backendNodeId[i], as('textbox', name)), role: 'textbox', name, nameShown: false, states: [], block, key, value: squash(textOf(children)) || undefined, children: hasRef(children) ? children : undefined }]
+    }
+    // The same for an element that reacts to the pointer: the page never says it is a control, but it acts as one.
+    const reacts = clicked.has(backendNodeId[i]) || hovered.has(backendNodeId[i]) || [...CLICK_ATTRS, ...HOVER_ATTRS].some(h => attr(i, h) !== undefined)
+    if (plain && !quiet && l !== undefined && !hidden && reacts && !hasRef(children)) {
       const name = squash(textOf(children)) || squash(attr(i, 'aria-label') ?? attr(i, 'title') ?? '')
-      return [{ ref: refFor(backendNodeId[i], as('clickable', name)), role: 'clickable', name, nameShown: true, states: hovered.has(backendNodeId[i]) ? ['reacts to hover'] : [], block, key, children: [] }]
+      return [{ ref: refFor(backendNodeId[i], as('clickable', name)), role: 'clickable', name, nameShown: true, states: hovered.has(backendNodeId[i]) || HOVER_ATTRS.some(h => attr(i, h) !== undefined) ? ['reacts to hover'] : [], block, key, children: [] }]
     }
     // A picture is not read out (rule 5), but its address is data that records carry. A data: URL is the
     // picture itself inline, not an address.

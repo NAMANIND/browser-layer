@@ -151,8 +151,14 @@ visible facts there (Google Flights' times, airports and prices).
    under the canvas, top to bottom, parts left to right. WebGL and OffscreenCanvas text (Figma) is not.
 
 10. An element a script made clickable (click, mousedown, mouseup, pointerdown or pointerup listeners,
-    or the same inline attributes), with no role and no controls inside, gets a ref as `clickable`,
-    named by its text. Listeners on the document or body (event delegation, as React does) mark nothing.
+    or the same inline attributes; or hover listeners, which add `reacts to hover`), with no role and no
+    controls inside, gets a ref as `clickable`, named by its text. Listeners on the document or body (event
+    delegation, as React does) mark nothing.
+11. An editing host (HTML `contenteditable`) with no role is a `textbox`, its text its value.
+12. A box whose content is taller than it, with `overflow-y` auto or scroll (CSSOM View), is `scrollable`
+    and shows how much of it is in view; `scroll <ref>` scrolls it. A page's own scrolling is not one.
+13. Chrome's date, datetime, time and colour inputs are the fields `date`, `datetime`, `time`, `color`.
+    `type` sets them as a whole in HTML's format (`2026-11-05`, `14:30`, `#ff0000`), as it does a range.
 
 Known gaps: a popup
 that hides the rest of the page with `aria-hidden` without declaring itself modal makes the whole page
@@ -289,7 +295,7 @@ again`, at no cost to any page that has content, and the agent's next read shows
 | Menus | `explore [ref]`, `menu "A > B > C"` |
 | Pointer | `click`, `dblclick`, `rightclick`, `hover`, `drag <ref> <onto ref>` (pointer drags and HTML drag and drop) |
 | Keyboard | `type <ref> <text> [--enter] [--keys]` (replace as typing over a selection; `--keys` sends one key event per character), `press <key or combo>` |
-| Form | `check`, `uncheck` (repeatable), `pick <ref> <option>` (a `<select>`, or an ARIA combobox or listbox opened and its option clicked), `upload <ref> <file…>`, `submit <ref>` (`requestSubmit`) |
+| Form | `check`, `uncheck` (repeatable), `pick <ref> <option>` (a `<select>`, where a multiple one keeps what is chosen, or an ARIA combobox or listbox opened and its option clicked), `upload <ref> <file…>`, `submit <ref>` (`requestSubmit`) |
 | Scroll | `scroll [ref] [down \| up \| top \| bottom]`; lazily loaded rows come back as changes |
 | Batching | `steps '<cmd>; <cmd>; …'` runs several commands in one call (§1a) |
 | Dialogs | `alert` / `confirm` / `prompt` / `beforeunload` wait for `dialog accept [text] \| dismiss` |

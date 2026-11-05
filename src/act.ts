@@ -37,10 +37,21 @@ const PICK_OPTION = `function (want) {
   if (!(this instanceof HTMLSelectElement)) return 'not a <select>'
   const o = [...this.options].find(o => o.label === want || o.value === want || o.text.trim() === want)
   if (!o) return 'no option "' + want + '"; options: ' + [...this.options].map(o => o.label).join(' | ')
-  this.value = o.value
+  // A multiple select keeps what is chosen, as a ctrl-click adds to it.
+  if (this.multiple) o.selected = true
+  else this.value = o.value
   this.dispatchEvent(new Event('input', { bubbles: true }))
   this.dispatchEvent(new Event('change', { bubbles: true }))
   return ''
+}`
+// Date, time, colour and range fields take no typed characters through the protocol: their value is set as
+// a whole in the format HTML defines (2026-11-05, 14:30, #ff0000, 40), then input and change fire.
+const SET_VALUE = `function (v) {
+  if (!['date', 'time', 'datetime-local', 'month', 'week', 'color', 'range'].includes(this.type)) return false
+  this.value = v
+  this.dispatchEvent(new Event('input', { bubbles: true }))
+  this.dispatchEvent(new Event('change', { bubbles: true }))
+  return true
 }`
 const IS_FILE_INPUT = `function () { return this instanceof HTMLInputElement && this.type === 'file' }`
 const CHECKED = `function () { return 'checked' in this ? this.checked : this.getAttribute('aria-checked') === 'true' }`
@@ -117,6 +128,7 @@ export async function pointer(t: Target, timeoutMs: number, { button = 'left', c
 export async function fill(t: Target, text: string) {
   await t.cdp.send('DOM.scrollIntoViewIfNeeded', { backendNodeId: t.id })
   await t.cdp.send('DOM.focus', { backendNodeId: t.id })
+  if (await call(t, SET_VALUE, [text])) return
   await call(t, SELECT_CONTENTS)
   if (text) await t.page.send('Input.insertText', { text })
   else for (const type of ['keyDown', 'keyUp'] as const) await t.page.send('Input.dispatchKeyEvent', { type, key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 })
