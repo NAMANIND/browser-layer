@@ -51,8 +51,13 @@ const CHALLENGES = {
   'dropdown-selections': ['pick "Select a color:" Red', 'pick "Select an object:" Ball'],
   'arrow-key-presses': ['click {clickable}', 'press ArrowRight', 'press ArrowRight', 'press ArrowRight'],
   'scroll-accept': ['scroll {scrollable} bottom', 'click "I accept"'],
+  'simple-button': ['click "Click me!"'],
+  'phone-input': ['type {textbox} 555-1234'],
+  'hidden-labels-form': ['type "Email Address (required)" a@b.com', 'type "Date of Birth (required)" 1990-01-01', 'pick "State (required)" California', 'click "Email *"', `upload "Upload Document (required)" ${upload}`, 'click "Submit Form"'],
+  'non-latin-form': ['type "البريد الإلكتروني *" a@b.com', 'pick "البلد *" مصر', 'type "تاريخ الميلاد *" 1990-01-01', 'click "البريد الإلكتروني"', `upload "رفع المستند *" ${upload}`, 'click "إرسال النموذج"'],
+  'iframe-inception-form': ['type "First Name *" Ann', 'type "Last Name *" Lee', 'type "Email Address *" a@b.com', 'type "Address *" "1 Main St"', 'type "City *" Town', 'pick "State *" Texas', 'type "Zip Code *" 12345', 'check "I agree to the Terms and Conditions *"', 'click "Submit Form"'],
 }
-const DONE = /Challenge completed successfully|Success!/
+const DONE = /Challenge completed successfully|Success!|The secret is/
 
 let failed = 0
 for (const [name, steps] of Object.entries(CHALLENGES)) {

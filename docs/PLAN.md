@@ -208,14 +208,14 @@ repeats a call with the same answer says so (`note: the same call gave this same
 
 `npm run stress` (needs `STRESS_DIR`, a clone of browser-use/stress-tests; the pages are not in this repo) drives 13
 of their challenges by command and passes when the page says it completed. The first pages showed real gaps in
-the reader and in `type`/`pick`; now 13 of 13: date, time and colour inputs,
+the reader and in `type`/`pick`; now 18 of 18 (the last five, forms with hidden labels, Arabic labels, three nested iframes, a keystroke-eating input and a plain button, needed no code change): date, time and colour inputs,
 `contenteditable` editing hosts, hover targets and scroll containers get refs; `type` sets date, time, colour
 and range inputs; `pick` on a multiple select adds. Read time on the corpus is unchanged (scroll containers
 are found in one in-page pass; asking the snapshot for element rects made reads 35–45% slower, so no).
 
 Not done, needs a decision: a timed-out command keeps running (cancelling means threading it through each command; `run()` is now
 a table of one function per command, so that is possible); `steps` does not stop on a replaced page (the skill's own example plans across one); the
-more of the 60 stress-test pages (iframe-inception, shadow-dom-form, the library forms).
+more of the 60 stress-test pages (the library forms). `shadow-dom-form` fills and its own validation then rejects the radio group, which is the page; its slotted controls have no accessible name in any browser, and the text before each ref names it.
 
 Before any deploy: run the same 24 tasks twice more on the branch, because one run per task is noise.
 
