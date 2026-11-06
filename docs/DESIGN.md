@@ -353,6 +353,7 @@ Keys are added when the phase that uses them lands.
 | (data) `src/trackers.ts` | hosts and path segments | With beacons and 204 responses, hidden from `net` unless `--all` |
 | (rule) permissions | denied | Granted per site by `allow` |
 | `sessions.max` | 8 | Parallel sessions |
+| `sessions.idleMs` | 900000 | A session unused this long loses its tabs when another session runs a command, so it stops holding a slot of `sessions.max` |
 | `load.timeoutMs` | 30000 | Navigation timeout (until the response begins) |
 | `load.domMs` | 10000 | Wait for the document; after it, the page is read as far as it got |
 | `load.retryMs` | 8000 | Longest wait before loading a page again after a 429 |

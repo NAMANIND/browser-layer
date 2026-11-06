@@ -197,8 +197,8 @@ Next phase, in order. Each starts with a failing test and reports numbers before
    keep columns stable.
 5. ~~A covered control costs a turn~~ Already handled: `pointAt` polls a covered control for the whole `actions.timeoutMs`
    (5 s) and answers `covered by …` only if the cover stays. Nothing to add.
-6. **Parallel, what is left:** close an idle session's tabs. (`sessions.max` is enforced and the jar is written only
-   when it changed, on branch `hardening`.)
+6. ~~Parallel, what is left.~~ Done on `hardening`: `sessions.max` is enforced, the jar is written only when it changed,
+   and a session unused for `sessions.idleMs` loses its tabs when another session runs a command.
 7. **Sites refusing the browser.** Steer the agent to the site's API, sitemap or another source before it
    gives up. Headful against headless: parked until someone wants it measured.
 

@@ -1198,7 +1198,17 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
   },
 }
 
+// A session nobody has used for a while still holds its tabs and its slot of sessions.max. Another session's
+// command is the moment to let them go; with no command there is no one to care, and the daemon's own idle exit comes.
+async function dropIdle(running: string) {
+  const lastUse = new Map<string, number>()
+  for (const t of tabs.values()) lastUse.set(t.session, Math.max(lastUse.get(t.session) ?? 0, t.used))
+  const stale = [...lastUse].filter(([s, used]) => s !== running && Date.now() - used > policy['sessions.idleMs']).map(([s]) => s)
+  await Promise.all([...tabs.values()].filter(t => stale.includes(t.session)).map(t => t.page.close().catch(() => {})))
+}
+
 async function run(c: Command): Promise<string> {
+  await dropIdle(c.session)
   beginCommand(c.session)
   if (ACTIONS.has(c.cmd)) {
     const tab = need(c.session)
