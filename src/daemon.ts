@@ -1180,6 +1180,11 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     }).join('\n') + '\n(net show <#> for headers and bodies)'
   },
   async close(c) {
+    if (c.all) {
+      const mine = [...tabs.values()].filter(t => t.session === c.session)
+      await Promise.all(mine.map(t => t.page.close()))
+      return `closed ${mine.length} tab${mine.length === 1 ? '' : 's'} of session "${c.session}"`
+    }
     const tab = c.id ? own(c.session, c.id) : need(c.session)
     await tab.page.close()
     const now = current.get(c.session)

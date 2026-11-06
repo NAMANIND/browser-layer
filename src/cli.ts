@@ -16,7 +16,7 @@ const HELP = `browser-layer — websites as text and verbs for agents. <ref> is 
 Plain HTTP, no browser:  open <url>|<ref> · verbs · do <verb> k=v ... · --json
 Live tabs (headless browser, runs the page's JS):
   tab <url…>                   open tabs (several load together; the first is current; an open page is switched to); answers with each map
-  go <url> · back · forward · reload · tabs · use <id> · close [id] · stop
+  go <url> · back · forward · reload · tabs · use <id> · close [id|--all] · stop
   steps '<cmd>; <cmd>; ...'    several commands in one call: actions answer in one line, reads and
                                the last step in full; the first error stops the rest
   each '<read>' <url…>         load pages together, run one read on each, one answer; its tabs close

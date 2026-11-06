@@ -388,6 +388,14 @@ test('a fast-path login survives live commands, and live tabs see it', async () 
   assert.match(r.out, /fast cookie: yes/)
 })
 
+test('close --all closes every tab of the session and no other', async () => {
+  await run('--session', 'x', 'tab', `${base}/page/one`, `${base}/page/two`, `${base}/page/three`)
+  await run('--session', 'y', 'tab', `${base}/page/other`)
+  assert.match((await run('--session', 'x', 'close', '--all')).out, /closed 3 tabs/)
+  assert.match((await run('--session', 'x', 'tabs')).out, /no live tabs/)
+  assert.match((await run('--session', 'y', 'tabs')).out, /other/)
+})
+
 test('sessions keep their own tabs and cannot touch each other', async () => {
   const a = await run('--session', 'a', 'tab', `${base}/page/alpha`)
   await run('--session', 'b', 'tab', `${base}/page/beta`)

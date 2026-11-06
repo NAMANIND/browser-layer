@@ -190,8 +190,9 @@ Next phase, in order. Each starts with a failing test and reports numbers before
    2.9k+ chars, `each` 1 call and 1.7k, and it leaves no tabs open). Not measured on the benchmark yet.
 2. **Smaller answers.** `tab` and action answers are 1.5 to 3 times the size they were in 0.1.3, and every
    later turn re-reads them. Find what the agent does not use. Point it to `--out` for big results.
-3. **Tabs pile up** (median 5 a task, 90th percentile 22). `tabs` shows last use; opening a page that is
-   already open in another tab says so; a cap per session; `close --all`.
+3. **Tabs pile up** (median 5 a task, 90th percentile 22). Done on `hardening`: opening a page already open in the
+   session switches to it, `tabs` lists by last use, `close --all` closes the session's tabs. A cap per session is not
+   added: nothing measured says what the number should be.
 4. **`get` on varied cards explodes into columns** (optional parts each make one). Needs a standard way to
    keep columns stable.
 5. ~~A covered control costs a turn~~ Already handled: `pointAt` polls a covered control for the whole `actions.timeoutMs`
