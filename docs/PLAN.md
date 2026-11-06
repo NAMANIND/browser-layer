@@ -213,9 +213,14 @@ the reader and in `type`/`pick`; now 18 of 18 (the last five, forms with hidden 
 and range inputs; `pick` on a multiple select adds. Read time on the corpus is unchanged (scroll containers
 are found in one in-page pass; asking the snapshot for element rects made reads 35–45% slower, so no).
 
-Not done, needs a decision: a timed-out command keeps running (cancelling means threading it through each command; `run()` is now
-a table of one function per command, so that is possible); `steps` does not stop on a replaced page (the skill's own example plans across one); the
-more of the 60 stress-test pages (the library forms). `shadow-dom-form` fills and its own validation then rejects the radio group, which is the page; its slotted controls have no accessible name in any browser, and the text before each ref names it.
+Decided, no change: `steps` does not need to stop on a replaced page. A ref from before the change is gone from the new
+page (refs only count up), so a later step that names one fails and the batch stops there with the page as it is; a
+step that names a control by its words is meant to act on whatever page is then open, as the skill's examples do.
+A timed-out command that keeps running is left alone: it ran against a page that stopped answering, each of its own
+waits is bounded by `actions.timeoutMs`, and the error already tells the agent to close that tab and open it again.
+Cancelling would thread a signal through every handler for a case no run has shown.
+
+Not done: the library forms among the 60 stress-test pages.
 
 Before any deploy: run the same 24 tasks twice more on the branch, because one run per task is noise.
 
