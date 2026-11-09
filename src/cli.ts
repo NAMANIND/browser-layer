@@ -208,6 +208,8 @@ type Parsed = ReturnType<typeof parse>
 // A live-tab command from its parsed words.
 function liveCommand({ cmd, target, rest, page, limit, sort, cols, file, has }: Parsed): Command {
   const c: Command = { cmd, session, page, limit, sort, cols, desc: has('--desc'), urls: has('--urls'), out: file, gone: has('--gone'), keys: has('--keys'), enter: has('--enter'), all: has('--all') }
+  // The browser belongs to every session in it: a named session leaving closes its own tabs, not the others' page.
+  if (cmd === 'stop' && session !== 'default') [c.cmd, c.all] = ['close', true]
   if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: browser-layer ${cmd} <url>`)
   if (cmd === 'tab' && rest.length) c.pages = [target, ...rest]
   if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)

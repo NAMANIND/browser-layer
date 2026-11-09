@@ -290,7 +290,7 @@ again`, at no cost to any page that has content, and the agent's next read shows
 
 | Capability | Commands |
 |---|---|
-| Navigation | `tab <url…>` (several load together and each answers with its map, the first is current; a page already open in the session switches to its tab), `go <url>`, `back`, `forward`, `reload`, `tabs` (by last use), `use`, `close [id]` (`--all`: every tab of the session) |
+| Navigation | `tab <url…>` (several load together and each answers with its map, the first is current; a page already open in the session switches to its tab), `go <url>`, `back`, `forward`, `reload`, `tabs` (by last use), `use`, `close [id]` (`--all`: every tab of the session), `stop` (the browser; in a named session it closes that session's tabs and leaves the browser to the others) |
 | Reading | `map`, `read [ref] [--page N]`, `find <text>`, `get <ref>` (records), `wait [--gone] <text>` |
 | Menus | `explore [ref]`, `menu "A > B > C"` |
 | Pointer | `click`, `dblclick`, `rightclick`, `hover`, `drag <ref> <onto ref>` (pointer drags and HTML drag and drop) |

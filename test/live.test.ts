@@ -418,6 +418,15 @@ test('use answers with the tab it switched to, not its map: agents read right af
   assert.match((await run('--session', 'u', 'map')).out, /outside any region/)
 })
 
+test('stop in a named session closes that session\'s tabs and leaves the browser to the others', async () => {
+  await run('--session', 'sa', 'tab', `${base}/page/alpha`)
+  await run('--session', 'sb', 'tab', `${base}/page/beta`)
+  const r = await run('--session', 'sa', 'stop')
+  assert.equal(r.code, 0, r.out)
+  assert.match((await run('--session', 'sa', 'tabs')).out, /no live tabs/)
+  assert.match((await run('--session', 'sb', 'read')).out, /page beta/)
+})
+
 test('two commands from cold start one daemon, and both tabs live in it', async () => {
   await run('stop')
   const [one, two] = await Promise.all([run('--session', 'c', 'tab', `${base}/page/one`), run('--session', 'c', 'tab', `${base}/page/two`)])
