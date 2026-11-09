@@ -188,8 +188,16 @@ Next phase, in order. Each starts with a failing test and reports numbers before
 
 1. ~~Many-page tasks.~~ Done on `hardening`: `each '<read>' <url…>` (three public pages, the old way took 7 calls and
    2.9k+ chars, `each` 1 call and 1.7k, and it leaves no tabs open). Not measured on the benchmark yet.
-2. **Smaller answers.** `tab` and action answers are 1.5 to 3 times the size they were in 0.1.3, and every
-   later turn re-reads them. Find what the agent does not use. Point it to `--out` for big results.
+2. **Smaller answers.** Mined from the 75 benchmark transcripts (fresh25-money1, shared25-money2, r6-hardening-4th; 12.6M
+   characters of tool output) and replayed on the real answers. Done on `hardening`: the footer (`contentinfo`) is counted
+   in the map, not named (-133k); an action names at most `render.mapFew` removed lines (-114k); the tab line is repeated
+   only when it differs from the last answer (-154k); the command-hint footers are gone (-121k). Together about 520k, 4% of
+   all output and 7% of map, action and read answers. Not done, with reasons: lowering `render.mapFew` (links saved 62k at 6,
+   but 174 of 206 collapsed lists held a link the agent later used); focus-only diffs and an action diff repeated by the read
+   after it (12 and 8 answers in 75 runs); download addresses (15). The largest piece is not in the renderer: 727 of 735 reads
+   were `read --full`, which skips both "since your last read" and "shown before, unchanged", and 16% of read characters repeat
+   lines of an earlier answer for the same address. `help` lists `--full` and agents use it from the first read (shared25-money2
+   had no hint in any answer and still 151 of 179). Dropping it from `help` is a guess about the agent: only a benchmark run says.
 3. **Tabs pile up** (median 5 a task, 90th percentile 22). Done on `hardening`: opening a page already open in the
    session switches to it, `tabs` lists by last use, `close --all` closes the session's tabs. A cap per session is not
    added: nothing measured says what the number should be.

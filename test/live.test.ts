@@ -414,7 +414,7 @@ test('use answers with the tab it switched to, not its map: agents read right af
   const r = await run('--session', 'u', 'use', first)
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, new RegExp(`^tab ${first} +\\S+/page/alpha`))
-  assert.doesNotMatch(r.out, /outside any region|opens a region/)
+  assert.doesNotMatch(r.out, /outside any region/)
   assert.match((await run('--session', 'u', 'map')).out, /outside any region/)
 })
 
@@ -634,13 +634,14 @@ test('actions answer with what changed; a new page answers with its map', async 
   const full = await openRead(`${base}/delta`)
   assert.match(full.out, /story 5/)
   const more = await run('click', ref(full.out, /button "More"/))
-  assert.match(more.out, /lines gone, \d+ new, settled: idle in \d+ ms \(full page: browser-layer read\)/)
+  assert.match(more.out, /lines gone, \d+ new, settled: idle in \d+ ms$/m)
   assert.match(more.out, /^\+ loaded more$/m)
   assert.doesNotMatch(more.out, /story 5/)
   assert.match((await run('read', '--full')).out, /story 5[\s\S]*loaded more/)
   const next = await run('click', ref(full.out, /link "next page"/))
   assert.match(next.out, /^tab \d+ .*\/page\/next/)
-  assert.match(next.out, /read <ref> opens a region/)
+  assert.match(next.out, /outside any region/)
+  assert.doesNotMatch(next.out, /opens a region/)
 })
 
 test('a pushState URL change keeps refs and answers with changes', async () => {
@@ -964,7 +965,7 @@ test('text drawn on a canvas reads as lines, and text painted over is forgotten'
 
 test('explore opens every declared menu, reads it, closes it, and never runs a command', async () => {
   const map = (await run('tab', `${base}/menus`)).out
-  assert.match(map, /closed menus and pop-ups: 2 \(browser-layer explore lists what they hold\)/)
+  assert.match(map, /closed menus and pop-ups: 2 \(explore lists them\)/)
   const out = (await run('explore')).out
   assert.match(out, /2 declared menus and pop-ups, each opened, read and closed/)
   assert.match(out, /^\[\d+\] File ▸ New · Download ▸ · Print$/m)
@@ -1267,4 +1268,16 @@ test('each loads pages together, runs one read on each, answers per page, and cl
   const action = await run('each', 'click 1', urls[0])
   assert.equal(action.code, 1)
   assert.match(action.out, /each only reads/)
+})
+
+test('an answer repeats the tab line only when the page or the tab changed since the last answer', async () => {
+  const opened = (await run('tab', `${base}/counter`)).out
+  assert.match(opened, /^tab \d+ +\S+\/counter +"/)
+  const again = (await run('read')).out
+  assert.match(again, /^tab \d+\n/)
+  const clicked = (await run('click', 'Add')).out
+  assert.match(clicked, /^tab \d+  — \d+ lines? gone/)
+  const other = (await run('tab', `${base}/page/alpha`)).out
+  assert.match(other, /^tab \d+ +\S+\/page\/alpha/)
+  assert.match((await run('use', opened.match(/^tab (\d+)/)![1])).out, /^tab \d+ +\S+\/counter/)
 })

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { diffLines, renderMap, renderText } from '../src/render.js'
+import { diffLines, goneLines, renderMap, renderText } from '../src/render.js'
 import type { Node } from '../src/reader.js'
 
 test('only the lines that changed are reported', () => {
@@ -30,4 +30,22 @@ test('a heading that wraps a region is not a heading: the map shows the region',
   assert.doesNotMatch(map, /headings:/)
   assert.match(map, /\[16\] banner/)
   assert.match(map, /\[3\] button "Main menu"/)
+})
+
+test('the footer (contentinfo) is counted, not named: its links are rarely what a task needs, and read <ref> lists them', () => {
+  const link = (ref: number, name: string): Node => ({ ref, role: 'link', name, nameShown: true, url: `/${name}`, block: true })
+  const tree: Node = { block: true, children: [
+    { ref: 1, role: 'main', block: true, children: [link(2, 'Pricing'), link(3, 'Docs')] },
+    { ref: 4, role: 'contentinfo', block: true, children: [link(5, 'Privacy'), link(6, 'Terms'), link(7, 'Careers')] }] }
+  const map = renderMap(tree, 'https://x.test', { nameChars: 120, labelChars: 40 }, 8)
+  assert.match(map, /\[1\] main\n  links: \[2\] link "Pricing" · \[3\] link "Docs"/)
+  assert.match(map, /\[4\] contentinfo\n  links: 3$/)
+})
+
+test('lines that are gone are named up to a few; the rest are counted', () => {
+  const gone = (n: number) => Array.from({ length: n }, (_, i) => `row ${i}`)
+  assert.deepEqual(goneLines(gone(3), 8), ['- row 0', '- row 1', '- row 2'])
+  const many = goneLines(gone(30), 8)
+  assert.equal(many.length, 9)
+  assert.equal(many[8], '… 22 more gone')
 })

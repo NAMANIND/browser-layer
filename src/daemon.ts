@@ -8,7 +8,7 @@ import { isTracker } from './trackers.js'
 import { findBrowser } from './browser.js'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, humanCheck, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
-import { diffLines, findRef, itemsLine, paginate, renderMap, renderText } from './render.js'
+import { diffLines, findRef, goneLines, itemsLine, paginate, renderMap, renderText } from './render.js'
 import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
 import { query, records, toTsv, type Query } from './data.js'
 import { pidPath, ping, socketPath, VERSION } from './client.js'
@@ -340,9 +340,15 @@ async function snapshot(tab: Tab) {
 // The full text of what the agent has been shown last, per context; later actions diff against it.
 const remember = (tab: Tab, text: string) => tab.shown.set(contextOf(text), { doc: tab.doc, text })
 
+// The tab line names the tab, its address and title. The agent already holds them when the last answer of
+// the session was about this same page, so then it is just the tab's number.
+const headed = new Map<string, string>()
 const header = async (tab: Tab) => {
   const title = await tab.page.title()
-  return `tab ${tab.id}  ${tab.page.url()}${title ? `  "${title}"` : ''}`
+  const what = `${tab.page.url()}${title ? `  "${title}"` : ''}`
+  const same = headed.get(tab.session) === `${tab.id} ${what}`
+  headed.set(tab.session, `${tab.id} ${what}`)
+  return same ? `tab ${tab.id}` : `tab ${tab.id}  ${what}`
 }
 
 // A page that turned the agent away: the site refused this browser, or put a human check in front of it.
@@ -378,7 +384,7 @@ async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>, se
   const map = renderMap(tree, origin, caps(), policy['render.mapFew'], { before: whole ? new Map() : tab.seen.map, now })
   for (const [ref, whole] of now) tab.seen.map.set(ref, whole)
   if (!map.trim()) note = [note, 'no content yet: the page may still be loading; read again'].filter(Boolean).join('; ')
-  return `${await header(tab)}${note ? `  — ${note}` : ''}${settled ? `  — settled: ${settled}` : ''}\n${await blocked(tab, tree)}\n${map}\n\n(read <ref> opens a region · read gives the whole page)`
+  return `${await header(tab)}${note ? `  — ${note}` : ''}${settled ? `  — settled: ${settled}` : ''}\n${await blocked(tab, tree)}\n${map}`
 }
 
 // A dialog an action opened (a date picker, a list of suggestions) answers with what it holds when that is
@@ -528,10 +534,10 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
       const line = summary.get(l)
       return !line ? [l] : seen.has(line) ? [] : (seen.add(line), [line])
     })
-    if (seen.size) note = '; a long list is one line: find <text> or read <ref> goes in'
+    if (seen.size) note = ' (a long list is one line: find <text> or read <ref> goes in)'
   }
-  const head = `tab ${tab.id}  ${tab.page.url()}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'}${settled ? `, settled: ${settled}` : ''} (full page: browser-layer read${note})`
-  return [head, '', ...removed.map(l => `- ${l}`), ...shown.map(l => `+ ${l}`)].join('\n').trimEnd()
+  const head = `${await header(tab)}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'}${settled ? `, settled: ${settled}` : ''}${note}`
+  return [head, '', ...goneLines(removed, policy['render.mapFew']), ...shown.map(l => `+ ${l}`)].join('\n').trimEnd()
 }
 
 // A collection as records (TSV): sorted, limited and column-picked as asked, and never more than one page
