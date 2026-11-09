@@ -46,7 +46,7 @@ headings and fields, walk a list item by item, and act. It rests on standards ev
 |---|---|---|
 | **Map** | The page as regions, each with its fields (and values), options, actions, headings, collections (record count and first item, or a table's columns) and links; named when few, counted when many. Opening a page answers with the map. | `tab`, `go`, `map` |
 | **Zoom** | One region, collection or control in full text. | `read <ref>` |
-| **Whole page** | Everything, paged. Read again, only what changed since the last read (`--full`: all of it). | `read` |
+| **Whole page** | Everything, paged. Read again, only what changed since the last read (`--full`: all of it, for the same page). | `read` |
 | **Act** | Fill, pick, click by ref; the answer is what changed (§4.4). | `type`, `pick`, `click`, `press` |
 | **Data** | A list or table as records (TSV): sorted as numbers, limited, column-picked (§4.5). | `get <ref>` |
 
@@ -57,8 +57,8 @@ to reach.
 every later step, so nothing is given twice. Reading a page again answers with what changed. A region the
 agent was already shown in this tab, exactly as it is now (a site's menus and footer on its next page),
 is one line in the map that answers a page load and in `read`: `[16] navigation — shown before,
-unchanged`. Its ref still works (refs stay with the element, §3), and `read <ref>`, `read --full` and
-`map` show it whole. The same rule shortens the rest: the tab line (address and title) is repeated only when it
+unchanged`. Its ref still works (refs stay with the element, §3), and `read <ref>` and `map` show it
+whole; `read --full` shows the page just read again whole, and on another page of the site folds like `read`. The same rule shortens the rest: the tab line (address and title) is repeated only when it
 differs from the last answer of the session, an action names at most `render.mapFew` of the lines it removed
 and counts the rest, the footer (`contentinfo`) is counted in the map and `read <ref>` names it, and no answer
 carries a footer of command hints (the skill and `help` already say them).

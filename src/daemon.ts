@@ -437,7 +437,8 @@ async function reread(tab: Tab, full: boolean): Promise<string> {
   const snap = await snapshot(tab)
   remember(tab, snap.text)
   const text = snap.text
-  const before = tab.read?.doc === tab.doc && !full ? tab.read.text : undefined
+  const again = tab.read?.doc === tab.doc
+  const before = again && !full ? tab.read!.text : undefined
   tab.read = text.length <= policy['render.pageChars'] ? { doc: tab.doc, text } : undefined
   if (before === text) return `${await header(tab)}  — no change since your last read (read --full shows it again)`
   if (before !== undefined) {
@@ -446,9 +447,10 @@ async function reread(tab: Tab, full: boolean): Promise<string> {
     if (lines.length < text.length / 2) return `${await header(tab)}  — ${removed.length} line${removed.length === 1 ? '' : 's'} gone, ${added.length} new since your last read (read --full shows it all)\n\n${lines}`
   }
   // Regions already shown in full, unchanged, are one line each, when the rest fits one answer: a page
-  // that needs --page N reads whole, so its pages stay the same between calls.
+  // that needs --page N reads whole, so its pages stay the same between calls. --full asks for this page
+  // again, so it shows all of it; on another page of the site it folds what the site repeats, like read.
   const now = new Map<number, string>()
-  const short = renderText(snap.tree, snap.origin, caps(), { before: full ? new Map() : tab.seen.text, now })
+  const short = renderText(snap.tree, snap.origin, caps(), { before: full && again ? new Map() : tab.seen.text, now })
   if (short.length > policy['render.pageChars']) return view(tab, 1, text)
   for (const [ref, whole] of now) { tab.seen.text.set(ref, whole); tab.seen.map.set(ref, whole) }
   return view(tab, 1, short)
