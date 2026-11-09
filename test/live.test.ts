@@ -835,6 +835,18 @@ test('a region already shown, unchanged, is one line on the next page; read --fu
   assert.match((await run('read', banner)).out, /Free delivery/)
 })
 
+test('read --full on a page of a site already read folds its unchanged regions; the same page read again with --full shows all', async () => {
+  await run('stop')
+  const banner = ref((await run('tab', `${base}/results/1`)).out, /banner/)
+  assert.match((await run('read')).out, /Free delivery/)
+  await run('click', 'Next')
+  const second = (await run('read', '--full')).out
+  assert.match(second, new RegExp(`\\[${banner}\\] banner — shown before, unchanged`))
+  assert.match(second, /Page 2/)
+  assert.doesNotMatch(second, /Free delivery/)
+  assert.match((await run('read', '--full')).out, /Free delivery/)
+})
+
 test('records never take more than one page of an answer, even with --limit', async () => {
   const list = ref((await run('tab', `${base}/longrecords`)).out, /list of 40/)
   const out = (await run('get', list, '--limit', '40')).out
