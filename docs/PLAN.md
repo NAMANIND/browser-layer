@@ -5,11 +5,28 @@ Each phase ends green and measured before the next one starts. Behavior changes 
 test first and before/after numbers.
 
 
-## Where we are (5 Nov 2026)
+## Where we are (9 Nov 2026)
 
-Published: 0.1.3 on npm. On the branch `lean-answers`, not yet merged: parallel sessions and `tab <url…>`.
-96 tests green; `npm run measure` exits 0; `src/` is about 3,236 lines in 8 files (the 31 Oct baseline was
-1,059, and the grown code is the commands, frames, attach and data layer listed below).
+Published: 0.1.3 on npm. Release candidate: the branch `hardening` (0.1.4), which holds everything since 0.1.3:
+parallel sessions, `tab <url…>`, `each`, `close --all`, `stop` in a named session closing only that session's tabs,
+a client that waits for a daemon still starting Chrome, and answers cut by 4%. 112 of 113 tests pass (the one failure,
+"switching the browser between visible and headless", also fails without these changes); `npm run measure` exits 0;
+`src/` is 3,390 lines in 8 files (31 Oct baseline 1,059).
+
+**Benchmark, 25 tasks the code was never tuned on (BU Bench V2.1, one run each, 9 Nov):**
+
+| | Score | Money | Time | Timeouts | Points per $ |
+|---|---|---|---|---|---|
+| Browser Harness | 8.09 | $1.35 | 371 min | 3 | 0.409 |
+| `hardening`, one agent per container | 7.58 | $1.34 | 360 min | 7 | 0.388 |
+| `hardening`, 5 agents sharing a container (two runs) | 8.39 / 7.69 | $1.04 / $1.22 | 30 min each | 5 / 8 | 0.55 / 0.44 |
+| 0.1.3 | 6.90 | $1.33 | 451 min | 2 | 0.355 |
+| 0.1.2 | 5.69 | $1.46 | 395 min | 7 | 0.267 |
+
+On the 24 tasks it was tuned on, `hardening` looked far ahead of Browser Harness; on unseen tasks it is level. Two runs of
+the shared layout differ by 0.7 points and 3 timeouts, so one run per task cannot show a 5% difference. Of the timeouts,
+most are the agent's own shell loops fetching hundreds of pages one at a time (8 to 14 minutes in one command) and model
+stalls, not the tool; stuck pages and a daemon restart under load are the rest.
 
 Every heuristic the 31 Oct plan listed is gone: the 400 ms settle, the `NOISE` regex, `snapshot.ts`,
 `page.ts`, node-html-parser. The old P2 to P6 sections said the same as the sections below and were removed.
@@ -229,6 +246,17 @@ waits is bounded by `actions.timeoutMs`, and the error already tells the agent t
 Cancelling would thread a signal through every handler for a case no run has shown.
 
 Not done: the library forms among the 60 stress-test pages.
+
+Next, in order:
+1. **Single-task baseline**, since the public benchmark runs one agent on one task: 3 runs of the 25 unseen tasks for the
+   candidate, 0.1.3 and Browser Harness, one agent per container at low concurrency so CPU contention does not distort
+   timing, logging tokens, steps and the split of wall time (the runner saves per-command timestamps, the daemon log and the
+   container's memory record). Only this can show a gain of 5%.
+2. **Timeouts** (7 of 25): read the loops and stalls the baseline shows before changing anything. Decided no change for
+   now: a hint in the skill against crawl loops (the skill is re-read every turn, and the earlier "deliver what you have"
+   note cost score on four of six tasks); revisit only if the baseline shows loops still the main cause.
+3. **Idle close at 5 minutes** (`sessions.idleMs` from 15): parked. It would have hit 2 of 1,109 pauses in the benchmark; it
+   only matters for browsers that stay up, not for one-task containers.
 
 Before any deploy: run the same 24 tasks twice more on the branch, because one run per task is noise.
 
