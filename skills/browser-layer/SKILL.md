@@ -30,8 +30,8 @@ Every call costs a turn, so come back only when the next step depends on somethi
 
 1. `tab <url>` opens a page and answers with its **map**: regions, fields, actions, lists and links,
    each with a ref like `[15]`. Several sites: `tab <url1> <url2>` loads them together, one map each.
-   The same fact from many pages: `each 'find price' <url1> <url2>` runs one read on each and
-   answers once, closing its tabs. One tab per site; `use <id>` switches (`tabs` lists them), `go <url>`
+   **Many pages: one call, not a shell loop** (a loop takes minutes): `open --out f <url…>` for static
+   pages, `each --out f '<read>' <url…>` for JavaScript ones; both fetch in parallel, one line per page in `f`. One tab per site; `use <id>` switches (`tabs` lists them), `go <url>`
    moves within a site.
 2. Act on a ref or a control's name: `click 31`, `click "Next"`, `type 15 Mumbai --enter`,
    `pick 22 "Economy"`, `check 40`. Every action answers with **what changed** or the new page, with
@@ -46,8 +46,7 @@ Every call costs a turn, so come back only when the next step depends on somethi
 ## Habits
 
 - Put filters in the URL when the site does (`?q=python&page=2`); `wait "<text>"` when content loads
-  late; `open <url>` for a static page that needs no JavaScript;
-  many pages, never a shell loop: `open --out f <url…>` (static) or `each --out f '<read>' <url…>` (JavaScript), one line per page.
+  late; `open <url>` for a static page that needs no JavaScript.
 - The data usually comes from an API: `net` lists the calls, `net show <#>` previews one,
   `net save <#> data.json` writes it whole. More pages from the same API:
   `eval "await (await fetch('/api/x?page=2')).json()" > p2.json` (the site's own cookies go along).
