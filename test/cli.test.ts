@@ -82,6 +82,14 @@ line2</textarea>
     mostInFlight = Math.max(mostInFlight, ++inFlight)
     return void setTimeout(() => { inFlight--; res.setHeader('content-type', 'text/html'); res.end(`<title>lag</title><p>lagged ${url.pathname}</p>`) }, 300)
   }
+  if (url.pathname.startsWith('/doc/')) {
+    const n = url.pathname.slice(5)
+    const lines = Array.from({ length: 30 }, (_, k) => `<p>paragraph ${k + 1} of doc ${n}</p>`)
+    if (n === '2') lines[11] = '<p>needle here</p>'
+    if (n === '3') lines[4] = '<p>== not a header</p>'
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<title>Doc ${n}</title><h1>Doc ${n} heading</h1>${lines.join('')}`)
+  }
   if (url.pathname === '/search') {
     res.setHeader('content-type', 'application/json')
     return res.end(JSON.stringify({ q: url.searchParams.get('q') }))
@@ -151,24 +159,43 @@ test('a page built by JavaScript says so instead of looking empty', async () => 
   assert.match((await run('open', `${base}/app`)).out, /this page builds itself with JavaScript; browser-layer tab .*\/app runs it/)
 })
 
-test('open with several addresses fetches them together, at most open.perHost per host, and writes one line per address to --out', async () => {
+test('open with several addresses fetches them together, at most open.perHost per host', async () => {
   writeFileSync(join(env.BROWSER_LAYER_HOME, 'policy.json'), JSON.stringify({ 'open.perHost': 2 }))
-  const urls = [...['a', 'b', 'c', 'd', 'e', 'f'].map(s => `${base}/lag/${s}`), `${base}/app`, 'http://127.0.0.1:1/none']
-  const file = join(env.BROWSER_LAYER_HOME, 'open.out')
+  const urls = ['a', 'b', 'c', 'd', 'e', 'f'].map(s => `${base}/lag/${s}`)
   const t0 = Date.now()
-  const out = await run('open', '--out', file, ...urls)
+  const out = await run('open', ...urls)
   const took = Date.now() - t0
   assert.equal(out.code, 0, out.out)
-  assert.equal(out.out.trim(), `open: 8 pages, 1 failed, saved ${file}`)
+  for (const u of urls) assert.match(out.out, new RegExp(`lagged ${u.slice(base.length)}`))
   assert.equal(mostInFlight, 2, 'two at a time on one host: together, but not all')
   assert.ok(took < 6 * 300, `six pages at two at a time take three waits, not six (${took} ms)`)
-  const lines = readFileSync(file, 'utf8').trim().split('\n')
-  assert.deepEqual(lines.map(l => l.split('\t')[0]), urls)
-  assert.match(JSON.parse(lines[2].split('\t')[1]), /lagged \/lag\/c/)
-  assert.match(JSON.parse(lines[6].split('\t')[1]), /this page builds itself with JavaScript; browser-layer tab .*\/app runs it/)
-  assert.match(JSON.parse(lines[7].split('\t')[1]), /^error: /)
   const one = await run('open', `${base}/lag/a`)
   assert.match(one.out, /^http:\/\/127\.0\.0\.1:\d+\/lag\/a {2}\[200\] {2}"lag"\n\nlagged \/lag\/a/)
+})
+
+test('open --out writes a header line and the page lines per address, and answers with failures and a headline per page', async () => {
+  writeFileSync(join(env.BROWSER_LAYER_HOME, 'policy.json'), JSON.stringify({ 'bulk.pages': 2 }))
+  const urls = [`${base}/doc/1`, `${base}/doc/2`, `${base}/doc/3`, `${base}/gone`, 'http://127.0.0.1:1/none', `${base}/app`]
+  const file = join(env.BROWSER_LAYER_HOME, 'open.out')
+  const out = await run('open', '--out', file, ...urls)
+  assert.equal(out.code, 0, out.out)
+  assert.match(out.out, new RegExp(`^open: 6 pages, 2 failed, saved ${file}\\n`))
+  assert.match(out.out, new RegExp(`failed:\\n  ${urls[3]} — HTTP 404\\n  ${urls[4]} — fetch failed \\(`))
+  assert.match(out.out, new RegExp(`${urls[0]}  "Doc 1" · 31 lines, \\d+ chars · line 1\\n`))
+  assert.match(out.out, new RegExp(`${urls[1]}  "Doc 2" · 31 lines, \\d+ chars · line 33\\n… 2 more\\n`))
+  assert.match(out.out, /rg -n '\^== '/)
+  assert.ok(out.out.length < 900, `the answer stays small (${out.out.length})`)
+  const lines = readFileSync(file, 'utf8').split('\n')
+  const headers = lines.map((l, i) => [i + 1, l] as const).filter(([, l]) => l.startsWith('== '))
+  assert.deepEqual(headers.map(([, l]) => l.split('  ')[0]), urls.map(u => `== ${u}`), 'a page line that looks like a header is not one')
+  assert.equal(headers[1][0], 33)
+  assert.match(headers[0][1], /  \[200\]$/)
+  assert.match(headers[3][1], /  HTTP 404$/)
+  assert.match(headers[4][1], /  error: /)
+  const hits = lines.map((l, i) => `${i + 1}:${l}`).filter(l => l.includes('needle'))
+  assert.deepEqual(hits, ['46:needle here'], 'a search returns the line, not the page')
+  assert.ok(lines.slice(0, 3).join('\n').length < 200, 'head -3 is three lines')
+  assert.ok(lines.includes(' == not a header'))
 })
 
 test('do refuses a verb with a missing required field', async () => {

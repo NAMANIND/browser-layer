@@ -5,7 +5,7 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { Field, Page, Verb } from './html.js'
 import { home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
-import { paginate, renderText } from './render.js'
+import { bulkAnswer, bulkFile, paginate, renderText, type Bulk } from './render.js'
 import { loadPolicy, type Policy } from './policy.js'
 import { live, VERSION } from './client.js'
 import { findBrowser, openChrome, openInspectPage, PROFILE_FLAGS } from './browser.js'
@@ -107,12 +107,12 @@ const buildsItself = (page: Page, text: string, policy: Policy) =>
   text.length < policy['http.shellChars'] && page.scripts ? `this page builds itself with JavaScript; browser-layer tab ${page.url} runs it` : ''
 
 // open <url> <url> …: plain fetches, open.concurrency at a time and at most open.perHost on one site. Each
-// page is its text as `open <url> --out` writes it; a failed fetch is its own line and the rest carry on.
+// page is its text as `open <url> --out` writes it; a failed fetch is its own entry and the rest carry on.
 // Without --out the pages print in full, one after another. The last page (refs, verbs) is left as it was.
 async function openMany(urls: string[], out?: string) {
   const policy = loadPolicy()
   const hostOf = (u: string) => { try { return new URL(u).host } catch { return u } }
-  const texts: string[] = []
+  const pages: Bulk[] = []
   const pending = urls.map((_, k) => k)
   const busy = new Map<string, number>()
   let running = 0
@@ -125,7 +125,7 @@ async function openMany(urls: string[], out?: string) {
         const host = hostOf(urls[k])
         busy.set(host, (busy.get(host) ?? 0) + 1)
         running++
-        fetchText(urls[k], policy).then(t => { texts[k] = t }, err => { texts[k] = `error: ${err instanceof Error ? err.message : err}` }).finally(() => {
+        fetchText(urls[k], policy).then(p => { pages[k] = { address: urls[k], ...p } }, err => { pages[k] = { address: urls[k], error: why(err), title: '', text: '' } }).finally(() => {
           busy.set(host, busy.get(host)! - 1)
           running--
           pump()
@@ -135,16 +135,23 @@ async function openMany(urls: string[], out?: string) {
     }
     pump()
   })
-  if (!out) return console.log(urls.map((u, k) => `${u}\n${texts[k]}`).join('\n\n'))
-  writeFileSync(out, `${urls.map((u, k) => `${u}\t${JSON.stringify(texts[k])}`).join('\n')}\n`)
-  console.log(`open: ${urls.length} pages, ${texts.filter(t => t.startsWith('error: ')).length} failed, saved ${out}`)
+  if (!out) return console.log(pages.map(p => `${p.address}\n${p.error ? `error: ${p.error}` : p.text}`).join('\n\n'))
+  writeFileSync(out, bulkFile(pages))
+  console.log(bulkAnswer('open', pages, out, policy))
 }
 
-async function fetchText(url: string, policy: Policy) {
+// Node's fetch says only "fetch failed"; its cause (refused, no such host, timed out) is the reason.
+const why = (err: unknown) => {
+  if (!(err instanceof Error)) return String(err)
+  const cause = err.cause as { code?: string; message?: string } | undefined
+  return cause ? `${err.message} (${cause.code ?? cause.message})` : err.message
+}
+
+async function fetchText(url: string, policy: Policy): Promise<Omit<Bulk, 'address'>> {
   const res = await request(url)
-  if (!/html|xml/.test(res.type) && res.body.trimStart()[0] !== '<') return res.body
+  if (!/html|xml/.test(res.type) && res.body.trimStart()[0] !== '<') return { status: res.status, title: '', text: res.body }
   const { page, text } = await readPage(res, policy)
-  return [text, buildsItself(page, text, policy)].filter(Boolean).join('\n\n')
+  return { status: res.status, title: page.title, text: [text, buildsItself(page, text, policy)].filter(Boolean).join('\n\n') }
 }
 
 function needPage(): Saved {

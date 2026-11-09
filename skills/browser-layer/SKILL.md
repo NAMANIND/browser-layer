@@ -31,7 +31,7 @@ Every call costs a turn, so come back only when the next step depends on somethi
 1. `tab <url>` opens a page and answers with its **map**: regions, fields, actions, lists and links,
    each with a ref like `[15]`. Several sites: `tab <url1> <url2>` loads them together, one map each.
    **Many pages: one call, not a shell loop** (a loop takes minutes): `open --out f <url…>` for static
-   pages, `each --out f '<read>' <url…>` for JavaScript ones; both fetch in parallel, one line per page in `f`. One tab per site; `use <id>` switches (`tabs` lists them), `go <url>`
+   pages, `each --out f '<read>' <url…>` for JavaScript ones; both fetch in parallel, `f` has a `== <url>` line per page, then its lines (`rg -n '^== ' f`, `sed -n 20,60p f`). One tab per site; `use <id>` switches (`tabs` lists them), `go <url>`
    moves within a site.
 2. Act on a ref or a control's name: `click 31`, `click "Next"`, `type 15 Mumbai --enter`,
    `pick 22 "Economy"`, `check 40`. Every action answers with **what changed** or the new page, with

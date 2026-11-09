@@ -8,7 +8,7 @@ import { isTracker } from './trackers.js'
 import { findBrowser } from './browser.js'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, humanCheck, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
-import { diffLines, findRef, goneLines, itemsLine, paginate, renderMap, renderText } from './render.js'
+import { bulkAnswer, bulkFile, diffLines, findRef, goneLines, itemsLine, paginate, renderMap, renderText, type Bulk } from './render.js'
 import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
 import { query, records, toTsv, type Query } from './data.js'
 import { pidPath, ping, socketPath, VERSION } from './client.js'
@@ -870,9 +870,9 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
   },
   // each '<read>' <url…>: the pages load together, up to each.concurrency at a time, and the one read runs on
   // each, answering per page; a tab closes as soon as its page is read, so a task over hundreds of pages never
-  // holds more than that many. A page that fails is its own line and the rest carry on. It reads: acting on
-  // several pages at once is a decision per page. With --out the answer is the count and one line per page
-  // (address, the read's text as a JSON string) in the file.
+  // holds more than that many. A page that fails is its own entry and the rest carry on. It reads: acting on
+  // several pages at once is a decision per page. With --out the file and the answer are the bulk form
+  // (render.ts), the same as `open <url…> --out`.
   async each(c) {
     const [read] = c.steps ?? []
     if (!read || !c.pages?.length) throw new Error("usage: browser-layer each '<read command>' <url…>")
@@ -880,7 +880,10 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     const was = current.get(c.session)
     const pages = c.pages
     const failed = (err: unknown) => `error: ${err instanceof Error ? err.message.split('\n')[0] : err}`
-    const results: { ok: boolean; head: string; text: string }[] = []
+    const results: { head: string; page: Bulk }[] = []
+    const entry = (address: string, title: string, text: string): Bulk =>
+      text.startsWith('error: ') ? { address, title, text: '', error: text.slice(7) }
+        : { address, title, text, error: /^blocked: ([^.\n]+)/m.exec(text)?.[0] }
     // Reads use the session's current tab, so they take turns; loading, the slow part, does not.
     let turn = Promise.resolve()
     let next = 0
@@ -892,17 +895,18 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
             current.set(c.session, l.tab.id)
             const note = [l.note, l.settled].filter(Boolean).join('; ')
             const text = await limited({ ...read, session: c.session, out: undefined }).catch(failed)
-            results[k] = { ok: !text.startsWith('error: '), head: `${await header(l.tab)}${note ? `  (${note})` : ''}`, text }
+            results[k] = { head: `${await header(l.tab)}${note ? `  (${note})` : ''}`, page: entry(pages[k], await l.tab.page.title().catch(() => ''), text) }
           }))
           if (l.fresh) await l.tab.page.close().catch(() => {})
-        } catch (err) { results[k] = { ok: false, head: pages[k], text: failed(err) } }
+        } catch (err) { results[k] = { head: pages[k], page: entry(pages[k], '', failed(err)) } }
       }
     }
     await Promise.all(Array.from({ length: Math.min(pages.length, policy['each.concurrency']) }, worker))
     if (was !== undefined && tabs.has(was)) current.set(c.session, was)
-    if (!c.out) return results.map(r => `${r.head}\n${r.text}`).join('\n\n')
-    writeFileSync(c.out, `${results.map((r, k) => `${pages[k]}\t${JSON.stringify(r.text)}`).join('\n')}\n`)
-    return `each: ${pages.length} pages, ${results.filter(r => !r.ok).length} failed, saved ${c.out}`
+    if (!c.out) return results.map(r => `${r.head}\n${r.page.error && !r.page.text ? `error: ${r.page.error}` : r.page.text}`).join('\n\n')
+    const all = results.map(r => r.page)
+    writeFileSync(c.out, bulkFile(all))
+    return bulkAnswer('each', all, c.out, policy)
   },
   async tabs(c) {
     // The session's activity map: its tabs, most recently used first.

@@ -1283,7 +1283,7 @@ test('each loads pages together, runs one read on each, answers per page, and cl
   assert.match(action.out, /each only reads/)
 })
 
-test('each runs a bounded number of pages at once, writes one line per page to --out, and a failed page is a line, not the end', async () => {
+test('each runs a bounded number of pages at once, writes the bulk form to --out, and a failed page is an entry, not the end', async () => {
   const urls = [...['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(s => `${base}/lag/${s}`), 'http://localhost:1/none']
   const file = join(home, 'each.out')
   const t0 = Date.now()
@@ -1291,12 +1291,15 @@ test('each runs a bounded number of pages at once, writes one line per page to -
   const took = Date.now() - t0
   assert.equal(out.code, 0, out.out)
   assert.ok(took > 2.5 * 2500, `only three pages load at a time, so seven take several waves (${took} ms)`)
-  assert.equal(out.out.trim(), `each: 8 pages, 1 failed, saved ${file}`)
+  assert.match(out.out, new RegExp(`^each: 8 pages, 1 failed, saved ${file}\\nfailed:\\n  http://localhost:1/none — `))
+  assert.match(out.out, new RegExp(`${urls[2]}  "lag" · \\d+ lines, \\d+ chars · line \\d+\\n`))
+  assert.match(out.out, /rg -n '\^== '/)
   const lines = readFileSync(file, 'utf8').trim().split('\n')
-  assert.equal(lines.length, 8)
-  assert.deepEqual(lines.map(l => l.split('\t')[0]), urls)
-  assert.match(JSON.parse(lines[2].split('\t')[1]), /lagged \/lag\/c/)
-  assert.match(JSON.parse(lines[7].split('\t')[1]), /^error: /)
+  const headers = lines.filter(l => l.startsWith('== '))
+  assert.deepEqual(headers.map(l => l.split('  ')[0]), urls.map(u => `== ${u}`))
+  assert.match(headers[7], /  error: /)
+  const hits = lines.filter(l => l.includes('lagged /lag/c'))
+  assert.equal(hits.length, 1, 'a search returns the line, not the page')
   assert.doesNotMatch((await run('tabs')).out, /\/lag\//)
 })
 

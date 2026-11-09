@@ -1,3 +1,4 @@
+import type { Policy } from './policy.js'
 import { cellsOf, COLLECTIONS, isHeaderRow, isTrigger, LANDMARKS, rowsOf, SPACE, withRefs, type Node } from './reader.js'
 
 // Text for the agent: blocks start lines, rows read as one line with ' · ' between their parts,
@@ -221,3 +222,39 @@ export function diffLines(before: string[], after: string[]): { removed: string[
 // What an action removed is the old state, so only a few of those lines are named; the count says the rest.
 export const goneLines = (removed: string[], few: number) =>
   [...removed.slice(0, few).map(l => `- ${l}`), ...(removed.length > few ? [`… ${removed.length - few} more gone`] : [])]
+
+// What a bulk call (each, open) leaves in its --out file and says in its answer. The file is plain lines for
+// grep, sed and head: a header line `== <address>  <status>` per page, then the page's own lines. A page line
+// that begins with `== ` gets a leading space so `rg -n '^== '` finds pages and only pages.
+export type Bulk = { address: string; status?: number; error?: string; title: string; text: string }
+
+const failure = (b: Bulk) => b.error ?? (b.status !== undefined && b.status >= 400 ? `HTTP ${b.status}` : undefined)
+const linesOf = (b: Bulk) => (b.text ? b.text.split('\n') : [])
+
+export function bulkFile(pages: Bulk[]): string {
+  return pages.map(b => {
+    const mark = b.error ? `error: ${b.error}` : failure(b) ?? (b.status === undefined ? '' : `[${b.status}]`)
+    return [`== ${b.address}${mark ? `  ${mark}` : ''}`, ...linesOf(b).map(l => (l.startsWith('== ') ? ` ${l}` : l))].join('\n')
+  }).join('\n') + '\n'
+}
+
+// Counts, each failure with its reason, one headline per page that read (title or first line, size, the line
+// where it starts in the file), each list cut at its bound with the number left out.
+export function bulkAnswer(name: string, pages: Bulk[], file: string, p: Pick<Policy, 'bulk.pages' | 'bulk.failures' | 'bulk.headlineChars'>): string {
+  const failed = pages.filter(failure)
+  const cut = (s: string) => (s.length > p['bulk.headlineChars'] ? `${s.slice(0, p['bulk.headlineChars'] - 1)}…` : s)
+  const lines = [`${name}: ${pages.length} pages, ${failed.length} failed, saved ${file}`]
+  if (failed.length) lines.push('failed:', ...failed.slice(0, p['bulk.failures']).map(b => `  ${b.address} — ${cut(failure(b)!)}`))
+  if (failed.length > p['bulk.failures']) lines.push(`… ${failed.length - p['bulk.failures']} more`)
+  let at = 1
+  const heads: string[] = []
+  for (const b of pages) {
+    const n = linesOf(b).length
+    if (!failure(b)) heads.push(`${b.address}  ${cut(b.title ? `"${b.title}"` : b.text.split('\n').find(l => l.trim()) ?? '')} · ${n} lines, ${b.text.length} chars · line ${at}`)
+    at += 1 + n
+  }
+  lines.push(...heads.slice(0, p['bulk.pages']))
+  if (heads.length > p['bulk.pages']) lines.push(`… ${heads.length - p['bulk.pages']} more`)
+  lines.push(`find a page: rg -n '^== ' ${file}; read part: sed -n 20,60p ${file}`)
+  return lines.join('\n')
+}

@@ -210,6 +210,10 @@ Next phase, in order. Each starts with a failing test and reports numbers before
    all pages loaded at once, one 75 s limit on the whole call, and the answer inline (about 22k chars per call in the benchmark).
    Now `each.concurrency` (10) bounds the tabs, each page has its own limit, and `--out <file>` writes a line per page and
    answers in 180 chars: 10 / 40 / 100 / 300 pages in 4 / 7 / 18 / 51 s (unbounded was 37 s at 300, the price of bounding).
+   Format (from 41 agent commands in 5 crawl tasks that read these files, 174k chars: `head -3` 35k, `rg -n` 43k, four single
+   lines over 3k): `--out` now writes `== <address>  [status]` then the page's own lines, and the answer lists failures with
+   reasons and 12 headlines (`bulk.*`). On a fixture of 41 pages of 17k chars: `head -3` 51.5k -> 162 chars, `rg -n needle`
+   17.2k -> 141, `sed -n 1,40p` 692k -> 4.3k, the answer 182 -> 1.7k chars (it replaces the `head`/`wc`/`rg` follow-ups).
    No skill line yet: a fixture cannot show whether agents reach for `each --out`; add one if the next benchmark still has the loops.
 2. **Smaller answers.** Mined from the 75 benchmark transcripts (fresh25-money1, shared25-money2, r6-hardening-4th; 12.6M
    characters of tool output) and replayed on the real answers. Done on `hardening`: the footer (`contentinfo`) is counted
