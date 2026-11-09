@@ -1270,7 +1270,6 @@ async function main() {
       return process.exit(1)
     })
     ctx = browser.contexts()[0]
-    rmSync(pidPath(), { force: true }) // connected: the pid file's job, telling the CLI a daemon is still waiting for Allow, is over
   } else {
     const found = await findBrowser()
     if ('error' in found) {
@@ -1367,6 +1366,7 @@ async function main() {
     // A named pipe (Windows) has no file mode; its default ACL lets only this user, SYSTEM and
     // administrators write to it, so no other account can send it commands.
     if (process.platform !== 'win32') chmodSync(socketPath(), 0o600)
+    rmSync(pidPath(), { force: true }) // listening: the pid file's job, telling the CLI a daemon is still starting, is over
     touch()
     console.log(`browser-layer daemon on ${socketPath()}`)
   })

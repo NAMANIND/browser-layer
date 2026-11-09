@@ -23,10 +23,12 @@ export const socketPath = () => {
 }
 const lockPath = () => join(home(), 'daemon.lock')
 const LOCK_STALE_MS = 30000
-// Attached, a daemon may sit for a long time on Chrome's "Allow remote debugging?" popup, before it has a socket.
-// Its pid file tells the next command to wait for it, not to start a second daemon and raise a second popup.
+// A daemon has no socket until its Chrome is up: attached, that can be a long wait on Chrome's "Allow remote
+// debugging?" popup; launched, a slow start on a loaded machine. Its pid file, kept until it listens, tells the
+// next command to wait for it, not to start a second daemon (and a second popup, or a second Chrome on one profile).
 export const pidPath = () => join(home(), 'daemon.pid')
 const ALLOW_WAIT_MS = 60000
+const LAUNCH_WAIT_MS = 180000
 const pending = (): number | undefined => {
   try {
     const pid = Number(readFileSync(pidPath(), 'utf8'))
@@ -117,24 +119,24 @@ export async function live(c: Command): Promise<Reply> {
   }
   mkdirSync(home(), { recursive: true })
   const attached = !!process.env.BROWSER_LAYER_ATTACH
-  const waiting = attached && pending() !== undefined
-  const mine = !waiting && takeLock()
+  const mine = pending() === undefined && takeLock()
   if (mine) {
     const pid = startDaemon()
-    if (attached && pid) writeFileSync(pidPath(), String(pid))
+    if (pid) writeFileSync(pidPath(), String(pid))
   }
   const started = Date.now()
   try {
     for (let i = 0; ; i++) {
       await new Promise(r => setTimeout(r, 150))
       if (await ping()) return send(c, wait)
+      // A daemon that exited (Don't allow, Chrome would not start) is no longer worth waiting for.
+      if (!pending()) break
       if (!attached) {
-        if (i >= 149) break
+        if (Date.now() - started > LAUNCH_WAIT_MS) throw new Error('the browser is still starting; run the command again')
         continue
       }
       // The person has to click Allow in Chrome: say so once, give up waiting after a minute, and keep the daemon
-      // for the next command. A daemon that exited (Don't allow, Chrome closed) is no longer worth waiting for.
-      if (!pending()) break
+      // for the next command.
       if (i === 13) console.error('Chrome is asking "Allow remote debugging?": click Allow in Chrome.')
       if (Date.now() - started > ALLOW_WAIT_MS) throw new Error('Chrome is still waiting for you to click Allow on "Allow remote debugging?"; click it, then run the command again')
     }
