@@ -340,9 +340,15 @@ async function snapshot(tab: Tab) {
 // The full text of what the agent has been shown last, per context; later actions diff against it.
 const remember = (tab: Tab, text: string) => tab.shown.set(contextOf(text), { doc: tab.doc, text })
 
+// The tab line names the tab, its address and title. The agent already holds them when the last answer of
+// the session was about this same page, so then it is just the tab's number.
+const headed = new Map<string, string>()
 const header = async (tab: Tab) => {
   const title = await tab.page.title()
-  return `tab ${tab.id}  ${tab.page.url()}${title ? `  "${title}"` : ''}`
+  const what = `${tab.page.url()}${title ? `  "${title}"` : ''}`
+  const same = headed.get(tab.session) === `${tab.id} ${what}`
+  headed.set(tab.session, `${tab.id} ${what}`)
+  return same ? `tab ${tab.id}` : `tab ${tab.id}  ${what}`
 }
 
 // A page that turned the agent away: the site refused this browser, or put a human check in front of it.
@@ -530,7 +536,7 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
     })
     if (seen.size) note = '; a long list is one line: find <text> or read <ref> goes in'
   }
-  const head = `tab ${tab.id}  ${tab.page.url()}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'}${settled ? `, settled: ${settled}` : ''} (full page: browser-layer read${note})`
+  const head = `${await header(tab)}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'}${settled ? `, settled: ${settled}` : ''} (full page: browser-layer read${note})`
   return [head, '', ...goneLines(removed, policy['render.mapFew']), ...shown.map(l => `+ ${l}`)].join('\n').trimEnd()
 }
 

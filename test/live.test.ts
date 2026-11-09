@@ -1268,3 +1268,15 @@ test('each loads pages together, runs one read on each, answers per page, and cl
   assert.equal(action.code, 1)
   assert.match(action.out, /each only reads/)
 })
+
+test('an answer repeats the tab line only when the page or the tab changed since the last answer', async () => {
+  const opened = (await run('tab', `${base}/counter`)).out
+  assert.match(opened, /^tab \d+ +\S+\/counter +"/)
+  const again = (await run('read')).out
+  assert.match(again, /^tab \d+\n/)
+  const clicked = (await run('click', 'Add')).out
+  assert.match(clicked, /^tab \d+  — \d+ lines? gone/)
+  const other = (await run('tab', `${base}/page/alpha`)).out
+  assert.match(other, /^tab \d+ +\S+\/page\/alpha/)
+  assert.match((await run('use', opened.match(/^tab (\d+)/)![1])).out, /^tab \d+ +\S+\/counter/)
+})
