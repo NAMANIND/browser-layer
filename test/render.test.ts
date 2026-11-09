@@ -31,3 +31,13 @@ test('a heading that wraps a region is not a heading: the map shows the region',
   assert.match(map, /\[16\] banner/)
   assert.match(map, /\[3\] button "Main menu"/)
 })
+
+test('the footer (contentinfo) is counted, not named: its links are rarely what a task needs, and read <ref> lists them', () => {
+  const link = (ref: number, name: string): Node => ({ ref, role: 'link', name, nameShown: true, url: `/${name}`, block: true })
+  const tree: Node = { block: true, children: [
+    { ref: 1, role: 'main', block: true, children: [link(2, 'Pricing'), link(3, 'Docs')] },
+    { ref: 4, role: 'contentinfo', block: true, children: [link(5, 'Privacy'), link(6, 'Terms'), link(7, 'Careers')] }] }
+  const map = renderMap(tree, 'https://x.test', { nameChars: 120, labelChars: 40 }, 8)
+  assert.match(map, /\[1\] main\n  links: \[2\] link "Pricing" · \[3\] link "Docs"/)
+  assert.match(map, /\[4\] contentinfo\n  links: 3$/)
+})

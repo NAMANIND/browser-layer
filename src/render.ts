@@ -161,9 +161,11 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number, s
       for (const c of n.children ?? []) walk(c)
     }
     nodes.forEach(walk)
+    // A footer (contentinfo) holds links about the site, not the task: counted, and read <ref> names them.
+    const shown = region?.role === 'contentinfo' ? 0 : few
     const named = (label: string, list: Node[]) => {
       if (!list.length) return
-      out.push(list.length <= few
+      out.push(list.length <= shown
         ? `  ${label}: ${list.map(n => control(n, origin, caps).trim()).join(' · ')}`
         : `  ${label}: ${list.length}`)
     }
@@ -172,8 +174,8 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number, s
     named('options', options)
     named('actions', actions)
     if (headings.length) out.push(`  headings: ${headings.slice(0, few).join(' · ')}${headings.length > few ? ` … ${headings.length - few} more` : ''}`)
-    lists.slice(0, few).forEach(l => out.push(`  ${l}`))
-    if (lists.length > few) out.push(`  … ${lists.length - few} more collections`)
+    lists.slice(0, shown).forEach(l => out.push(`  ${l}`))
+    if (lists.length > shown) out.push(`  … ${lists.length - shown} more collections`)
     named('links', links)
     if (text) out.push(`  text: ${text} chars`)
     if (out.length > body) out.splice(body, 0, title)
