@@ -384,7 +384,7 @@ async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>, se
   const map = renderMap(tree, origin, caps(), policy['render.mapFew'], { before: whole ? new Map() : tab.seen.map, now })
   for (const [ref, whole] of now) tab.seen.map.set(ref, whole)
   if (!map.trim()) note = [note, 'no content yet: the page may still be loading; read again'].filter(Boolean).join('; ')
-  return `${await header(tab)}${note ? `  — ${note}` : ''}${settled ? `  — settled: ${settled}` : ''}\n${await blocked(tab, tree)}\n${map}\n\n(read <ref> opens a region · read gives the whole page)`
+  return `${await header(tab)}${note ? `  — ${note}` : ''}${settled ? `  — settled: ${settled}` : ''}\n${await blocked(tab, tree)}\n${map}`
 }
 
 // A dialog an action opened (a date picker, a list of suggestions) answers with what it holds when that is
@@ -534,9 +534,9 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
       const line = summary.get(l)
       return !line ? [l] : seen.has(line) ? [] : (seen.add(line), [line])
     })
-    if (seen.size) note = '; a long list is one line: find <text> or read <ref> goes in'
+    if (seen.size) note = ' (a long list is one line: find <text> or read <ref> goes in)'
   }
-  const head = `${await header(tab)}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'}${settled ? `, settled: ${settled}` : ''} (full page: browser-layer read${note})`
+  const head = `${await header(tab)}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'}${settled ? `, settled: ${settled}` : ''}${note}`
   return [head, '', ...goneLines(removed, policy['render.mapFew']), ...shown.map(l => `+ ${l}`)].join('\n').trimEnd()
 }
 

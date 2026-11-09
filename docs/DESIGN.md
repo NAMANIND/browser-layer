@@ -58,7 +58,10 @@ every later step, so nothing is given twice. Reading a page again answers with w
 agent was already shown in this tab, exactly as it is now (a site's menus and footer on its next page),
 is one line in the map that answers a page load and in `read`: `[16] navigation — shown before,
 unchanged`. Its ref still works (refs stay with the element, §3), and `read <ref>`, `read --full` and
-`map` show it whole.
+`map` show it whole. The same rule shortens the rest: the tab line (address and title) is repeated only when it
+differs from the last answer of the session, an action names at most `render.mapFew` of the lines it removed
+and counts the rest, the footer (`contentinfo`) is counted in the map and `read <ref>` names it, and no answer
+carries a footer of command hints (the skill and `help` already say them).
 
 **One call per decision.** Every call is a turn of the agent's model, and the turns, not the browser,
 take most of a task's time. So an answer carries what the next decision needs: an action that opens a
