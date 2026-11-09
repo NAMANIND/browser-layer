@@ -312,7 +312,7 @@ const server = createServer((req, res) => {
 
 const home = mkdtempSync(join(tmpdir(), 'al-'))
 // Short waits so the failure paths (covered, never quiet) are tested in seconds, not the defaults.
-writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'actions.timeoutMs': 1500, 'settle.deadlineMs': 2000, 'wait.timeoutMs': 3000, 'command.timeoutMs': 8000, 'load.domMs': 2000 }))
+writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'actions.timeoutMs': 1500, 'settle.deadlineMs': 2000, 'wait.timeoutMs': 3000, 'command.timeoutMs': 8000, 'load.domMs': 2000, 'each.concurrency': 3 }))
 const upload = join(home, 'upload-test.txt')
 writeFileSync(upload, 'resume')
 // Deep enough that home/daemon.sock passes the ~104-byte Unix socket path limit.
@@ -1269,6 +1269,23 @@ test('each loads pages together, runs one read on each, answers per page, and cl
   const action = await run('each', 'click 1', urls[0])
   assert.equal(action.code, 1)
   assert.match(action.out, /each only reads/)
+})
+
+test('each runs a bounded number of pages at once, writes one line per page to --out, and a failed page is a line, not the end', async () => {
+  const urls = [...['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(s => `${base}/lag/${s}`), 'http://localhost:1/none']
+  const file = join(home, 'each.out')
+  const t0 = Date.now()
+  const out = await run('each', '--out', file, 'find lagged', ...urls)
+  const took = Date.now() - t0
+  assert.equal(out.code, 0, out.out)
+  assert.ok(took > 2.5 * 2500, `only three pages load at a time, so seven take several waves (${took} ms)`)
+  assert.equal(out.out.trim(), `each: 8 pages, 1 failed, saved ${file}`)
+  const lines = readFileSync(file, 'utf8').trim().split('\n')
+  assert.equal(lines.length, 8)
+  assert.deepEqual(lines.map(l => l.split('\t')[0]), urls)
+  assert.match(JSON.parse(lines[2].split('\t')[1]), /lagged \/lag\/c/)
+  assert.match(JSON.parse(lines[7].split('\t')[1]), /^error: /)
+  assert.doesNotMatch((await run('tabs')).out, /\/lag\//)
 })
 
 test('an answer repeats the tab line only when the page or the tab changed since the last answer', async () => {

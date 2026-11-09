@@ -205,6 +205,12 @@ Next phase, in order. Each starts with a failing test and reports numbers before
 
 1. ~~Many-page tasks.~~ Done on `hardening`: `each '<read>' <url…>` (three public pages, the old way took 7 calls and
    2.9k+ chars, `each` 1 call and 1.7k, and it leaves no tabs open). Not measured on the benchmark yet.
+   Bulk (measured on a local fixture of 1 s pages, `find price` on each): a shell loop of `go` + `find` takes 15 s / 62 s / 154 s
+   for 10 / 40 / 100 pages (2N calls); `each` took 3 / 8 / 18 s in one call, already. What was missing for hundreds of pages:
+   all pages loaded at once, one 75 s limit on the whole call, and the answer inline (about 22k chars per call in the benchmark).
+   Now `each.concurrency` (10) bounds the tabs, each page has its own limit, and `--out <file>` writes a line per page and
+   answers in 180 chars: 10 / 40 / 100 / 300 pages in 4 / 7 / 18 / 51 s (unbounded was 37 s at 300, the price of bounding).
+   No skill line yet: a fixture cannot show whether agents reach for `each --out`; add one if the next benchmark still has the loops.
 2. **Smaller answers.** Mined from the 75 benchmark transcripts (fresh25-money1, shared25-money2, r6-hardening-4th; 12.6M
    characters of tool output) and replayed on the real answers. Done on `hardening`: the footer (`contentinfo`) is counted
    in the map, not named (-133k); an action names at most `render.mapFew` removed lines (-114k); the tab line is repeated

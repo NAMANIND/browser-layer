@@ -89,8 +89,8 @@ function startDaemon(): number | undefined {
 }
 
 export async function live(c: Command): Promise<Reply> {
-  // Each of a call's steps has the daemon's own time limit, so the call waits for all of them.
-  const wait = 90000 * Math.max(1, c.steps?.length ?? 1)
+  // Each of a call's steps (each page of an `each`) has the daemon's own time limit, so the call waits for all of them.
+  const wait = 90000 * Math.max(1, c.cmd === 'each' ? c.pages?.length ?? 1 : c.steps?.length ?? 1)
   try {
     const reply = await send({ ...c, version: VERSION }, wait)
     // A daemon from another version stopped instead of answering; this version's starts below.

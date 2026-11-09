@@ -866,26 +866,41 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     }
     return lines.join('\n')
   },
-  // each '<read>' <url…>: the pages load together and the one read runs on each, answering per page; the tabs it
-  // opened close, so a task over many pages leaves none behind. It reads: acting on several pages at once is
-  // a decision per page.
+  // each '<read>' <url…>: the pages load together, up to each.concurrency at a time, and the one read runs on
+  // each, answering per page; a tab closes as soon as its page is read, so a task over hundreds of pages never
+  // holds more than that many. A page that fails is its own line and the rest carry on. It reads: acting on
+  // several pages at once is a decision per page. With --out the answer is the count and one line per page
+  // (address, the read's text as a JSON string) in the file.
   async each(c) {
     const [read] = c.steps ?? []
     if (!read || !c.pages?.length) throw new Error("usage: browser-layer each '<read command>' <url…>")
     if (!READS.has(read.cmd) && read.cmd !== 'eval') throw new Error(`each only reads: ${[...READS, 'eval'].join(', ')}`)
     const was = current.get(c.session)
-    const loaded = await Promise.allSettled(c.pages.map(u => loadTab(c.session, u)))
-    const answers: string[] = []
-    for (const [k, l] of loaded.entries()) {
-      if (l.status === 'rejected') { answers.push(`${c.pages[k]}  → error: ${l.reason instanceof Error ? l.reason.message.split('\n')[0] : l.reason}`); continue }
-      current.set(c.session, l.value.tab.id)
-      const note = [l.value.note, l.value.settled].filter(Boolean).join('; ')
-      const text = await limited({ ...read, session: c.session }).catch(err => `error: ${err instanceof Error ? err.message.split('\n')[0] : err}`)
-      answers.push(`${await header(l.value.tab)}${note ? `  (${note})` : ''}\n${text}`)
+    const pages = c.pages
+    const failed = (err: unknown) => `error: ${err instanceof Error ? err.message.split('\n')[0] : err}`
+    const results: { ok: boolean; head: string; text: string }[] = []
+    // Reads use the session's current tab, so they take turns; loading, the slow part, does not.
+    let turn = Promise.resolve()
+    let next = 0
+    const worker = async () => {
+      for (let k = next++; k < pages.length; k = next++) {
+        try {
+          const l = await loadTab(c.session, pages[k])
+          await (turn = turn.then(async () => {
+            current.set(c.session, l.tab.id)
+            const note = [l.note, l.settled].filter(Boolean).join('; ')
+            const text = await limited({ ...read, session: c.session, out: undefined }).catch(failed)
+            results[k] = { ok: !text.startsWith('error: '), head: `${await header(l.tab)}${note ? `  (${note})` : ''}`, text }
+          }))
+          if (l.fresh) await l.tab.page.close().catch(() => {})
+        } catch (err) { results[k] = { ok: false, head: pages[k], text: failed(err) } }
+      }
     }
-    for (const l of loaded) if (l.status === 'fulfilled' && l.value.fresh) await l.value.tab.page.close().catch(() => {})
+    await Promise.all(Array.from({ length: Math.min(pages.length, policy['each.concurrency']) }, worker))
     if (was !== undefined && tabs.has(was)) current.set(c.session, was)
-    return answers.join('\n\n')
+    if (!c.out) return results.map(r => `${r.head}\n${r.text}`).join('\n\n')
+    writeFileSync(c.out, `${results.map((r, k) => `${pages[k]}\t${JSON.stringify(r.text)}`).join('\n')}\n`)
+    return `each: ${pages.length} pages, ${results.filter(r => !r.ok).length} failed, saved ${c.out}`
   },
   async tabs(c) {
     // The session's activity map: its tabs, most recently used first.
@@ -1353,7 +1368,7 @@ async function main() {
       queues.set(c.session, (queues.get(c.session) ?? Promise.resolve()).then(async () => {
         try {
           await pullCookies()
-          const text = repeated(c, await (c.cmd === 'steps' ? run(c) : limited(c)))
+          const text = repeated(c, await (c.cmd === 'steps' || c.cmd === 'each' ? run(c) : limited(c)))
           await syncCookies().catch(() => {})
           res.end(JSON.stringify({ ok: true, text }))
         } catch (err) {
