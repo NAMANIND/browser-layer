@@ -3,10 +3,10 @@ import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import type { Field, Verb } from './html.js'
+import type { Field, Page, Verb } from './html.js'
 import { home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
 import { paginate, renderText } from './render.js'
-import { loadPolicy } from './policy.js'
+import { loadPolicy, type Policy } from './policy.js'
 import { live, VERSION } from './client.js'
 import { findBrowser, openChrome, openInspectPage, PROFILE_FLAGS } from './browser.js'
 import type { Command } from './daemon.js'
@@ -81,21 +81,70 @@ async function show(res: Response, json: boolean, out?: string) {
     const more = res.body.length > BODY_CHARS ? `\n… ${res.body.length - BODY_CHARS} more chars: --out <file> writes it all` : ''
     return console.log(`${res.url}  [${res.status}]  ${res.type}\n\n${res.body.slice(0, BODY_CHARS)}${more}`)
   }
-  // The HTML parser is loaded here, not at startup: live-tab commands never need it.
-  const { readHtml } = await import('./html.js')
-  const page = readHtml(res.body, res.url, res.status)
+  const policy = loadPolicy()
+  const { page, text } = await readPage(res, policy)
   saveLastPage(session, { url: page.url, links: page.links, verbs: page.verbs })
   if (json) return console.log(JSON.stringify(page))
-  const policy = loadPolicy()
-  const text = renderText(page.tree, new URL(page.url).origin, { nameChars: policy['render.nameChars'], labelChars: policy['render.labelChars'] })
   if (out) { writeFileSync(out, `${text}\n`); return console.log(`saved ${out}: ${text.split('\n').length} lines, ${text.length} chars`) }
   const [first, ...more] = paginate(text, policy['render.pageChars'])
   const lines = [`${page.url}  [${page.status}]${page.title ? `  "${page.title}"` : ''}`, '', first]
   if (more.length) lines.push(`… ${more.join('\n').length} more chars: --out <file> writes it all`)
   if (page.verbs.length) lines.push('', 'verbs:', ...page.verbs.map(v => verbView(v, page.url)))
-  // Little to read but scripts to run: the page is built in the browser, which the fast path never runs.
-  if (text.length < policy['http.shellChars'] && page.scripts) lines.push('', `this page builds itself with JavaScript; browser-layer tab ${page.url} runs it`)
+  const shell = buildsItself(page, text, policy)
+  if (shell) lines.push('', shell)
   console.log(lines.join('\n').trimEnd())
+}
+
+// The HTML parser is loaded here, not at startup: live-tab commands never need it.
+async function readPage(res: Response, policy: Policy) {
+  const { readHtml } = await import('./html.js')
+  const page = readHtml(res.body, res.url, res.status)
+  return { page, text: renderText(page.tree, new URL(page.url).origin, { nameChars: policy['render.nameChars'], labelChars: policy['render.labelChars'] }) }
+}
+
+// Little to read but scripts to run: the page is built in the browser, which the fast path never runs.
+const buildsItself = (page: Page, text: string, policy: Policy) =>
+  text.length < policy['http.shellChars'] && page.scripts ? `this page builds itself with JavaScript; browser-layer tab ${page.url} runs it` : ''
+
+// open <url> <url> …: plain fetches, open.concurrency at a time and at most open.perHost on one site. Each
+// page is its text as `open <url> --out` writes it; a failed fetch is its own line and the rest carry on.
+// Without --out the pages print in full, one after another. The last page (refs, verbs) is left as it was.
+async function openMany(urls: string[], out?: string) {
+  const policy = loadPolicy()
+  const hostOf = (u: string) => { try { return new URL(u).host } catch { return u } }
+  const texts: string[] = []
+  const pending = urls.map((_, k) => k)
+  const busy = new Map<string, number>()
+  let running = 0
+  await new Promise<void>(done => {
+    const pump = () => {
+      while (running < policy['open.concurrency']) {
+        const at = pending.findIndex(k => (busy.get(hostOf(urls[k])) ?? 0) < policy['open.perHost'])
+        if (at < 0) break
+        const [k] = pending.splice(at, 1)
+        const host = hostOf(urls[k])
+        busy.set(host, (busy.get(host) ?? 0) + 1)
+        running++
+        fetchText(urls[k], policy).then(t => { texts[k] = t }, err => { texts[k] = `error: ${err instanceof Error ? err.message : err}` }).finally(() => {
+          busy.set(host, busy.get(host)! - 1)
+          running--
+          pump()
+        })
+      }
+      if (!running && !pending.length) done()
+    }
+    pump()
+  })
+  if (!out) return console.log(urls.map((u, k) => `${u}\n${texts[k]}`).join('\n\n'))
+  writeFileSync(out, `${urls.map((u, k) => `${u}\t${JSON.stringify(texts[k])}`).join('\n')}\n`)
+  console.log(`open: ${urls.length} pages, ${texts.filter(t => t.startsWith('error: ')).length} failed, saved ${out}`)
+}
+
+async function fetchText(url: string, policy: Policy) {
+  const res = await request(url)
+  if (!/html|xml/.test(res.type) && res.body.trimStart()[0] !== '<') return res.body
+  const { page, text } = await readPage(res, policy)
+  return [text, buildsItself(page, text, policy)].filter(Boolean).join('\n\n')
 }
 
 function needPage(): Saved {
@@ -384,11 +433,11 @@ async function main() {
   }
 
   if (cmd === 'open' && target) {
-    let url = target
-    if (/^\d+$/.test(target)) {
-      url = needPage().links[Number(target)] ?? fail(`[${target}] is not a link on the last page`)
-    } else if (!/^https?:\/\//i.test(target)) url = `https://${target}`
-    return show(await request(url), json, file)
+    const address = (a: string) => /^\d+$/.test(a)
+      ? needPage().links[Number(a)] ?? fail(`[${a}] is not a link on the last page`)
+      : /^https?:\/\//i.test(a) ? a : `https://${a}`
+    if (!rest.length) return show(await request(address(target)), json, file)
+    return openMany([target, ...rest].map(address), file)
   }
 
   if (cmd === 'verbs') {

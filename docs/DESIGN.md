@@ -300,7 +300,7 @@ again`, at no cost to any page that has content, and the agent's next read shows
 | Keyboard | `type <ref> <text> [--enter] [--keys]` (replace as typing over a selection; `--keys` sends one key event per character), `press <key or combo>` |
 | Form | `check`, `uncheck` (repeatable), `pick <ref> <option>` (a `<select>`, where a multiple one keeps what is chosen, or an ARIA combobox or listbox opened and its option clicked), `upload <ref> <file…>`, `submit <ref>` (`requestSubmit`) |
 | Scroll | `scroll [ref] [down \| up \| top \| bottom]`; lazily loaded rows come back as changes |
-| Batching | `steps '<cmd>; <cmd>; …'` runs several commands in one call (§1a); `each '<read>' <url…>` loads the pages together, runs one read (`find`, `read`, `get`, `eval`, …) on each and answers once per page, then closes the tabs it opened: a task over many pages is one turn, not one per page. `--out <file>` writes one line per page (address, the read's text as a JSON string; a failed page says `error: …`) and answers with the counts and the file |
+| Batching | `steps '<cmd>; <cmd>; …'` runs several commands in one call (§1a); `each '<read>' <url…>` loads the pages together, runs one read (`find`, `read`, `get`, `eval`, …) on each and answers once per page, then closes the tabs it opened: a task over many pages is one turn, not one per page. `--out <file>` writes one line per page (address, the read's text as a JSON string; a failed page says `error: …`) and answers with the counts and the file; `open <url> <url> …` is the same for static pages, plain HTTP in parallel (`open.concurrency`, `open.perHost`), `each` for pages that need JavaScript |
 | Dialogs | `alert` / `confirm` / `prompt` / `beforeunload` wait for `dialog accept [text] \| dismiss` |
 | Windows | Pop-ups and `target=_blank` open as tabs in the same session and become current |
 | Downloads | Saved under `<home>/downloads`, reported by the action that caused them |
@@ -356,6 +356,8 @@ Keys are added when the phase that uses them lands.
 | (data) `src/trackers.ts` | hosts and path segments | With beacons and 204 responses, hidden from `net` unless `--all` |
 | (rule) permissions | denied | Granted per site by `allow` |
 | `each.concurrency` | 10 | Pages `each` loads at a time; each tab closes once read, so hundreds of pages never hold hundreds of tabs (memory), and a Chrome that is slow on one page still moves the others |
+| `open.concurrency` | 12 | Pages `open <url> <url> …` fetches at a time; it is plain HTTP, so the limit is only memory and sockets |
+| `open.perHost` | 6 | Of those, at most this many on one site: the connections a browser opens to one host (HTTP/1.1 practice), so a bulk fetch is no heavier on a site than a person's page load |
 | `sessions.max` | 8 | Parallel sessions |
 | `sessions.idleMs` | 900000 | A session unused this long loses its tabs when another session runs a command, so it stops holding a slot of `sessions.max` |
 | `load.timeoutMs` | 30000 | Navigation timeout (until the response begins) |

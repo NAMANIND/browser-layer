@@ -46,7 +46,8 @@ Every call costs a turn, so come back only when the next step depends on somethi
 ## Habits
 
 - Put filters in the URL when the site does (`?q=python&page=2`); `wait "<text>"` when content loads
-  late; `open <url>` for a static page that needs no JavaScript.
+  late; `open <url>` for a static page that needs no JavaScript;
+  many pages, never a shell loop: `open --out f <url…>` (static) or `each --out f '<read>' <url…>` (JavaScript), one line per page.
 - The data usually comes from an API: `net` lists the calls, `net show <#>` previews one,
   `net save <#> data.json` writes it whole. More pages from the same API:
   `eval "await (await fetch('/api/x?page=2')).json()" > p2.json` (the site's own cookies go along).

@@ -70,13 +70,12 @@ export type Response = { url: string; status: number; type: string; body: string
 
 // Plain HTTP with a persistent cookie jar. Redirects are followed by hand so every hop's cookies are kept.
 export async function request(url: string, init: { method?: string; body?: string | FormData; headers?: Record<string, string> } = {}): Promise<Response> {
-  const jar = loadJar()
   let target = new URL(url)
   let method = init.method ?? 'GET'
   let body = init.body
   let headers = { ...init.headers }
   for (let hop = 0; hop < 10; hop++) {
-    const cookie = cookieHeader(jar, target)
+    const cookie = cookieHeader(loadJar(), target)
     const res = await fetch(target, {
       method,
       body,
@@ -88,14 +87,16 @@ export async function request(url: string, init: { method?: string; body?: strin
         ...(cookie ? { cookie } : {}),
       },
     })
+    // Read again before storing: pages fetched at the same time must not overwrite each other's cookies.
+    const jar = loadJar()
     storeCookies(jar, target, res.headers)
+    saveJar(jar)
     const location = res.headers.get('location')
     if (res.status >= 300 && res.status < 400 && location) {
       target = new URL(location, target)
       if (res.status !== 307 && res.status !== 308) { method = 'GET'; body = undefined; headers = {} }
       continue
     }
-    saveJar(jar)
     return { url: target.href, status: res.status, type: res.headers.get('content-type') ?? '', body: await res.text() }
   }
   throw new Error(`too many redirects from ${url}`)

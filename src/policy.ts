@@ -37,6 +37,8 @@ export const DEFAULTS = {
   'network.keepBytes': 5_000_000,
   'network.tabBytes': 50_000_000,
   'each.concurrency': 10,
+  'open.concurrency': 12,
+  'open.perHost': 6,
   'sessions.max': 8,
   'sessions.idleMs': 15 * 60 * 1000,
   'daemon.idleMs': 30 * 60 * 1000,

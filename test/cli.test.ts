@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
@@ -9,6 +9,8 @@ import assert from 'node:assert/strict'
 const CSRF = 'tok-123'
 let base = ''
 let posted: URLSearchParams | null = null
+let inFlight = 0
+let mostInFlight = 0
 
 const server = createServer((req, res) => {
   const url = new URL(req.url!, base)
@@ -75,6 +77,10 @@ line2</textarea>
   if (url.pathname === '/app') {
     res.setHeader('content-type', 'text/html')
     return res.end('<!doctype html><title>app</title><div id="root"></div><script src="/app.js"></script>')
+  }
+  if (url.pathname.startsWith('/lag/')) {
+    mostInFlight = Math.max(mostInFlight, ++inFlight)
+    return void setTimeout(() => { inFlight--; res.setHeader('content-type', 'text/html'); res.end(`<title>lag</title><p>lagged ${url.pathname}</p>`) }, 300)
   }
   if (url.pathname === '/search') {
     res.setHeader('content-type', 'application/json')
@@ -143,6 +149,26 @@ test('forms submit as the HTML spec builds the entry list: owners, disabled, sub
 
 test('a page built by JavaScript says so instead of looking empty', async () => {
   assert.match((await run('open', `${base}/app`)).out, /this page builds itself with JavaScript; browser-layer tab .*\/app runs it/)
+})
+
+test('open with several addresses fetches them together, at most open.perHost per host, and writes one line per address to --out', async () => {
+  writeFileSync(join(env.BROWSER_LAYER_HOME, 'policy.json'), JSON.stringify({ 'open.perHost': 2 }))
+  const urls = [...['a', 'b', 'c', 'd', 'e', 'f'].map(s => `${base}/lag/${s}`), `${base}/app`, 'http://127.0.0.1:1/none']
+  const file = join(env.BROWSER_LAYER_HOME, 'open.out')
+  const t0 = Date.now()
+  const out = await run('open', '--out', file, ...urls)
+  const took = Date.now() - t0
+  assert.equal(out.code, 0, out.out)
+  assert.equal(out.out.trim(), `open: 8 pages, 1 failed, saved ${file}`)
+  assert.equal(mostInFlight, 2, 'two at a time on one host: together, but not all')
+  assert.ok(took < 6 * 300, `six pages at two at a time take three waits, not six (${took} ms)`)
+  const lines = readFileSync(file, 'utf8').trim().split('\n')
+  assert.deepEqual(lines.map(l => l.split('\t')[0]), urls)
+  assert.match(JSON.parse(lines[2].split('\t')[1]), /lagged \/lag\/c/)
+  assert.match(JSON.parse(lines[6].split('\t')[1]), /this page builds itself with JavaScript; browser-layer tab .*\/app runs it/)
+  assert.match(JSON.parse(lines[7].split('\t')[1]), /^error: /)
+  const one = await run('open', `${base}/lag/a`)
+  assert.match(one.out, /^http:\/\/127\.0\.0\.1:\d+\/lag\/a {2}\[200\] {2}"lag"\n\nlagged \/lag\/a/)
 })
 
 test('do refuses a verb with a missing required field', async () => {
