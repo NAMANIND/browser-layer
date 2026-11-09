@@ -8,7 +8,7 @@ import { isTracker } from './trackers.js'
 import { findBrowser } from './browser.js'
 import { home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, humanCheck, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
-import { diffLines, findRef, itemsLine, paginate, renderMap, renderText } from './render.js'
+import { diffLines, findRef, goneLines, itemsLine, paginate, renderMap, renderText } from './render.js'
 import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
 import { query, records, toTsv, type Query } from './data.js'
 import { pidPath, ping, socketPath, VERSION } from './client.js'
@@ -531,7 +531,7 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
     if (seen.size) note = '; a long list is one line: find <text> or read <ref> goes in'
   }
   const head = `tab ${tab.id}  ${tab.page.url()}  — ${removed.length + added.length ? `${removed.length} lines gone, ${added.length} new` : 'no visible change'}${settled ? `, settled: ${settled}` : ''} (full page: browser-layer read${note})`
-  return [head, '', ...removed.map(l => `- ${l}`), ...shown.map(l => `+ ${l}`)].join('\n').trimEnd()
+  return [head, '', ...goneLines(removed, policy['render.mapFew']), ...shown.map(l => `+ ${l}`)].join('\n').trimEnd()
 }
 
 // A collection as records (TSV): sorted, limited and column-picked as asked, and never more than one page

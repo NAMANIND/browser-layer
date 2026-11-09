@@ -217,3 +217,7 @@ export function diffLines(before: string[], after: string[]): { removed: string[
   })
   return { removed: take(was, count(now)), added: take(now, count(was)) }
 }
+
+// What an action removed is the old state, so only a few of those lines are named; the count says the rest.
+export const goneLines = (removed: string[], few: number) =>
+  [...removed.slice(0, few).map(l => `- ${l}`), ...(removed.length > few ? [`… ${removed.length - few} more gone`] : [])]
