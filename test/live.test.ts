@@ -410,7 +410,8 @@ test('sessions keep their own tabs and cannot touch each other', async () => {
 
 test('use answers with the tab it switched to, not its map: agents read right after switching', async () => {
   const opened = await run('--session', 'u', 'tab', `${base}/page/alpha`, `${base}/page/beta`)
-  const first = opened.out.match(/^tab (\d+)/m)![1]
+  const [first, second] = [...opened.out.matchAll(/^tab (\d+)/gm)].map(m => m[1])
+  await run('--session', 'u', 'use', second)
   const r = await run('--session', 'u', 'use', first)
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, new RegExp(`^tab ${first} +\\S+/page/alpha`))
