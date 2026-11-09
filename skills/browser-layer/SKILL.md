@@ -26,35 +26,22 @@ browser if none is found. `browser-layer help` lists every command.
 ## The loop: one call per decision
 
 Work as a person at a browser does: look, decide, do everything you decided, look at the result.
-Every call costs you a turn, so make each call one decision, and come back only when the next step
-depends on something you cannot see yet.
+Every call costs a turn, so come back only when the next step depends on something you cannot see yet.
 
-1. `browser-layer tab <url>` opens a page and answers with its **map**: regions, fields, actions,
-   lists and links, each with a ref like `[15]`. Need its text too? `tab <url> && browser-layer read`
-   in the same call. Several sites to visit: `tab <url1> <url2> <url3>` loads them together and answers with each map in one call. Need the same fact from many pages: `each 'find price' <url1> <url2> …` loads them together, runs the read on each and answers once, closing its tabs. Keep one tab per site and switch with `use <id>` (nothing reloads; `tabs` lists
-   them); move within a site with `go <url>`.
+1. `tab <url>` opens a page and answers with its **map**: regions, fields, actions, lists and links,
+   each with a ref like `[15]`. Several sites: `tab <url1> <url2>` loads them together, one map each.
+   The same fact from many pages: `each 'find price' <url1> <url2>` runs one read on each and
+   answers once, closing its tabs. One tab per site; `use <id>` switches (`tabs` lists them), `go <url>`
+   moves within a site.
 2. Act on a ref or a control's name: `click 31`, `click "Next"`, `type 15 Mumbai --enter`,
    `pick 22 "Economy"`, `check 40`. Every action answers with **what changed** or the new page, with
-   the refs of anything it opened (options, a dialog, a date grid), and says when something did not
-   take. That answer is the new state: no need for `map` or `read` after it.
-3. **Do what you already know in one call** with `steps`: actions answer in one line, reads and the
-   last step in full, and the first error stops the rest and shows the page as it is then.
+   the refs of anything it opened, and says when something did not take. That answer is the new
+   state: no `map` or `read` after it.
+3. **Do what you already know in one call** with `steps 'type 12 "desk lamp" --enter; pick "Sort"
+   "Price: low to high"; get 52 --limit 3'`: actions answer in one line, reads and the last step in
+   full, and the first error stops the rest.
 4. Go deeper only where you need to: `read <ref>` for one region, `find <text>` for the lines that
-   mention something, `get <ref>` for a list or table as records (`--urls` adds their addresses).
-
-```text
-$ browser-layer tab shop.example.com
-[40] main
-  fields: [12] searchbox "Search"
-  actions: [13] button "Search"
-$ browser-layer steps 'type 12 "desk lamp" --enter; pick "Sort" "Price: low to high"; get 52 --limit 3'
-1. type 12 "desk lamp" --enter  → tab 1  https://shop.example.com/s?q=desk+lamp — the whole page changed
-2. pick "Sort" "Price: low to high"  → tab 1  https://shop.example.com/s?q=desk+lamp&sort=price — 30 lines gone, 30 new
-3. get 52 --limit 3
-[52] list: 48 records, 3 columns (first 3)
-c1 Name	c2 Price	c3 Rating
-Clip lamp	₹499	4.1
-```
+   mention something, `get <ref>` for a list or table as records (`--urls` adds addresses).
 
 ## Habits
 

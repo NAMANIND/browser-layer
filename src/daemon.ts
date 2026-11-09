@@ -157,8 +157,8 @@ export type Command = {
   steps?: Command[]; raw?: string
 } & Query
 
-// Commands that only read a page (use reads the tab it switches to), for the shorter time limit.
-const READS = new Set(['read', 'map', 'find', 'get', 'screenshot', 'net', 'tabs', 'cookies', 'storage', 'use'])
+// Commands that only read a page, for the shorter time limit.
+const READS = new Set(['read', 'map', 'find', 'get', 'screenshot', 'net', 'tabs', 'cookies', 'storage'])
 
 // Tab ids are unique across the daemon; each session (one agent, one task) has its own current tab.
 const tabs = new Map<number, Tab>()
@@ -369,7 +369,7 @@ async function blocked(tab: Tab, tree: Node): Promise<string> {
 }
 
 // Opening a page answers with its map (DESIGN §1a); read and read <ref> go deeper. A map that answers a
-// page load shows regions already shown, unchanged, in one line; one the agent asks for (map, use, a
+// page load shows regions already shown, unchanged, in one line; one the agent asks for (map, a
 // switch to an open tab) is whole, since that is when it wants every ref again.
 async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>, settled = '', note = '', whole = false): Promise<string> {
   const { tree, origin, text } = snap ?? await snapshot(tab)
@@ -888,9 +888,10 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     return (await Promise.all(mine.map(async t =>
       `${t.id === current.get(c.session) ? '*' : ' '} ${t.id}  ${t.page.url()}  "${await t.page.title().catch(() => '')}"  used ${ago(t.used)}`))).join('\n')
   },
+  // Agents switch to read: the map comes with map, the text with read.
   async use(c) {
     current.set(c.session, own(c.session, c.id!).id)
-    return mapView(need(c.session), undefined, '', '', true)
+    return `${await header(need(c.session))}  — current (map · read)`
   },
   async map(c) {
     return mapView(need(c.session), undefined, '', '', true)
