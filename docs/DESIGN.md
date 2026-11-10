@@ -213,6 +213,14 @@ document: refs and the view stay valid. A dialog, a pop-up and finished download
 Changed lines longer than one page with a long list among them (a menu of every language) give that
 list as one line, as the map does: its size and first items; `find` or `read <ref>` goes in.
 
+A `read` or `read <ref>` whose first page is longer than `answer.fileChars` answers with the first
+`answer.headChars` and saves the whole text to `<home>/results/<n>.txt` in the layout of the bulk files
+(§6: a line `== <address>`, then the page's own lines), naming the file, the lines shown and how to slice
+the rest (`rg -n`, `sed -n`). The agent's own tools take the part it needs; the rest never enters its
+context, which is re-read on every later turn. `--page N` still pages the whole text, 15000 characters at a
+time. Such a page is not remembered as read: the agent saw only its head, so reading it again is whole, not
+a diff. `find` and `get` already cap at `data.rows`, and no `find` answer in the transcripts passed 3k.
+
 ### 4.5 Records
 
 `get <ref>` turns a collection into records:
@@ -340,6 +348,9 @@ Keys are added when the phase that uses them lands.
 | `open.dialogChars` | 6000 | A dialog an action opened answers whole up to this size (regions already shown, one line each), else with its map |
 | `render.pageChars` | 15000 | Text page size |
 | `render.maxChars` | 400000 | Ceiling on one snapshot |
+| `answer.fileChars` | 8000 | The first page of a `read` or `read <ref>` longer than this is a head plus a file; the read tail is what agents leave unread (§4.4). Measured on 75 benchmark runs: median read 1.1k, p90 about 10k, so about one read in ten is cut |
+| `answer.headChars` | 4000 | The head of such an answer. In the transcripts' sufficiency check, 24 of 27 refs the agent used from a read sat in its first 4k, and three in four of the final-answer strings found in a read sat in its first 4k |
+| `answer.keepFiles` | 20 | Saved answers kept in `<home>/results/` (the newest; each at most `render.maxChars`, so under 10 MB). The rest are deleted when a new one is saved: a long task cannot fill the disk, and an agent rarely returns to an answer 20 reads old |
 | `render.nameChars` | 120 | Cap for names that are on screen, and link paths |
 | `render.labelChars` | 40 | Cap for labels only assistive tech hears |
 | `render.mapFew` | 8 | In the map, controls are named up to this many per kind, counted above |

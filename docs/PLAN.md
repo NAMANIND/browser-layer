@@ -268,6 +268,11 @@ Next, in order:
 3. **Idle close at 5 minutes** (`sessions.idleMs` from 15): parked. It would have hit 2 of 1,109 pauses in the benchmark; it
    only matters for browsers that stay up, not for one-task containers.
 
+4. **Long reads to a file** (`answer.fileChars` 8000, `answer.headChars` 4000, DESIGN §4.4): built on the transcripts, not yet
+   run on the benchmark. Estimate: 154 of 1,400 read/find/get answers in 75 runs are cut, 7% of all tool output and 6.7% of
+   the characters the model re-reads across turns, before the extra turns for agents that need the cut part. Compare token
+   and score on the next 25-task run before the release keeps it.
+
 Before any deploy: run the same 24 tasks twice more on the branch, because one run per task is noise.
 
 Carried over:
