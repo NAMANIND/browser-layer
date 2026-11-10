@@ -55,6 +55,12 @@ browser-layer net                             # the API calls the page made
 browser-layer stop
 ```
 
+**Many pages, many agents**: `browser-layer open --out pages.txt <url…>` (plain HTTP) and
+`browser-layer each --out pages.txt 'read' <url…>` (live tabs) fetch in parallel and write each page under a
+`== address` header line, so `rg -n` and `sed -n` work on the file. Agents share one browser with
+`--session <name>` (or `BROWSER_LAYER_SESSION`): each has its own tabs, and `stop` in a named session closes
+only those.
+
 `browser-layer help` lists every command. A background daemon keeps the browser and its tabs alive
 between commands and exits after 30 idle minutes. Its state (profile, cookies, last page) lives in
 `~/.browser-layer`, or `BROWSER_LAYER_HOME`.
