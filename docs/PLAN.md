@@ -32,6 +32,13 @@ Money did not move, and steps rose 5% (agents slice the saved files); our input 
 The ceiling is in `hardening`. Browser Use's own agent loop (not its CLI) led the tools by a wide margin in an earlier run,
 so the gap that matters is the loop around the browser, not the tool.
 
+**Same agent, two runs each, pooled (Codex, the 25 unseen tasks, 10 Nov):** Browser Use 1.0.0's CLI and our 0.1.4 with the answer
+ceiling score alike (8.53 against 8.58; paired difference +0.002 per task, standard error 0.039; ours better on 8 tasks, theirs on
+11). Their CLI is leaner by about a fifth on the long tasks: $1.31 against $1.58, 1,350 against 1,636 steps, 68M against 97M input
+tokens, 6.5 against 5.4 points per dollar. Our timeouts swung between 1 and 6 across the two runs (theirs 3 and 2). The largest
+step gaps are on tasks 091, 042, 037, 071, 029 and 049. One run per task cannot show these differences: run 1 had us ahead on
+score, run 2 had them ahead.
+
 **Browser mode (10 Nov, 24 tasks scored in all three, five agents sharing one browser per mode, 75 agents at once so absolute
 scores are low):** our default launch 5.60, attached to a minimal headless Chrome (the Browser Harness way, `navigator.webdriver`
 false) 5.55, attached to a visible Chrome on a virtual display 6.01. Scores are a tie (paired differences at most 0.02 per task, standard
