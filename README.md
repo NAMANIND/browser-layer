@@ -61,6 +61,10 @@ browser-layer stop
 `--session <name>` (or `BROWSER_LAYER_SESSION`): each has its own tabs, and `stop` in a named session closes
 only those.
 
+**Long answers**: an answer over 20,000 characters is saved whole to `<home>/results/` and the reply gives its first
+4,000 characters and how to take the rest with `rg -n`, `sed -n`, `tail -c` or `jq`, so one big page or `eval` result
+never fills the agent's context.
+
 `browser-layer help` lists every command. A background daemon keeps the browser and its tabs alive
 between commands and exits after 30 idle minutes. Its state (profile, cookies, last page) lives in
 `~/.browser-layer`, or `BROWSER_LAYER_HOME`.
