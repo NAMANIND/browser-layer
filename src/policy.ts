@@ -28,6 +28,7 @@ export const DEFAULTS = {
   'answer.fileChars': 8000,
   'answer.headChars': 4000,
   'answer.maxChars': 20000,
+  'answer.previewChars': 1500,
   'answer.keepFiles': 20,
   'answer.keepBytes': 50_000_000,
   'render.nameChars': 120,
