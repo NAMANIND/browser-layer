@@ -259,9 +259,19 @@ Next phase, in order. Each starts with a failing test and reports numbers before
    session switches to it, `tabs` lists by last use, `close --all` closes the session's tabs. A cap per session is not
    added: nothing measured says what the number should be.
 4. **`get` on varied cards explodes into columns** (optional parts each make one). Needs a standard way to
-   keep columns stable.
+   keep columns stable. Tried on paper with the snapshot's free `layout.bounds`: columns from each field's horizontal
+   position in its row do not do it. Amazon's 16 stacked cards (22 path columns, 52% blank) collapse to one column
+   (title, rating and price share an x); Flights' 57 rows go from 17 columns at 30% blank to 14 at 43% (fields that
+   wrap or share an x merge or split). Not built; stacked cards would need vertical order, which is a different rule.
 5. ~~A covered control costs a turn~~ Already handled: `pointAt` polls a covered control for the whole `actions.timeoutMs`
-   (5 s) and answers `covered by …` only if the cover stays. Nothing to add.
+   (5 s) and answers `covered by …` only if the cover stays. Nothing to add: the 78 `cannot act on [N]: covered by`
+   answers in 105 benchmark runs (4,986 commands, 38 runs) are covers that stayed 5 s (cookie and sign-in banners, ad
+   blocker notices, carousels, canvases) and name the controls to click, so each costs one call. Marking covered controls
+   in the map from `includePaintOrder` and bounds would save at most that call, and `elementFromPoint` is the exact test
+   (pointer-events, clipping, overlays that open after the map). The snapshot's bounds and paint order cost nothing
+   measurable (paint order: p50 within noise on five pages, payload +1 to 2%; `includeDOMRects`: +20 to 50% time,
+   +15 to 20% payload); the reader reads neither. Viewport awareness: 55 `scroll` commands in 15 runs and no answer
+   mentions a fold; not built.
 6. ~~Parallel, what is left.~~ Done on `hardening`: `sessions.max` is enforced, the jar is written only when it changed,
    and a session unused for `sessions.idleMs` loses its tabs when another session runs a command.
 7. **Sites refusing the browser.** Steer the agent to the site's API, sitemap or another source before it
