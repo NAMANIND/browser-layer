@@ -413,9 +413,14 @@ async function textOf(tab: Tab, ref?: number): Promise<string> {
 
 // A result bigger than one answer belongs in a file the agent's own tools read (grep, jq, a script), not in
 // its context: --out writes it whole, and the answer says how much and where.
+// The answer also gives the start of it: the first look is what the agent would spend a turn on.
 const saved = (file: string, body: string, what: string) => {
   writeFileSync(file, `${body}\n`)
-  return `saved ${file}: ${what}`
+  const max = policy['answer.previewChars']
+  if (body.length <= max) return `saved ${file}: ${what}\n${body}`
+  const at = body.lastIndexOf('\n', max)
+  const head = body.slice(0, at > 0 ? at : max)
+  return `saved ${file}: ${what}\n${head}\n… ${body.split('\n').length - head.split('\n').length} more lines in the file`
 }
 
 async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<string> {

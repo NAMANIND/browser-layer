@@ -840,6 +840,20 @@ test('a result bigger than one answer goes whole to a file with --out; find page
   assert.equal(readFileSync(join(dir, 'hits.txt'), 'utf8').trim().split('\n').length, 400)
 })
 
+test('--out answers with the start of what it saved, so the first look is not a turn of its own', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'out-'))
+  await run('tab', `${base}/longmenu`)
+  const big = (await run('read', '--out', join(dir, 'page.txt'))).out
+  assert.match(big, /^saved .*page\.txt: 4\d\d lines/)
+  assert.match(big, /A repository description/)
+  assert.match(big, /\d+ more lines in the file/)
+  assert.ok(big.length < DEFAULTS['answer.previewChars'] + 400, `the answer was ${big.length} chars`)
+  await run('tab', `${base}/page/alpha`)
+  const small = (await run('read', '--out', join(dir, 'small.txt'))).out
+  assert.match(small, /page alpha/)
+  assert.doesNotMatch(small, /more lines in the file/)
+})
+
 test('reading a page again answers with what changed since the last read; --full gives it all', async () => {
   await run('tab', `${base}/counter`)
   assert.match((await run('read')).out, /count 0/)
