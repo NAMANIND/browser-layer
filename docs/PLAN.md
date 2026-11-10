@@ -23,6 +23,15 @@ a client that waits for a daemon still starting Chrome, and answers cut by 4%. 1
 | 0.1.3 | 6.90 | $1.33 | 451 min | 2 | 0.355 |
 | 0.1.2 | 5.69 | $1.46 | 395 min | 7 | 0.267 |
 
+**Same agent, tool against tool (Codex, the 25 unseen tasks, one run each, 10 Nov):** Browser Use 1.0.0's own CLI (Browser
+Harness helpers, 8.07, $1.41, 1,448 steps, 3 timeouts), our 0.1.4 (7.94, $1.50, 1,562 steps, 4 timeouts) and 0.1.4 with the
+answer ceiling (9.51, $1.51, 1,638 steps, 1 timeout, 311 against 386 minutes). Scores are a tie: the paired differences are
++0.06 per task with a standard error of 0.05 to 0.07, better on 9 tasks and worse on 10 or 11. What is not noise: the ceiling cut
+the tool's output from 5.57M to 3.51M characters (-37%), time by 19% and timeouts from 4 to 1, and input tokens fell 4%.
+Money did not move, and steps rose 5% (agents slice the saved files); our input tokens are still 18% above their CLI's.
+The ceiling is in `hardening`. Browser Use's own agent loop (not its CLI) led the tools by a wide margin in an earlier run,
+so the gap that matters is the loop around the browser, not the tool.
+
 On the 24 tasks it was tuned on, `hardening` looked far ahead of Browser Harness; on unseen tasks it is level. Two runs of
 the shared layout differ by 0.7 points and 3 timeouts, so one run per task cannot show a 5% difference. Of the timeouts,
 most are the agent's own shell loops fetching hundreds of pages one at a time (8 to 14 minutes in one command) and model
