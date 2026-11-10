@@ -95,6 +95,10 @@ line2</textarea>
     res.setHeader('content-type', 'text/html')
     return res.end(`<title>Doc ${n}</title><h1>Doc ${n} heading</h1>${lines.join('')}`)
   }
+  if (url.pathname === '/sitemap.xml') {
+    res.setHeader('content-type', 'application/xml')
+    return res.end('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/a?x=1&amp;y=2</loc><lastmod>2024-07-19</lastmod></url><url><loc>https://example.com/b</loc></url></urlset>')
+  }
   if (url.pathname === '/search') {
     res.setHeader('content-type', 'application/json')
     return res.end(JSON.stringify({ q: url.searchParams.get('q') }))
@@ -176,6 +180,15 @@ test('open with several addresses fetches them together, at most open.perHost pe
   assert.ok(took < 6 * 300, `six pages at two at a time take three waits, not six (${took} ms)`)
   const one = await run('open', `${base}/lag/a`)
   assert.match(one.out, /^http:\/\/127\.0\.0\.1:\d+\/lag\/a {2}\[200\] {2}"lag"\n\nlagged \/lag\/a/)
+})
+
+test('an XML list is saved one record per line, not as one run of text', async () => {
+  const file = join(env.BROWSER_LAYER_HOME, 'sitemap.txt')
+  const out = await run('open', '--out', file, `${base}/sitemap.xml`)
+  assert.equal(out.code, 0, out.out)
+  assert.equal(readFileSync(file, 'utf8'), 'https://example.com/a?x=1&y=2 2024-07-19\nhttps://example.com/b\n')
+  const shown = await run('open', `${base}/sitemap.xml`)
+  assert.match(shown.out, /^https:\/\/example.com\/b$/m)
 })
 
 test('open --out writes a header line and the page lines per address, and answers with failures and a headline per page', async () => {

@@ -5,7 +5,7 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { Field, Page, Verb } from './html.js'
 import { ceiling, home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
-import { bulkAnswer, bulkFile, paginate, renderText, type Bulk } from './render.js'
+import { bulkAnswer, bulkFile, paginate, renderText, xmlLines, type Bulk } from './render.js'
 import { loadPolicy, type Policy } from './policy.js'
 import { live, ping, VERSION } from './client.js'
 import { findBrowser, openChrome, openInspectPage, PROFILE_FLAGS } from './browser.js'
@@ -72,14 +72,20 @@ const verbView = (v: Verb, from: string) => [`  ${v.name} → ${v.method} ${shor
 // The most of a non-HTML body (JSON, text) an answer shows; --out writes all of it.
 const BODY_CHARS = 8000
 
+// A body that is data, not a page: text and JSON as sent, XML (a sitemap, a feed) as one record per line.
+const dataBody = (res: Response) => /xml/.test(res.type) && !/html/.test(res.type)
+  ? xmlLines(res.body) || res.body
+  : !/html|xml/.test(res.type) && res.body.trimStart()[0] !== '<' ? res.body : undefined
+
 // A fetched page reads like a live one: the same tree and renderer, plus its forms as verbs. JSON is
 // printed compact: indentation is for eyes, and for an agent only tokens. --out writes the whole result.
 async function show(res: Response, json: boolean, out?: string) {
-  if (!/html|xml/.test(res.type) && res.body.trimStart()[0] !== '<') {
+  const data = dataBody(res)
+  if (data !== undefined) {
     if (json) return console.log(JSON.stringify({ url: res.url, status: res.status, type: res.type, body: res.body }))
-    if (out) { writeFileSync(out, res.body); return console.log(`saved ${out}: ${res.body.length} chars`) }
-    const more = res.body.length > BODY_CHARS ? `\n… ${res.body.length - BODY_CHARS} more chars: --out <file> writes it all` : ''
-    return console.log(`${res.url}  [${res.status}]  ${res.type}\n\n${res.body.slice(0, BODY_CHARS)}${more}`)
+    if (out) { writeFileSync(out, data); return console.log(`saved ${out}: ${data.length} chars`) }
+    const more = data.length > BODY_CHARS ? `\n… ${data.length - BODY_CHARS} more chars: --out <file> writes it all` : ''
+    return console.log(`${res.url}  [${res.status}]  ${res.type}\n\n${data.slice(0, BODY_CHARS)}${more}`)
   }
   const policy = loadPolicy()
   const { page, text } = await readPage(res, policy)
@@ -149,7 +155,8 @@ const why = (err: unknown) => {
 
 async function fetchText(url: string, policy: Policy): Promise<Omit<Bulk, 'address'>> {
   const res = await request(url)
-  if (!/html|xml/.test(res.type) && res.body.trimStart()[0] !== '<') return { status: res.status, title: '', text: res.body }
+  const data = dataBody(res)
+  if (data !== undefined) return { status: res.status, title: '', text: data }
   const { page, text } = await readPage(res, policy)
   return { status: res.status, title: page.title, text: [text, buildsItself(page, text, policy)].filter(Boolean).join('\n\n') }
 }

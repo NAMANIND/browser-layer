@@ -258,3 +258,27 @@ export function bulkAnswer(name: string, pages: Bulk[], file: string, p: Pick<Po
   lines.push(`find a page: rg -n '^== ' ${file}; read part: sed -n 20,60p ${file}`)
   return lines.join('\n')
 }
+
+// XML is data, not a page: the HTML reader would run a sitemap's entries together into one line. Each element
+// made only of text elements (a sitemap's <url>, a feed's <item>) is a record: one line of those texts.
+export function xmlLines(xml: string): string {
+  const unescape = (s: string) => s.replace(/&(lt|gt|quot|apos|amp);/g, (_, e: string) => ({ lt: '<', gt: '>', quot: '"', apos: "'", amp: '&' })[e]!)
+  type Open = { text: string; leaves: string[]; nested: boolean; mixed: boolean }
+  const stack: Open[] = [{ text: '', leaves: [], nested: false, mixed: false }]
+  const lines: string[] = []
+  const top = () => stack[stack.length - 1]
+  for (const [, cdata, close, tag, selfClose, text] of xml.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!\w[^>]*>|<(\/?)([^\s>\/]+)[^>]*?(\/?)>|([^<]+)/g)) {
+    if (cdata !== undefined) top().text += cdata
+    else if (text !== undefined) top().text += unescape(text)
+    else if (tag && !close) {
+      top().nested = true
+      if (!selfClose) stack.push({ text: '', leaves: [], nested: false, mixed: false })
+    } else if (close && stack.length > 1) {
+      const done = stack.pop()!
+      const value = done.text.trim().replace(/\s+/g, ' ')
+      if (!done.nested) { if (value) top().leaves.push(value) } else if (!done.mixed && done.leaves.length) lines.push(done.leaves.join(' '))
+      if (done.nested) top().mixed = true
+    }
+  }
+  return lines.length ? `${lines.join('\n')}\n` : ''
+}
