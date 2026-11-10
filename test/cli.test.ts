@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { after, before, test } from 'node:test'
 import assert from 'node:assert/strict'
+import { DEFAULTS } from '../src/policy.js'
 
 const CSRF = 'tok-123'
 let base = ''
@@ -81,6 +82,10 @@ line2</textarea>
   if (url.pathname.startsWith('/lag/')) {
     mostInFlight = Math.max(mostInFlight, ++inFlight)
     return void setTimeout(() => { inFlight--; res.setHeader('content-type', 'text/html'); res.end(`<title>lag</title><p>lagged ${url.pathname}</p>`) }, 300)
+  }
+  if (url.pathname.startsWith('/big/')) {
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<title>Big</title>${Array.from({ length: 80 }, (_, k) => `<p>big ${url.pathname.slice(5)} line ${k} ${'x'.repeat(90)}</p>`).join('')}`)
   }
   if (url.pathname.startsWith('/doc/')) {
     const n = url.pathname.slice(5)
@@ -196,6 +201,34 @@ test('open --out writes a header line and the page lines per address, and answer
   assert.deepEqual(hits, ['46:needle here'], 'a search returns the line, not the page')
   assert.ok(lines.slice(0, 3).join('\n').length < 200, 'head -3 is three lines')
   assert.ok(lines.includes(' == not a header'))
+})
+
+test('open with several addresses and no --out over answer.maxChars is a head and a file with every page', async () => {
+  const urls = [1, 2, 3, 4].map(n => `${base}/big/${n}`)
+  const out = await run('open', ...urls)
+  assert.equal(out.code, 0, out.out)
+  assert.ok(out.out.length < DEFAULTS['answer.headChars'] + 1000, `${out.out.length} chars`)
+  assert.match(out.out, new RegExp(`^${urls[0]}\\n`))
+  assert.doesNotMatch(out.out, /big 4 line/)
+  const file = out.out.match(/saved (\S+\.txt)/)![1]
+  assert.equal(dirname(file), join(env.BROWSER_LAYER_HOME, 'results'))
+  const whole = readFileSync(file, 'utf8')
+  for (const u of urls) assert.ok(whole.includes(`${u}\n`))
+  assert.match(whole, /big 4 line 79 /)
+  assert.ok(whole.length > DEFAULTS['answer.maxChars'])
+  const next = Number(out.out.match(/sed -n (\d+),/)![1])
+  assert.match(whole.split('\n')[next - 1], /^big \d line \d+ /)
+})
+
+test('saved answers stay within answer.keepFiles and answer.keepBytes', async () => {
+  rmSync(join(env.BROWSER_LAYER_HOME, 'results'), { recursive: true, force: true })
+  const urls = [1, 2, 3, 4].map(n => `${base}/big/${n}`)
+  writeFileSync(join(env.BROWSER_LAYER_HOME, 'policy.json'), JSON.stringify({ 'answer.keepFiles': 3 }))
+  for (let i = 0; i < 5; i++) await run('open', ...urls)
+  assert.deepEqual(readdirSync(join(env.BROWSER_LAYER_HOME, 'results')).sort(), ['3.txt', '4.txt', '5.txt'])
+  writeFileSync(join(env.BROWSER_LAYER_HOME, 'policy.json'), JSON.stringify({ 'answer.keepBytes': 80000 }))
+  await run('open', ...urls)
+  assert.deepEqual(readdirSync(join(env.BROWSER_LAYER_HOME, 'results')).sort(), ['5.txt', '6.txt'], 'two files of about 34k fit under 80k, a third does not')
 })
 
 test('do refuses a verb with a missing required field', async () => {

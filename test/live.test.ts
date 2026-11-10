@@ -684,14 +684,44 @@ test('a view longer than answer.fileChars is its head plus the whole text in a f
   assert.match(first.out, /line 0 /)
   assert.doesNotMatch(first.out, /line 599 /)
   const whole = readFileSync(file, 'utf8').split('\n')
-  assert.match(whole[0], /^== http:\/\/127\.0\.0\.1:\d+\/long$/)
   assert.match(whole.join('\n'), /line 599 /)
-  assert.match(first.out, new RegExp(`of ${whole.length - 1}\\)`))
+  assert.match(first.out, new RegExp(`of ${whole.length}\\)`))
   // the lines after the head start where the answer says
   const next = Number(first.out.match(/sed -n (\d+),/)![1])
   assert.match(whole[next - 1], /^\[?.*line \d+ /)
   assert.match((await run('read', '--page', '2')).out, /\(page 2 of \d+\)/)
   assert.doesNotMatch((await openRead(`${base}/page/small`)).out, /saved/)
+})
+
+test('an eval over answer.maxChars answers with a head and a file holding the raw value', async () => {
+  await run('tab', `${base}/page/small`)
+  const small = await run('eval', '[1, 2]')
+  assert.equal(small.out, '[1,2]\n')
+  const text = await run('eval', "'x'.repeat(500000)")
+  assert.ok(text.out.length < DEFAULTS['answer.headChars'] + 1000, `${text.out.length} chars`)
+  const file = text.out.match(/saved (\S+\.txt)/)![1]
+  assert.equal(dirname(file), join(home, 'results'))
+  assert.equal(readFileSync(file, 'utf8'), JSON.stringify('x'.repeat(500000)))
+  assert.match(text.out, /500002 chars/)
+  assert.match(text.out, new RegExp(`tail -c \\+${DEFAULTS['answer.headChars'] + 1} ${file}`))
+  const records = await run('eval', 'Array.from({ length: 4000 }, (_, i) => ({ id: i, name: `item ${i}` }))')
+  const kept = records.out.match(/saved (\S+\.txt)/)![1]
+  assert.equal(JSON.parse(readFileSync(kept, 'utf8')).length, 4000, 'the file is the value, so jq and JSON.parse work')
+  assert.match(records.out, /jq/)
+})
+
+test('a call whose answer has lines over answer.maxChars is cut at a line and the file holds every line', async () => {
+  await run('tab', `${base}/long`)
+  const out = (await run('steps', 'read --page 2; read --page 3')).out.trimEnd()
+  assert.ok(out.length < DEFAULTS['answer.headChars'] + 1000, `${out.length} chars`)
+  assert.match(out, /^1\. read --page 2\n/)
+  const file = out.match(/saved (\S+\.txt)/)![1]
+  const whole = readFileSync(file, 'utf8').split('\n')
+  assert.ok(whole.join('\n').length > DEFAULTS['answer.maxChars'])
+  const next = Number(out.match(/sed -n (\d+),/)![1])
+  assert.equal(whole.slice(0, next - 1).join('\n'), out.slice(0, out.lastIndexOf('\n')), 'the head is the file\'s lines before the one named')
+  assert.match(whole[next - 1], /line \d+ x/)
+  assert.doesNotMatch(out, /tail -c/)
 })
 
 test('result files are bounded by answer.keepFiles', async () => {
@@ -798,7 +828,7 @@ test('a result bigger than one answer goes whole to a file with --out; find page
   await run('tab', `${base}/longmenu`)
   const dir = mkdtempSync(join(tmpdir(), 'out-'))
   const read = await run('read')
-  assert.match(read.out, /the whole page is saved .*results.*\.txt/)
+  assert.match(read.out, /all saved .*results.*\.txt/)
   // Of a page longer than one answer the agent saw only the first part, so reading it again is never a diff.
   assert.match((await run('read')).out, /\(page 1 of \d+\)/)
   assert.match((await run('read', '--out', join(dir, 'page.txt'))).out, /^saved .*page\.txt: 4\d\d lines, \d+ chars$/m)

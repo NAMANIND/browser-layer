@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { Field, Page, Verb } from './html.js'
-import { home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
+import { ceiling, home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
 import { bulkAnswer, bulkFile, paginate, renderText, type Bulk } from './render.js'
 import { loadPolicy, type Policy } from './policy.js'
 import { live, VERSION } from './client.js'
@@ -92,7 +92,7 @@ async function show(res: Response, json: boolean, out?: string) {
   if (page.verbs.length) lines.push('', 'verbs:', ...page.verbs.map(v => verbView(v, page.url)))
   const shell = buildsItself(page, text, policy)
   if (shell) lines.push('', shell)
-  console.log(lines.join('\n').trimEnd())
+  console.log(ceiling(lines.join('\n').trimEnd(), policy))
 }
 
 // The HTML parser is loaded here, not at startup: live-tab commands never need it.
@@ -135,7 +135,7 @@ async function openMany(urls: string[], out?: string) {
     }
     pump()
   })
-  if (!out) return console.log(pages.map(p => `${p.address}\n${p.error ? `error: ${p.error}` : p.text}`).join('\n\n'))
+  if (!out) return console.log(ceiling(pages.map(p => `${p.address}\n${p.error ? `error: ${p.error}` : p.text}`).join('\n\n'), policy))
   writeFileSync(out, bulkFile(pages))
   console.log(bulkAnswer('open', pages, out, policy))
 }

@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { chromium, type Browser, type BrowserContext, type CDPSession, type Dialog, type Page, type Request, type Route } from 'playwright-core'
 import { isTracker } from './trackers.js'
 import { findBrowser } from './browser.js'
-import { home, loadJar, saveJar, type Cookie } from './session.js'
+import { ceiling, home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, humanCheck, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
 import { bulkAnswer, bulkFile, diffLines, findRef, goneLines, itemsLine, paginate, renderMap, renderText, type Bulk } from './render.js'
 import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
@@ -418,20 +418,6 @@ const saved = (file: string, body: string, what: string) => {
   return `saved ${file}: ${what}`
 }
 
-// A first page longer than one answer is cut to its head and kept whole in <home>/results/<n>.txt, in the
-// layout the bulk forms write, so the agent's rg -n and sed -n take the part it needs and the rest never
-// enters its context. Only the newest answer.keepFiles are kept, so a long task cannot fill the disk.
-function keepResult(address: string, text: string): { file: string; lines: number } {
-  const dir = join(home(), 'results')
-  mkdirSync(dir, { recursive: true })
-  const have = readdirSync(dir).map(f => parseInt(f, 10)).filter(Number.isFinite).sort((a, b) => a - b)
-  const file = join(dir, `${(have.at(-1) ?? 0) + 1}.txt`)
-  const body = bulkFile([{ address, title: '', text }])
-  writeFileSync(file, body)
-  for (const old of have.slice(0, Math.max(0, have.length + 1 - policy['answer.keepFiles']))) rmSync(join(dir, `${old}.txt`), { force: true })
-  return { file, lines: body.split('\n').length - 1 }
-}
-
 async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<string> {
   if (text === undefined) text = await textOf(tab, ref)
   const truncated = text.length > policy['render.maxChars']
@@ -439,12 +425,9 @@ async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<st
   const pages = paginate(text, policy['render.pageChars'])
   if (page < 1 || page > pages.length) throw new Error(`page ${page} does not exist; this view has ${pages.length}`)
   const head = `${await header(tab)}${pages.length > 1 ? `  (page ${page} of ${pages.length})` : ''}`
-  if (page === 1 && text.length > policy['answer.fileChars']) {
-    const top = paginate(text, policy['answer.headChars'])[0]
-    const { file, lines } = keepResult(tab.page.url(), text)
-    const next = top.split('\n').length + 2
-    return `${head}\n\n${top}\n… ${top.length} of ${text.length} chars shown (lines 2–${next - 1} of ${lines}); the whole page is saved ${file}: rg -n <text> ${file}, or sed -n ${next},${next + 60}p ${file}${truncated ? '\n… (view ceiling reached; the page is larger than this)' : ''}`
-  }
+  // The first page of a read longer than answer.fileChars is the head and a file, in place of the whole page:
+  // the tail of a long read is what agents leave unread.
+  if (page === 1 && text.length > policy['answer.fileChars']) return ceiling(`${head}\n\n${text}${truncated ? '\n… (view ceiling reached; the page is larger than this)' : ''}`, policy, 0)
   const more = page < pages.length ? `\n… more below: browser-layer read${ref === undefined ? '' : ` ${ref}`} --page ${page + 1}, or --out <file> for all ${pages.length} pages` : ''
   const cut = truncated && page === pages.length ? '\n… (view ceiling reached; the page is larger than this)' : ''
   return `${head}\n\n${pages[page - 1]}${more}${cut}`
@@ -1394,7 +1377,7 @@ async function main() {
       queues.set(c.session, (queues.get(c.session) ?? Promise.resolve()).then(async () => {
         try {
           await pullCookies()
-          const text = repeated(c, await (c.cmd === 'steps' || c.cmd === 'each' ? run(c) : limited(c)))
+          const text = ceiling(repeated(c, await (c.cmd === 'steps' || c.cmd === 'each' ? run(c) : limited(c))), policy)
           await syncCookies().catch(() => {})
           res.end(JSON.stringify({ ok: true, text }))
         } catch (err) {
