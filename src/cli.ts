@@ -7,7 +7,7 @@ import type { Field, Page, Verb } from './html.js'
 import { ceiling, home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
 import { bulkAnswer, bulkFile, paginate, renderText, type Bulk } from './render.js'
 import { loadPolicy, type Policy } from './policy.js'
-import { live, VERSION } from './client.js'
+import { live, ping, VERSION } from './client.js'
 import { findBrowser, openChrome, openInspectPage, PROFILE_FLAGS } from './browser.js'
 import type { Command } from './daemon.js'
 
@@ -299,6 +299,14 @@ function liveCommand({ cmd, target, rest, page, limit, sort, cols, file, has }: 
   return c
 }
 
+// `stop` answers when Chrome has exited, a moment before the daemon does. A command sent in that moment meets a
+// daemon that goes away while it holds the command, which is reported and never retried, so a flow that stops the
+// browser and carries on waits until the daemon is gone.
+async function stopBrowser() {
+  await live({ cmd: 'stop', session })
+  for (let i = 0; i < 100 && await ping(); i++) await new Promise(r => setTimeout(r, 50))
+}
+
 async function main() {
   const parsed = parse(process.argv.slice(2))
   const { cmd, target, rest, file } = parsed
@@ -378,7 +386,7 @@ async function main() {
     // Never restart blind: if the open tabs cannot be listed (say a daemon from an older build), stop here.
     if (!state.ok) fail(`could not list the open tabs (${state.error}); run browser-layer stop, then try again`)
     const open = JSON.parse(state.text!) as { session: string; url: string; current: boolean }[]
-    await live({ cmd: 'stop', session })
+    await stopBrowser()
     // Only the browser started now is visible; the daemon reads this from its environment at launch.
     process.env.BROWSER_LAYER_VISIBLE = cmd === 'show' ? '1' : ''
     const reopened: string[] = []
@@ -400,7 +408,7 @@ async function main() {
     const url = target ?? fail('usage: browser-layer login <url>')
     const browser = await findBrowser()
     if ('error' in browser) fail(browser.error)
-    await live({ cmd: 'stop', session }) // one browser per profile directory at a time
+    await stopBrowser() // one browser per profile directory at a time
     console.log('Sign in in the browser window that opens, then quit it (close every window of it).')
     await new Promise(done => spawn(browser.path, [`--user-data-dir=${join(home(), 'profile')}`, ...PROFILE_FLAGS, '--no-first-run', '--no-default-browser-check', /^[a-z]+:\/\//i.test(url) ? url : `https://${url}`], { stdio: 'ignore' }).on('exit', done))
     // The jar mirrors the browser after every command; dropping it lets the new session win over stale cookies.
