@@ -39,6 +39,14 @@ tokens, 6.5 against 5.4 points per dollar. Our timeouts swung between 1 and 6 ac
 step gaps are on tasks 091, 042, 037, 071, 029 and 049. One run per task cannot show these differences: run 1 had us ahead on
 score, run 2 had them ahead.
 
+**Why the long tasks take twice the commands (read from the transcripts of tasks 091, 042, 037, 071, 029 and 049, both runs, 10 Nov):**
+our agent runs about 96 commands per long-task run against their 48. A third of ours (33 per run) are the agent's own shell: 59%
+read a file our tool saved (`sed`, `rg`, `head`, `jq` on `--out` files; 81 straight after the save), and 33% run a script over such
+files. Their agent fetches, filters and prints in one script, so that loop is one turn. Error and blocked answers are about 3 per run
+(a site refusing the browser, a stuck page, a stale ref), a fraction of the gap. The skill itself tells the agent to save big results
+to a file and then grep them, which is the loop. Two ways to close it: let an answer carry what the first look would have read, or let
+one call fetch, filter and print.
+
 **Browser mode (10 Nov, 24 tasks scored in all three, five agents sharing one browser per mode, 75 agents at once so absolute
 scores are low):** our default launch 5.60, attached to a minimal headless Chrome (the Browser Harness way, `navigator.webdriver`
 false) 5.55, attached to a visible Chrome on a virtual display 6.01. Scores are a tie (paired differences at most 0.02 per task, standard
