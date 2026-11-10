@@ -1306,17 +1306,19 @@ async function main() {
       console.error(found.error)
       process.exit(1)
     }
+    const visible = process.env.BROWSER_LAYER_VISIBLE === '1'
     ctx = await chromium.launchPersistentContext(join(home(), 'profile'), {
       executablePath: found.path,
       // Headless always, except a browser `browser-layer show` started for a person to watch. Nothing is
       // remembered: the next browser after this one is headless again.
-      headless: process.env.BROWSER_LAYER_VISIBLE !== '1',
+      headless: !visible,
       viewport: { width: policy['viewport.width'], height: policy['viewport.height'] },
       reducedMotion: 'reduce',
     })
     await ctx.route('**/*', skipDecoration)
     await ctx.addInitScript(PAGE_HOOKS)
-    for (const p of ctx.pages()) await p.close()
+    // A visible Chrome quits when its last window closes, so it keeps the blank tab it started with.
+    if (!visible) for (const p of ctx.pages()) await p.close()
   }
   // A page a site opens (window.open, target=_blank, an OAuth pop-up) joins its opener's session.
   ctx.on('page', async page => {
