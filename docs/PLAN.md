@@ -273,6 +273,11 @@ Next, in order:
    the characters the model re-reads across turns, before the extra turns for agents that need the cut part. Compare token
    and score on the next 25-task run before the release keeps it.
 
+5. **One ceiling for every answer** (`answer.maxChars` 20000, DESIGN §4.4): the long-read file mechanism applied at the reply
+   and to `open`'s printing. In 3,700 benchmark commands, 24 answers over 20k were this tool's alone and hold 4.2M of
+   the 16.1M characters returned (26%); another 13 carry the agent's own `rg`/`sed` output (3.2M more). Not yet run on the
+   benchmark: compare tokens and score on the next 25-task run.
+
 Before any deploy: run the same 24 tasks twice more on the branch, because one run per task is noise.
 
 Carried over:

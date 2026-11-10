@@ -63,6 +63,8 @@ differs from the last answer of the session, an action names at most `render.map
 and counts the rest, the footer (`contentinfo`) is counted in the map and `read <ref>` names it, and no answer
 carries a footer of command hints (the skill and `help` already say them).
 
+**No answer is bigger than `answer.maxChars`.** A result that big belongs in a file the agent's own tools read, not in its context (§4.4): every command's answer, one `eval` of a whole API response or a bulk `open` without `--out` as much as a `read`, is its head and the file.
+
 **One call per decision.** Every call is a turn of the agent's model, and the turns, not the browser,
 take most of a task's time. So an answer carries what the next decision needs: an action that opens a
 dialog answers with what it holds when short (`open.dialogChars`), an action says what did not take (a field holding other text,
@@ -213,13 +215,22 @@ document: refs and the view stay valid. A dialog, a pop-up and finished download
 Changed lines longer than one page with a long list among them (a menu of every language) give that
 list as one line, as the map does: its size and first items; `find` or `read <ref>` goes in.
 
-A `read` or `read <ref>` whose first page is longer than `answer.fileChars` answers with the first
-`answer.headChars` and saves the whole text to `<home>/results/<n>.txt` in the layout of the bulk files
-(§6: a line `== <address>`, then the page's own lines), naming the file, the lines shown and how to slice
-the rest (`rg -n`, `sed -n`). The agent's own tools take the part it needs; the rest never enters its
-context, which is re-read on every later turn. `--page N` still pages the whole text, 15000 characters at a
-time. Such a page is not remembered as read: the agent saw only its head, so reading it again is whole, not
-a diff. `find` and `get` already cap at `data.rows`, and no `find` answer in the transcripts passed 3k.
+Every answer has one ceiling, `answer.maxChars`, applied where the daemon turns a command's result into its reply
+(`steps` and `each` included: their final text) and where the CLI prints `open`'s pages. Over it, the whole text
+is saved to `<home>/results/<n>.txt` and the answer is its first `answer.headChars`, then one line naming the
+file, the size and how to take the rest with the agent's own tools. Text with lines is cut at a line and the line
+says `lines 1–N of M` with `rg -n` and `sed -n`. One long line (an `eval` is always one: `JSON.stringify`) is cut
+at a character, the file is that line as it is, and the line says `tail -c +N` (and `jq` for JSON), because
+`rg -n` and `sed -n` would return all of it. Commands that write their own file (`--out`, `net save`), errors
+and short answers are unchanged. Only the newest `answer.keepFiles` files, at most `answer.keepBytes` together,
+are kept.
+
+A `read` or `read <ref>` whose first page is longer than `answer.fileChars` is cut the same way, earlier: its
+head, with the page's tab line, and a file with the same text. The agent's own tools take the part it needs; the
+rest never enters its context, which is re-read on every later turn. `--page N` still pages the whole text,
+15000 characters at a time. Such a page is not remembered as read: the agent saw only its head, so reading it
+again is whole, not a diff. `find` and `get` already cap at `data.rows`, and no `find` answer in the transcripts
+passed 3k.
 
 ### 4.5 Records
 
@@ -350,7 +361,9 @@ Keys are added when the phase that uses them lands.
 | `render.maxChars` | 400000 | Ceiling on one snapshot |
 | `answer.fileChars` | 8000 | The first page of a `read` or `read <ref>` longer than this is a head plus a file; the read tail is what agents leave unread (§4.4). Measured on 75 benchmark runs: median read 1.1k, p90 about 10k, so about one read in ten is cut |
 | `answer.headChars` | 4000 | The head of such an answer. In the transcripts' sufficiency check, 24 of 27 refs the agent used from a read sat in its first 4k, and three in four of the final-answer strings found in a read sat in its first 4k |
-| `answer.keepFiles` | 20 | Saved answers kept in `<home>/results/` (the newest; each at most `render.maxChars`, so under 10 MB). The rest are deleted when a new one is saved: a long task cannot fill the disk, and an agent rarely returns to an answer 20 reads old |
+| `answer.maxChars` | 20000 | No answer is longer than this (§4.4): the rest is a file. Above a read page (15000) and its note, so paging and ordinary answers are never cut. In 3,700 benchmark commands that called browser-layer, 37 answers passed it, and 24 of those were this tool's alone (the others carry an agent's own `rg`, `sed` or `cat`): 4.2M of the 16.1M characters the commands returned, the largest an `eval` of 703,800, and a bulk `open` of 129,587 |
+| `answer.keepFiles` | 20 | Saved answers kept in `<home>/results/` (the newest). The rest are deleted when a new one is saved: a long task cannot fill the disk, and an agent rarely returns to an answer 20 reads old |
+| `answer.keepBytes` | 50000000 | Saved answers kept in `<home>/results/` together at most this big (the newest are kept; one answer is always kept whole) |
 | `render.nameChars` | 120 | Cap for names that are on screen, and link paths |
 | `render.labelChars` | 40 | Cap for labels only assistive tech hears |
 | `render.mapFew` | 8 | In the map, controls are named up to this many per kind, counted above |
