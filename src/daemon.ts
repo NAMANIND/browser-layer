@@ -1,7 +1,7 @@
 // The background process that keeps live tabs alive between CLI calls.
 // It owns one headless Chrome, a persistent profile, and a socket the CLI talks to.
 import { createServer } from 'node:http'
-import { chmodSync, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium, type Browser, type BrowserContext, type CDPSession, type Dialog, type Page, type Request, type Route } from 'playwright-core'
 import { isTracker } from './trackers.js'
@@ -418,6 +418,20 @@ const saved = (file: string, body: string, what: string) => {
   return `saved ${file}: ${what}`
 }
 
+// A first page longer than one answer is cut to its head and kept whole in <home>/results/<n>.txt, in the
+// layout the bulk forms write, so the agent's rg -n and sed -n take the part it needs and the rest never
+// enters its context. Only the newest answer.keepFiles are kept, so a long task cannot fill the disk.
+function keepResult(address: string, text: string): { file: string; lines: number } {
+  const dir = join(home(), 'results')
+  mkdirSync(dir, { recursive: true })
+  const have = readdirSync(dir).map(f => parseInt(f, 10)).filter(Number.isFinite).sort((a, b) => a - b)
+  const file = join(dir, `${(have.at(-1) ?? 0) + 1}.txt`)
+  const body = bulkFile([{ address, title: '', text }])
+  writeFileSync(file, body)
+  for (const old of have.slice(0, Math.max(0, have.length + 1 - policy['answer.keepFiles']))) rmSync(join(dir, `${old}.txt`), { force: true })
+  return { file, lines: body.split('\n').length - 1 }
+}
+
 async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<string> {
   if (text === undefined) text = await textOf(tab, ref)
   const truncated = text.length > policy['render.maxChars']
@@ -425,6 +439,12 @@ async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<st
   const pages = paginate(text, policy['render.pageChars'])
   if (page < 1 || page > pages.length) throw new Error(`page ${page} does not exist; this view has ${pages.length}`)
   const head = `${await header(tab)}${pages.length > 1 ? `  (page ${page} of ${pages.length})` : ''}`
+  if (page === 1 && text.length > policy['answer.fileChars']) {
+    const top = paginate(text, policy['answer.headChars'])[0]
+    const { file, lines } = keepResult(tab.page.url(), text)
+    const next = top.split('\n').length + 2
+    return `${head}\n\n${top}\n… ${top.length} of ${text.length} chars shown (lines 2–${next - 1} of ${lines}); the whole page is saved ${file}: rg -n <text> ${file}, or sed -n ${next},${next + 60}p ${file}${truncated ? '\n… (view ceiling reached; the page is larger than this)' : ''}`
+  }
   const more = page < pages.length ? `\n… more below: browser-layer read${ref === undefined ? '' : ` ${ref}`} --page ${page + 1}, or --out <file> for all ${pages.length} pages` : ''
   const cut = truncated && page === pages.length ? '\n… (view ceiling reached; the page is larger than this)' : ''
   return `${head}\n\n${pages[page - 1]}${more}${cut}`
@@ -439,7 +459,7 @@ async function reread(tab: Tab, full: boolean): Promise<string> {
   const text = snap.text
   const again = tab.read?.doc === tab.doc
   const before = again && !full ? tab.read!.text : undefined
-  tab.read = text.length <= policy['render.pageChars'] ? { doc: tab.doc, text } : undefined
+  tab.read = text.length <= policy['answer.fileChars'] ? { doc: tab.doc, text } : undefined
   if (before === text) return `${await header(tab)}  — no change since your last read (read --full shows it again)`
   if (before !== undefined) {
     const { removed, added } = diffLines(before.split('\n'), text.split('\n'))
@@ -451,7 +471,7 @@ async function reread(tab: Tab, full: boolean): Promise<string> {
   // again, so it shows all of it; on another page of the site it folds what the site repeats, like read.
   const now = new Map<number, string>()
   const short = renderText(snap.tree, snap.origin, caps(), { before: full && again ? new Map() : tab.seen.text, now })
-  if (short.length > policy['render.pageChars']) return view(tab, 1, text)
+  if (short.length > policy['answer.fileChars']) return view(tab, 1, text)
   for (const [ref, whole] of now) { tab.seen.text.set(ref, whole); tab.seen.map.set(ref, whole) }
   return view(tab, 1, short)
 }

@@ -1,8 +1,8 @@
 import { execFile, spawn } from 'node:child_process'
 import { createServer, request } from 'node:http'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { after, before, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DEFAULTS } from '../src/policy.js'
@@ -536,7 +536,8 @@ test('a long list an action reveals is one line; find and read go in', async () 
   assert.match(open.out, /\+ \[(\d+)\] menu of 900: \[\d+\] menuitemradio "Language 0" {2}unchecked · .* …$/m)
   assert.match(open.out, /a long list is one line: find <text> or read <ref> goes in/)
   assert.match((await run('find', 'Language 899')).out, /\[\d+\] menuitemradio "Language 899"/)
-  assert.match((await run('read', open.out.match(/\[(\d+)\] menu of 900/)![1])).out, /"Language 100"/)
+  const region = (await run('read', open.out.match(/\[(\d+)\] menu of 900/)![1])).out
+  assert.match(readFileSync(region.match(/saved (\S+\.txt)/)![1], 'utf8'), /"Language 899"/)
   // The map shows it the same way.
   assert.match((await run('map')).out, /\[\d+\] menu of 900: \[\d+\] menuitemradio "Language 0"/)
 })
@@ -667,13 +668,36 @@ test('long views come in pages and every page is reachable', async () => {
   assert.match(first.out, /\(page 1 of (\d+)\)/)
   const total = Number(first.out.match(/\(page 1 of (\d+)\)/)![1])
   assert.ok(total >= 2)
-  assert.match(first.out, /more below: browser-layer read --page 2/)
   const last = await run('read', '--page', String(total))
   assert.match(last.out, /line 599 /)
   assert.doesNotMatch(last.out, /more below/)
   const past = await run('read', '--page', String(total + 1))
   assert.equal(past.code, 1)
   assert.match(past.out, /does not exist/)
+})
+
+test('a view longer than answer.fileChars is its head plus the whole text in a file', async () => {
+  const first = await openRead(`${base}/long`)
+  const file = first.out.match(/saved (\S+\.txt)/)![1]
+  assert.equal(dirname(file), join(home, 'results'))
+  assert.ok(first.out.length < DEFAULTS['answer.headChars'] + 1000, `${first.out.length} chars`)
+  assert.match(first.out, /line 0 /)
+  assert.doesNotMatch(first.out, /line 599 /)
+  const whole = readFileSync(file, 'utf8').split('\n')
+  assert.match(whole[0], /^== http:\/\/127\.0\.0\.1:\d+\/long$/)
+  assert.match(whole.join('\n'), /line 599 /)
+  assert.match(first.out, new RegExp(`of ${whole.length - 1}\\)`))
+  // the lines after the head start where the answer says
+  const next = Number(first.out.match(/sed -n (\d+),/)![1])
+  assert.match(whole[next - 1], /^\[?.*line \d+ /)
+  assert.match((await run('read', '--page', '2')).out, /\(page 2 of \d+\)/)
+  assert.doesNotMatch((await openRead(`${base}/page/small`)).out, /saved/)
+})
+
+test('result files are bounded by answer.keepFiles', async () => {
+  await run('tab', `${base}/long`)
+  for (let i = 0; i < DEFAULTS['answer.keepFiles'] + 3; i++) await run('read')
+  assert.equal(readdirSync(join(home, 'results')).length, DEFAULTS['answer.keepFiles'])
 })
 
 test('a home dir deeper than the socket path limit still starts the daemon', async () => {
@@ -774,7 +798,7 @@ test('a result bigger than one answer goes whole to a file with --out; find page
   await run('tab', `${base}/longmenu`)
   const dir = mkdtempSync(join(tmpdir(), 'out-'))
   const read = await run('read')
-  assert.match(read.out, /… more below: browser-layer read --page 2, or --out <file> for all \d+ pages/)
+  assert.match(read.out, /the whole page is saved .*results.*\.txt/)
   // Of a page longer than one answer the agent saw only the first part, so reading it again is never a diff.
   assert.match((await run('read')).out, /\(page 1 of \d+\)/)
   assert.match((await run('read', '--out', join(dir, 'page.txt'))).out, /^saved .*page\.txt: 4\d\d lines, \d+ chars$/m)
