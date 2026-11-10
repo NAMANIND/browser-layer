@@ -125,5 +125,7 @@ export function ceiling(text: string, p: Policy, max = p['answer.maxChars']): st
   const at = text.lastIndexOf('\n', head)
   if (at <= 0) return `${text.slice(0, head)}\n… first ${head} of ${text.length} chars shown; all saved ${file} as one line: tail -c +${Buffer.byteLength(text.slice(0, head)) + 1} ${file}${/^[[{]/.test(text) ? ", or jq '<filter>' " + file : ''}`
   const lines = text.slice(0, at).split('\n').length
-  return `${text.slice(0, at)}\n… ${at} of ${text.length} chars shown (lines 1–${lines} of ${text.split('\n').length}); all saved ${file}: rg -n <text> ${file}, or sed -n ${lines + 1},${lines + 61}p ${file}`
+  // sed and rg print a whole line: when later lines are wider than the head, the pointer says to cut them.
+  const wide = text.slice(at).split('\n').some(l => l.length > head) ? ' | cut -c1-200' : ''
+  return `${text.slice(0, at)}\n… ${at} of ${text.length} chars shown (lines 1–${lines} of ${text.split('\n').length}); all saved ${file}: rg -n <text> ${file}${wide}, or sed -n ${lines + 1},${lines + 61}p ${file}${wide}`
 }
