@@ -32,6 +32,12 @@ Money did not move, and steps rose 5% (agents slice the saved files); our input 
 The ceiling is in `hardening`. Browser Use's own agent loop (not its CLI) led the tools by a wide margin in an earlier run,
 so the gap that matters is the loop around the browser, not the tool.
 
+**Browser mode (10 Nov, 24 tasks scored in all three, five agents sharing one browser per mode, 75 agents at once so absolute
+scores are low):** our default launch 5.60, attached to a minimal headless Chrome (the Browser Harness way, `navigator.webdriver`
+false) 5.55, attached to a visible Chrome on a virtual display 6.01. Scores are a tie (paired differences at most 0.02 per task, standard
+error 0.04 to 0.06). Blocked pages: 14, 18 and 5. A visible Chrome meets fewer blocks, a headless one attached the Browser
+Harness way does not (the five-task pilot's "half as many" for it was noise), and the score did not move. No change to the defaults.
+
 On the 24 tasks it was tuned on, `hardening` looked far ahead of Browser Harness; on unseen tasks it is level. Two runs of
 the shared layout differ by 0.7 points and 3 timeouts, so one run per task cannot show a 5% difference. Of the timeouts,
 most are the agent's own shell loops fetching hundreds of pages one at a time (8 to 14 minutes in one command) and model
