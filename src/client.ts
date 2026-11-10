@@ -135,9 +135,9 @@ export async function live(c: Command): Promise<Reply> {
         if (Date.now() - started > LAUNCH_WAIT_MS) throw new Error('the browser is still starting; run the command again')
         continue
       }
-      // The person has to click Allow in Chrome: say so once, give up waiting after a minute, and keep the daemon
-      // for the next command.
-      if (i === 13) console.error('Chrome is asking "Allow remote debugging?": click Allow in Chrome.')
+      // `attach auto` (a ws:// address; a port is http://) makes Chrome ask the person to click Allow: say so once,
+      // give up waiting after a minute, and keep the daemon for the next command.
+      if (i === 13 && process.env.BROWSER_LAYER_ATTACH!.startsWith('ws:')) console.error('Chrome is asking "Allow remote debugging?": click Allow in Chrome.')
       if (Date.now() - started > ALLOW_WAIT_MS) throw new Error('Chrome is still waiting for you to click Allow on "Allow remote debugging?"; click it, then run the command again')
     }
   } finally {
