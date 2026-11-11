@@ -333,3 +333,11 @@ Carried over:
 
 `chrome-headless-shell`, then a build with paint, raster and compositing removed after layout.
 Starts when measured CPU per tab at our target parallelism says the 70–220 ms per load matters.
+
+Branch `lift-keep` (from `hardening`): what was kept of the less-lifting work. Two same-agent Docker runs of 5 tasks per arm
+(10 task runs each) showed no gain for the whole of it: pooled score 23.5 against 20.2 (one task, bu2-079, carries it),
+steps 503 against 498, carried characters 30.5M against 26.3M, and the direction differed between the runs. `find --in` was used
+10 times in one run and never in the other and cut neither steps nor characters; the `--out` outline replaced no `rg '^#'` look-back,
+because none was made. Both are dropped. Kept: `save.lineChars` (no line of an `--out` file longer than 2000 characters), which
+closes the one-line dump that cost a 1 MB answer, and `npm run carried` for judging later changes. `src/` 3,594 → 3,631 lines (+37,
+from the line bound). Tests 129 → 133, measure exits 0. The dropped commits stay on `claude/less-lifting-2e3681`.
