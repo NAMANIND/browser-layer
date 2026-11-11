@@ -341,3 +341,12 @@ steps 503 against 498, carried characters 30.5M against 26.3M, and the direction
 because none was made. Both are dropped. Kept: `save.lineChars` (no line of an `--out` file longer than 2000 characters), which
 closes the one-line dump that cost a 1 MB answer, and `npm run carried` for judging later changes. `src/` 3,594 → 3,631 lines (+37,
 from the line bound). Tests 129 → 133, measure exits 0. The dropped commits stay on `claude/less-lifting-2e3681`.
+
+Local agent test (`bench/local`, 11 Nov 2026): headless Claude Code (haiku, Bash only) runs seven script-checked tasks on public practice
+sites (paginated list, 19 detail pages, 248-row table, deep Wikipedia fact, form, XML sitemap) against a git ref, so two builds are
+compared for Claude tokens only (about $0.004 a run; 70 runs $0.27). `run.mjs --arm A=ref --arm B=ref --repeats 5`, then `compare.mjs`;
+see `bench/README.md`. A/A of `hardening` against itself: differences by chance are under 6% in input tokens, 4% in cost, 9% in steps,
+8% in wall time, 18-24% in characters returned and carried, 52% in look-backs. A/B against a skill with 14k characters of filler: input
+tokens +31%, cost +28%, wall +43%, all on 7 of 7 tasks, so token and cost changes of about 10% show; steps and carried characters did
+not move. It cannot detect step, carried-character or look-back effects under about 10%, 25% and 50%, and its agent (Claude haiku, runs
+of about 4 steps, no timeouts) is not the benchmark's, so the long-task loops that cost the real benchmark its steps are out of its reach.
