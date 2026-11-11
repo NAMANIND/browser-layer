@@ -68,3 +68,20 @@ A/B, `hardening` against the same build with 14,000 characters of filler appende
 input tokens +31% (7 of 7 tasks up), cost +28% (7/7), wall time +43% (7/7), look-backs +0.37 (5/0, about 2 standard errors);
 steps, carried, chars and score unchanged. So it sees a token-cost effect of this size at once and a behaviour (steps) effect
 only if it exceeds about 10%; a smaller change in steps or carried characters is below the floor.
+
+## Long tasks (`--set long`, unfinished)
+
+`tasks.json` also holds six tasks marked `"long": true` (150 turns, 12 minutes; a run silent for 4 minutes is killed and
+rerun, twice at most). `node bench/local/run.mjs --out DIR --arm A=hardening --set long --model haiku`. Their expected answers
+come from `bench/local/long-expect.mjs`, which reads the pages over plain HTTP (the answers do not depend on the date).
+
+What was measured so far (haiku, one run each, early on 11 Nov 2026, before runs began to hang):
+bulk-readable tasks (every page of one site, then aggregate) take only 7 to 22 steps because `open --out` and `each`
+fetch many pages in one call: the 50-category count 9-21, quotes by century 8-22, stock over three categories 9-12.
+Tasks with many separate lookups or form interactions take longer (the ten-item `long-internet-a` list 23-36 steps).
+Tasks that stayed under 10 steps (hockey pages, Oscars, RFC counts, ten book lookups, the author/tag form) were dropped.
+Sonnet used fewer steps (2-10 on three of these tasks) at 5-10 times the cost, so haiku is the model for them.
+
+Not done: the long-task A/A calibration and the revert-of-`--out`-preview comparison. Every attempt after the first
+trials hung (a `browser-layer` call, such as `open --out` with 50 URLs, never returned and the run ended at its time limit),
+so no numbers exist for them yet.
