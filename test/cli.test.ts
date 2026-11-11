@@ -99,6 +99,14 @@ line2</textarea>
     res.setHeader('content-type', 'application/xml')
     return res.end('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/a?x=1&amp;y=2</loc><lastmod>2024-07-19</lastmod></url><url><loc>https://example.com/b</loc></url></urlset>')
   }
+  if (url.pathname === '/wide.json') {
+    res.setHeader('content-type', 'application/json')
+    return res.end(JSON.stringify(Array.from({ length: 300 }, (_, i) => ({ id: i, name: `row ${i} ${'x'.repeat(30)}` }))))
+  }
+  if (url.pathname === '/wide') {
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<title>Wide</title><p>${Array.from({ length: 800 }, (_, i) => `word${i}`).join(' ')}</p>`)
+  }
   if (url.pathname === '/search') {
     res.setHeader('content-type', 'application/json')
     return res.end(JSON.stringify({ q: url.searchParams.get('q') }))
@@ -269,4 +277,15 @@ test('GET verbs become a query, JSON comes back as JSON', async () => {
   const { code, out } = await run('do', 'search', 'q=shoes')
   assert.equal(code, 0, out)
   assert.match(out, /"q":"shoes"/)
+})
+
+test('no file saved with open --out has a line longer than save.lineChars, JSON or text, one page or several', async () => {
+  const file = join(env.BROWSER_LAYER_HOME, 'wide.txt')
+  for (const args of [[`${base}/wide.json`], [`${base}/wide`], [`${base}/wide.json`, `${base}/wide`]]) {
+    assert.equal((await run('open', '--out', file, ...args)).code, 0)
+    const lines = readFileSync(file, 'utf8').split('\n')
+    assert.ok(lines.length > 3 && lines.every(l => l.length <= DEFAULTS['save.lineChars']), args.join(' '))
+  }
+  await run('open', '--out', file, `${base}/wide.json`)
+  assert.equal(JSON.parse(readFileSync(file, 'utf8')).length, 300)
 })

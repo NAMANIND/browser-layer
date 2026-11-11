@@ -223,24 +223,59 @@ export function diffLines(before: string[], after: string[]): { removed: string[
 export const goneLines = (removed: string[], few: number) =>
   [...removed.slice(0, few).map(l => `- ${l}`), ...(removed.length > few ? [`… ${removed.length - few} more gone`] : [])]
 
+// A file the agent reads with sed, rg and head holds no line longer than `max`: a long line printed whole is
+// the largest thing an agent ever carries. JSON (an API body, an eval's result) breaks between its elements
+// and stays valid JSON; text breaks at a space. A single string or word longer than `max` stays whole.
+export function bounded(text: string, max: number): string {
+  return text.split('\n').map(l => (l.length <= max ? l : /^\s*[[{]/.test(l) && jsonLines(l, max) || wrap(l, max))).join('\n')
+}
+
+function jsonLines(line: string, max: number): string | undefined {
+  let value: unknown
+  try { value = JSON.parse(line) } catch { return undefined }
+  const lines = (v: unknown): string[] => {
+    const whole = JSON.stringify(v)
+    if (whole.length <= max || typeof v !== 'object' || v === null) return [whole]
+    const [open, close, parts] = Array.isArray(v)
+      ? ['[', ']', v.map(lines)]
+      : ['{', '}', Object.entries(v).map(([k, x]) => { const l = lines(x); l[0] = `${JSON.stringify(k)}:${l[0]}`; return l })]
+    parts.forEach((l, i) => { if (i < parts.length - 1) l[l.length - 1] += ',' })
+    return [open as string, ...(parts as string[][]).flat(), close as string]
+  }
+  return lines(value).join('\n')
+}
+
+function wrap(line: string, max: number): string {
+  const out: string[] = []
+  let rest = line
+  while (rest.length > max) {
+    let at = rest.lastIndexOf(' ', max)
+    if (at <= 0) at = rest.indexOf(' ', max)
+    if (at < 0) break
+    out.push(rest.slice(0, at))
+    rest = rest.slice(at + 1)
+  }
+  return [...out, rest].join('\n')
+}
+
 // What a bulk call (each, open) leaves in its --out file and says in its answer. The file is plain lines for
 // grep, sed and head: a header line `== <address>  <status>` per page, then the page's own lines. A page line
 // that begins with `== ` gets a leading space so `rg -n '^== '` finds pages and only pages.
 export type Bulk = { address: string; status?: number; error?: string; title: string; text: string }
 
 const failure = (b: Bulk) => b.error ?? (b.status !== undefined && b.status >= 400 ? `HTTP ${b.status}` : undefined)
-const linesOf = (b: Bulk) => (b.text ? b.text.split('\n') : [])
+const linesOf = (b: Bulk, max: number) => (b.text ? bounded(b.text, max).split('\n') : [])
 
-export function bulkFile(pages: Bulk[]): string {
+export function bulkFile(pages: Bulk[], max: number): string {
   return pages.map(b => {
     const mark = b.error ? `error: ${b.error}` : failure(b) ?? (b.status === undefined ? '' : `[${b.status}]`)
-    return [`== ${b.address}${mark ? `  ${mark}` : ''}`, ...linesOf(b).map(l => (l.startsWith('== ') ? ` ${l}` : l))].join('\n')
+    return [`== ${b.address}${mark ? `  ${mark}` : ''}`, ...linesOf(b, max).map(l => (l.startsWith('== ') ? ` ${l}` : l))].join('\n')
   }).join('\n') + '\n'
 }
 
 // Counts, each failure with its reason, one headline per page that read (title or first line, size, the line
 // where it starts in the file), each list cut at its bound with the number left out.
-export function bulkAnswer(name: string, pages: Bulk[], file: string, p: Pick<Policy, 'bulk.pages' | 'bulk.failures' | 'bulk.headlineChars'>): string {
+export function bulkAnswer(name: string, pages: Bulk[], file: string, p: Pick<Policy, 'bulk.pages' | 'bulk.failures' | 'bulk.headlineChars' | 'save.lineChars'>): string {
   const failed = pages.filter(failure)
   const cut = (s: string) => (s.length > p['bulk.headlineChars'] ? `${s.slice(0, p['bulk.headlineChars'] - 1)}…` : s)
   const lines = [`${name}: ${pages.length} pages, ${failed.length} failed, saved ${file}`]
@@ -249,7 +284,7 @@ export function bulkAnswer(name: string, pages: Bulk[], file: string, p: Pick<Po
   let at = 1
   const heads: string[] = []
   for (const b of pages) {
-    const n = linesOf(b).length
+    const n = linesOf(b, p['save.lineChars']).length
     if (!failure(b)) heads.push(`${b.address}  ${cut(b.title ? `"${b.title}"` : b.text.split('\n').find(l => l.trim()) ?? '')} · ${n} lines, ${b.text.length} chars · line ${at}`)
     at += 1 + n
   }

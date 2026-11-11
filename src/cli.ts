@@ -5,7 +5,7 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { Field, Page, Verb } from './html.js'
 import { ceiling, home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
-import { bulkAnswer, bulkFile, paginate, renderText, xmlLines, type Bulk } from './render.js'
+import { bounded, bulkAnswer, bulkFile, paginate, renderText, xmlLines, type Bulk } from './render.js'
 import { loadPolicy, type Policy } from './policy.js'
 import { live, ping, VERSION } from './client.js'
 import { findBrowser, openChrome, openInspectPage, PROFILE_FLAGS } from './browser.js'
@@ -80,18 +80,18 @@ const dataBody = (res: Response) => /xml/.test(res.type) && !/html/.test(res.typ
 // A fetched page reads like a live one: the same tree and renderer, plus its forms as verbs. JSON is
 // printed compact: indentation is for eyes, and for an agent only tokens. --out writes the whole result.
 async function show(res: Response, json: boolean, out?: string) {
+  const policy = loadPolicy()
   const data = dataBody(res)
   if (data !== undefined) {
     if (json) return console.log(JSON.stringify({ url: res.url, status: res.status, type: res.type, body: res.body }))
-    if (out) { writeFileSync(out, data); return console.log(`saved ${out}: ${data.length} chars`) }
+    if (out) { const file = bounded(data, policy['save.lineChars']); writeFileSync(out, file); return console.log(`saved ${out}: ${file.length} chars`) }
     const more = data.length > BODY_CHARS ? `\n… ${data.length - BODY_CHARS} more chars: --out <file> writes it all` : ''
     return console.log(`${res.url}  [${res.status}]  ${res.type}\n\n${data.slice(0, BODY_CHARS)}${more}`)
   }
-  const policy = loadPolicy()
   const { page, text } = await readPage(res, policy)
   saveLastPage(session, { url: page.url, links: page.links, verbs: page.verbs })
   if (json) return console.log(JSON.stringify(page))
-  if (out) { writeFileSync(out, `${text}\n`); return console.log(`saved ${out}: ${text.split('\n').length} lines, ${text.length} chars`) }
+  if (out) { const file = bounded(text, policy['save.lineChars']); writeFileSync(out, `${file}\n`); return console.log(`saved ${out}: ${file.split('\n').length} lines, ${file.length} chars`) }
   const [first, ...more] = paginate(text, policy['render.pageChars'])
   const lines = [`${page.url}  [${page.status}]${page.title ? `  "${page.title}"` : ''}`, '', first]
   if (more.length) lines.push(`… ${more.join('\n').length} more chars: --out <file> writes it all`)
@@ -142,7 +142,7 @@ async function openMany(urls: string[], out?: string) {
     pump()
   })
   if (!out) return console.log(ceiling(pages.map(p => `${p.address}\n${p.error ? `error: ${p.error}` : p.text}`).join('\n\n'), policy))
-  writeFileSync(out, bulkFile(pages))
+  writeFileSync(out, bulkFile(pages, policy['save.lineChars']))
   console.log(bulkAnswer('open', pages, out, policy))
 }
 

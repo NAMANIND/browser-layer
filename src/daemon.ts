@@ -8,7 +8,7 @@ import { isTracker } from './trackers.js'
 import { findBrowser } from './browser.js'
 import { ceiling, home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, humanCheck, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
-import { bulkAnswer, bulkFile, diffLines, findRef, goneLines, itemsLine, paginate, renderMap, renderText, type Bulk } from './render.js'
+import { bounded, bulkAnswer, bulkFile, diffLines, findRef, goneLines, itemsLine, paginate, renderMap, renderText, type Bulk } from './render.js'
 import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
 import { query, records, toTsv, type Query } from './data.js'
 import { pidPath, ping, socketPath, VERSION } from './client.js'
@@ -414,7 +414,8 @@ async function textOf(tab: Tab, ref?: number): Promise<string> {
 // A result bigger than one answer belongs in a file the agent's own tools read (grep, jq, a script), not in
 // its context: --out writes it whole, and the answer says how much and where.
 // The answer also gives the start of it: the first look is what the agent would spend a turn on.
-const saved = (file: string, body: string, what: string) => {
+const saved = (file: string, text: string, what: string) => {
+  const body = bounded(text, policy['save.lineChars'])
   writeFileSync(file, `${body}\n`)
   const max = policy['answer.previewChars']
   if (body.length <= max) return `saved ${file}: ${what}\n${body}`
@@ -913,7 +914,7 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     if (was !== undefined && tabs.has(was)) current.set(c.session, was)
     if (!c.out) return results.map(r => `${r.head}\n${r.page.error && !r.page.text ? `error: ${r.page.error}` : r.page.text}`).join('\n\n')
     const all = results.map(r => r.page)
-    writeFileSync(c.out, bulkFile(all))
+    writeFileSync(c.out, bulkFile(all, policy['save.lineChars']))
     return bulkAnswer('each', all, c.out, policy)
   },
   async tabs(c) {
@@ -1195,7 +1196,7 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
       // The whole answer goes to a file, where the agent's own tools (jq, a script) read it.
       if (c.files) {
         if (!body) throw new Error(`#${r.id} has no body the browser still holds`)
-        writeFileSync(c.files[0], body)
+        writeFileSync(c.files[0], /json/.test(r.type) ? bounded(body.toString('utf8'), policy['save.lineChars']) : body)
         return `saved ${c.files[0]} (${body.length} bytes, ${r.type || 'unknown type'})`
       }
       const text = body?.toString('utf8')

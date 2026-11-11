@@ -30,6 +30,7 @@ export const DEFAULTS = {
   'answer.maxChars': 20000,
   'answer.previewChars': 1500,
   'answer.keepFiles': 20,
+  'save.lineChars': 2000,
   'answer.keepBytes': 50_000_000,
   'render.nameChars': 120,
   'render.labelChars': 40,
