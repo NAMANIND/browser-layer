@@ -384,3 +384,17 @@ by the exam: `check`/`uncheck` must sit next to the click examples or haiku writ
 browser-layer calls) contain no unknown-command or bad-flag error; the errors are runtime (a page that did not answer, a stale ref, a covered
 control), and those answers already say what to run next. No other model family was reachable on this machine (no codex, gemini or
 ollama): only haiku and sonnet were tested.
+
+Long tasks for the local test (`--set long`, 11 Nov 2026): six script-checked tasks (site-wide aggregates, a 10-lookup list, two interactive
+lists, an author/tag search form) with a 150-turn, 12-minute limit; haiku, about $0.011 a run. They average 17 steps (9 to 31), not the 30+
+asked for: tasks that fetch many pages in one `open --out` or `each` call stay short, and only separate interactive lookups run long. A/A
+(36 runs, $0.40): chance differences under 12% in cost and score, 15% in wall time and output tokens, 16% in characters returned, 20% in
+steps, 22% in input tokens, 29% in carried, 45% in look-backs. Reverting the `--out` preview (`2c5e4fd`, 18 runs, $0.18) moved steps -3%
+(inside 27%) and look-backs the wrong way, so the long set cannot confirm or reject a preview-sized change; cost and wall effects of about
+15% would show. Run it under `caffeinate -dims`: a sleeping Mac makes runs hang to their time limit.
+
+Pre-release gate (`node bench/local/gate.mjs <candidate> <baseline>`): both task sets for both refs, paired by task, finalcompare.py's 95%
+bootstrap rule in JavaScript, NO-GO if cost, wall time or score is BEHIND or the mean score is lower; steps and input tokens are shown
+but do not veto. About $0.6 and 25-30 minutes at 3 repeats. A candidate that moves cost or wall time by about 15% shows; it does not
+replace the real benchmark.
+

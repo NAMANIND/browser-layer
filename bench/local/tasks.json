@@ -2,36 +2,137 @@
   {
     "id": "books-nonfiction",
     "prompt": "On books.toscrape.com, how many books in the Nonfiction category are rated five stars? The category has several pages.",
-    "expect": ["20"]
+    "expect": [
+      "20"
+    ]
   },
   {
     "id": "quotes-authors",
     "prompt": "On quotes.toscrape.com, going through all the pages of quotes, how many different authors are quoted?",
-    "expect": ["50"]
+    "expect": [
+      "50"
+    ]
   },
   {
     "id": "countries-table",
     "prompt": "On https://www.scrapethissite.com/pages/simple/ there is a table of countries with their area. How many countries have an area of more than 1,000,000 km²?",
-    "expect": ["31"]
+    "expect": [
+      "31"
+    ]
   },
   {
     "id": "wiki-apollo-deep",
     "prompt": "In the English Wikipedia article on Apollo 11, how many kilograms of lunar surface material (two sample boxes) did the astronauts lift to the lunar module's hatch before leaving the surface?",
-    "expect": ["21.55"]
+    "expect": [
+      "21.55"
+    ]
   },
   {
     "id": "books-poetry-stock",
     "prompt": "On books.toscrape.com, open every book in the Poetry category and add up the number of copies in stock shown on each book's page. What is the total?",
-    "expect": ["235"]
+    "expect": [
+      "235"
+    ]
   },
   {
     "id": "pizza-form",
     "prompt": "At https://httpbin.org/forms/post fill in the pizza order form with customer name Ada Test, telephone 555-0100, e-mail ada@example.com, size Large, toppings Bacon and Onion, delivery time 19:45 and delivery instructions \"ring twice\", then submit it. The answer is the list of values the result page shows for size, toppings, delivery and comments.",
-    "expect": ["large", "bacon", "onion", "19:45", "ring twice"]
+    "expect": [
+      "large",
+      "bacon",
+      "onion",
+      "19:45",
+      "ring twice"
+    ]
   },
   {
     "id": "sitemap-2016",
     "prompt": "The sitemap of sitemaps.org is at https://www.sitemaps.org/sitemap.xml. How many of its pages have a last-modified date in 2016?",
-    "expect": ["63"]
+    "expect": [
+      "63"
+    ]
+  },
+  {
+    "id": "long-quotes-century",
+    "long": true,
+    "prompt": "On quotes.toscrape.com, go through every page of quotes and open the about page of every author who is quoted. How many of the quotes on the site are by authors born in the 19th century (1800 to 1899), and which author has the most of those quotes? Check each author's birth year on their own about page; do not rely on memory.",
+    "expect": [
+      "41",
+      "Albert Einstein"
+    ]
+  },
+  {
+    "id": "long-books-stock",
+    "long": true,
+    "prompt": "On books.toscrape.com, look at every book in the Mystery, Travel and Science categories (each category has several pages). Among the books that cost more than £30.00 and are rated four or five stars, how many are there and how many copies are in stock in total? The stock number is on each book's own page. Write the matching books to books.tsv in the current directory (title, price, stars, stock, UPC from the book's page) and, before answering, re-open three of those books on the site to confirm their stock and UPC match the file.",
+    "expect": [
+      "14",
+      "158"
+    ]
+  },
+  {
+    "id": "long-books-categories",
+    "long": true,
+    "prompt": "On books.toscrape.com there are 50 categories listed in the sidebar of the home page. Visit every category and note how many books it has. How many categories have fewer than 10 books, and which category has the most books and how many? Write one row per category to categories.tsv (name, book count, price of its cheapest book) and check three of the rows against the live pages before answering.",
+    "expect": [
+      "25",
+      "Default",
+      "152"
+    ]
+  },
+  {
+    "id": "long-internet-a",
+    "long": true,
+    "prompt": "On https://the-internet.herokuapp.com do these six things and report each result. (1) /add_remove_elements/: click Add Element 15 times, then delete 6 of them; how many Delete buttons are left? (2) /tables: in the first table (Example 1) what is the sum of the Due column and what is the last name of the person who is owed the most? (3) /hovers: the names shown under the three profile pictures. (4) /horizontal_slider: set the slider to 4.5 and report the value shown. (5) /inputs: enter 42 in the number field and press the up arrow key 3 times; report the value. (6) /dynamic_controls: remove the checkbox and report the message, then enable the text field and report the message. (7) /dropdown: select Option 2 and report which option is shown as selected. (8) /checkboxes: tick checkbox 1 and untick checkbox 2, then report the checked state of both. (9) /key_presses: press the key K and report the result line. (10) /large: the text of the cell in row 20, column 10 of the large table. Report all ten results, one per item.",
+    "expect": [
+      "9",
+      "251",
+      "Doe",
+      "user1",
+      "user2",
+      "user3",
+      "4.5",
+      "45",
+      "gone",
+      "enabled",
+      "Option 2",
+      "K",
+      "20.10"
+    ]
+  },
+  {
+    "id": "long-internet-b",
+    "long": true,
+    "prompt": "On https://the-internet.herokuapp.com do these ten things and report each result, one per item. (1) /nested_frames: the text written in each of the four frames. (2) /status_codes: open the links for 200, 301, 404 and 500 and report the status code each page states. (3) /broken_images: how many of the three images fail to load? (4) /shifting_content/menu: how many menu items are there? (5) /floating_menu: the names of the menu items. (6) /entry_ad: the title of the modal window that appears; then close it. (7) /iframe: the text the editor holds when the page opens. (8) /windows: click the link and report the title of the new window's page. (9) /dropdown: how many options does the list hold, counting the placeholder? (10) /redirector: click the link and report the path of the page you land on.",
+    "expect": [
+      "LEFT",
+      "MIDDLE",
+      "RIGHT",
+      "BOTTOM",
+      "200",
+      "301",
+      "404",
+      "500",
+      "2",
+      "5",
+      "Home",
+      "News",
+      "Contact",
+      "About",
+      "MODAL",
+      "Your content goes here",
+      "New Window",
+      "status_codes",
+      "3"
+    ]
+  },
+  {
+    "id": "long-quotes-pairs",
+    "long": true,
+    "prompt": "On https://quotes.toscrape.com/search.aspx pick an author and then a tag, search, and note how many quotes the result shows. Do this for each of these nine pairs: Albert Einstein + inspirational, Albert Einstein + life, Jane Austen + books, Jane Austen + love, Marilyn Monroe + love, Marilyn Monroe + life, C.S. Lewis + love, Steve Martin + humor, Bob Marley + love. Give the nine counts in that order, the total over the nine searches, and the pair with the most quotes. Put all of it in the Answer line.",
+    "expect": [
+      "14",
+      "Marilyn Monroe"
+    ]
   }
 ]

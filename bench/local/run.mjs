@@ -2,7 +2,7 @@
 // browser-layer, and writes one metrics.json per run. Compare the runs with compare.mjs.
 //
 //   node bench/local/run.mjs --out DIR --arm A=hardening --arm B=hardening,skill=filler [--repeats 3]
-//        [--tasks id,id] [--concurrency 3] [--model haiku] [--max-usd 5] [--est-usd-per-run 0.02]
+//        [--tasks id,id] [--set short|long] [--concurrency 3] [--model haiku] [--max-usd 5] [--est-usd-per-run 0.02]
 //
 // An arm is `label=git-ref`; `,skill=filler` appends 14,000 characters of DESIGN.md to the skill, `,skill=<ref>`
 // takes the skill from another ref. A run that already has a metrics.json in DIR is not repeated.
@@ -17,10 +17,11 @@ const here = dirname(fileURLToPath(import.meta.url))
 const repo = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: here, encoding: 'utf8' }).trim()
 const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 26 })
 const FILLER_CHARS = 14000
-const MAX_TURNS = 40
+// A run whose stream is silent this long is hung (a command that never returns); it is killed and its limit is 'stalled'.
+const STALL_MS = 4 * 60 * 1000
+const LIMITS = { short: { turns: 40, minutes: 8 }, long: { turns: 150, minutes: 12 } }
 // The benchmark's agent has only this tool for the web; without the instruction a cheap model just curls the page.
 const WEB_RULE = 'Use the browser-layer skill for all web access. curl, wget and your own scripts that fetch URLs are not available here.'
-const TIMEOUT_MS = 8 * 60 * 1000
 // Commands that read or process a file again, as opposed to a browser-layer call.
 const LOOKBACK = /^(?:cd [^;&]+(?:&&|;) *)?(?:rg|grep|egrep|sed|head|tail|awk|cat|jq|wc|sort|cut|uniq|python3?|node)\b/
 
@@ -35,7 +36,8 @@ const out = opt('--out'), repeats = +opt('--repeats', 3), concurrency = +opt('--
 const model = opt('--model', 'haiku'), maxUsd = +opt('--max-usd', 5), estPerRun = +opt('--est-usd-per-run', 0.02)
 if (!out || !arms.length) { console.error('usage: run.mjs --out DIR --arm label=ref [--arm …]'); process.exit(2) }
 const wanted = opt('--tasks')?.split(',')
-const tasks = JSON.parse(readFileSync(join(here, 'tasks.json'), 'utf8')).filter(t => !wanted || wanted.includes(t.id))
+const set = opt('--set', 'short')
+const tasks = JSON.parse(readFileSync(join(here, 'tasks.json'), 'utf8')).filter(t => wanted ? wanted.includes(t.id) : !!t.long === (set === 'long'))
 
 // A build is a packed and installed copy of the ref, kept per commit so arms and later runs share it.
 function build(ref) {
@@ -87,12 +89,13 @@ function metrics(dir, task, wall, timedOut, events) {
     chars: row.chars, carried: row.carried,
     inputTokens: (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
     outputTokens: u.output_tokens ?? 0, usd: result?.total_cost_usd ?? 0, wallS: Math.round(wall / 1000),
-    limit: timedOut ? 'time' : result?.subtype === 'error_max_turns' ? 'turns' : result ? null : 'no-result',
+    limit: timedOut ?? (result?.subtype === 'error_max_turns' ? 'turns' : result ? null : 'no-result'),
     answer: words(answer).slice(0, 60).join(' '),
   }
 }
 
-async function run(job) {
+// A stalled run is the model API not answering, not the agent's doing, so it is run again (twice at most).
+async function run(job, attempt = 1) {
   const dir = join(out, 'runs', `${job.arm.label}-${job.task.id}-${job.rep}`)
   if (existsSync(join(dir, 'metrics.json'))) return JSON.parse(readFileSync(join(dir, 'metrics.json'), 'utf8'))
   rmSync(dir, { recursive: true, force: true })
@@ -103,25 +106,31 @@ async function run(job) {
     ...process.env, PATH: `${join(job.build.root, 'prefix/bin')}:${process.env.PATH}`,
     BROWSER_LAYER_HOME: join(dir, 'home'), BROWSER_LAYER_SESSION: 'bench',
   }
+  const limits = LIMITS[job.task.long ? 'long' : 'short']
   const prompt = `${job.task.prompt}\n\nFinish with one line: "Answer: <your answer>".`
   const child = spawn('claude', [
     '-p', prompt, '--output-format', 'stream-json', '--verbose', '--model', model, '--tools', 'Bash,Skill',
-    '--allowedTools', 'Bash,Skill', '--max-turns', String(MAX_TURNS), '--setting-sources', 'project',
+    '--allowedTools', 'Bash,Skill', '--max-turns', String(limits.turns), '--setting-sources', 'project',
     '--strict-mcp-config', '--no-session-persistence', '--append-system-prompt', WEB_RULE,
   ], { cwd: work, env, stdio: ['ignore', 'pipe', 'pipe'] })
   let raw = ''
-  child.stdout.on('data', d => { raw += d })
+  let last = Date.now()
+  child.stdout.on('data', d => { raw += d; last = Date.now() })
   const start = Date.now()
-  let timedOut = false
-  const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL') }, TIMEOUT_MS)
+  let timedOut = null
+  const kill = why => { timedOut = timedOut ?? why; child.kill('SIGKILL') }
+  const timer = setTimeout(() => kill('time'), limits.minutes * 60 * 1000)
+  const watch = setInterval(() => Date.now() - last > STALL_MS && kill('stalled'), 15000)
   await new Promise(r => child.on('close', r))
   clearTimeout(timer)
+  clearInterval(watch)
   writeFileSync(join(dir, 'stream.jsonl'), raw)
   try { execFileSync('browser-layer', ['stop', '--session', 'default'], { env, timeout: 30000, stdio: 'ignore' }) } catch {}
   const events = raw.split('\n').filter(Boolean).flatMap(l => { try { return [JSON.parse(l)] } catch { return [] } })
-  const m = { arm: job.arm.label, rep: job.rep, ...metrics(dir, job.task, Date.now() - start, timedOut, events) }
+  const m = { arm: job.arm.label, rep: job.rep, startedAt: start, ...metrics(dir, job.task, Date.now() - start, timedOut, events) }
   writeFileSync(join(dir, 'metrics.json'), JSON.stringify(m, null, 1))
   rmSync(work, { recursive: true, force: true })
+  if (m.limit === 'stalled' && attempt < 3) { rmSync(dir, { recursive: true, force: true }); return run(job, attempt + 1) }
   return m
 }
 
