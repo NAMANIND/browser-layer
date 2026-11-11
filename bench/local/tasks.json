@@ -1,0 +1,37 @@
+[
+  {
+    "id": "books-nonfiction",
+    "prompt": "On books.toscrape.com, how many books in the Nonfiction category are rated five stars? The category has several pages.",
+    "expect": ["20"]
+  },
+  {
+    "id": "quotes-authors",
+    "prompt": "On quotes.toscrape.com, going through all the pages of quotes, how many different authors are quoted?",
+    "expect": ["50"]
+  },
+  {
+    "id": "countries-table",
+    "prompt": "On https://www.scrapethissite.com/pages/simple/ there is a table of countries with their area. How many countries have an area of more than 1,000,000 km²?",
+    "expect": ["31"]
+  },
+  {
+    "id": "wiki-apollo-deep",
+    "prompt": "In the English Wikipedia article on Apollo 11, how many kilograms of lunar surface material (two sample boxes) did the astronauts lift to the lunar module's hatch before leaving the surface?",
+    "expect": ["21.55"]
+  },
+  {
+    "id": "books-poetry-stock",
+    "prompt": "On books.toscrape.com, open every book in the Poetry category and add up the number of copies in stock shown on each book's page. What is the total?",
+    "expect": ["235"]
+  },
+  {
+    "id": "pizza-form",
+    "prompt": "At https://httpbin.org/forms/post fill in the pizza order form with customer name Ada Test, telephone 555-0100, e-mail ada@example.com, size Large, toppings Bacon and Onion, delivery time 19:45 and delivery instructions \"ring twice\", then submit it. The answer is the list of values the result page shows for size, toppings, delivery and comments.",
+    "expect": ["large", "bacon", "onion", "19:45", "ring twice"]
+  },
+  {
+    "id": "sitemap-2016",
+    "prompt": "The sitemap of sitemaps.org is at https://www.sitemaps.org/sitemap.xml. How many of its pages have a last-modified date in 2016?",
+    "expect": ["63"]
+  }
+]
