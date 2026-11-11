@@ -1,0 +1,30 @@
+browser-layer — websites as text and verbs for agents. <ref> is a number from the map, or a control's name.
+
+Plain HTTP, no browser:  open <url>|<ref> · verbs · do <verb> k=v ... · --json
+Live tabs (headless browser, runs the page's JS):
+  tab <url…>                   open tabs (several load together; the first is current; an open page is switched to); answers with each map
+  go <url> · back · forward · reload · tabs · use <id> · close [id|--all] · stop
+  steps '<cmd>; <cmd>; ...'    several commands in one call: actions answer in one line, reads and
+                               the last step in full; the first error stops the rest
+  each '<read>' <url…>         load pages together, run one read on each, one answer; its tabs close (--out <file>: a line per page)
+  map                          regions, fields, actions, lists and links, with refs
+  read [ref] [--page N] [--full]   the page or one region; read again: what changed
+  find <text> [--page N]       lines that contain it
+  get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]   a list or table as records (TSV)
+  --out <file>                 on open, read, find, get: the whole result to a file
+  click · dblclick · rightclick · hover <ref>      check · uncheck <ref>      submit <ref>
+  type <ref> <text> [--enter] [--keys]   pick <ref> <option>   press <key>   drag <ref> <onto ref>
+  scroll [ref] [down|up|top|bottom]   upload <ref> <file...>   wait [--gone] <text>
+  dialog accept [text] | dismiss   explore [ref] (open menus, list them)   menu "A > B > C"
+  eval <js>                    run JavaScript in the page; the result as JSON
+  net [--all] · net show <#> · net save <#> <file>   the page's requests and their bodies
+  cookies [domain] · cookies clear [domain] · storage local|session [clear]
+  allow <perm>[,perm] [lat,lon]   grant to the current site (images loads pictures, off by default)
+  screenshot [ref] [file] [--full]   a PNG for a person
+Pop-ups open as tabs and become current; downloads are saved and reported.
+
+show / hide: watch the browser in a window. login <url>: a person signs in; the agent stays signed in.
+--session <name> (BROWSER_LAYER_SESSION): an agent's own tabs, cookies shared. --profile <name>: a separate browser.
+attach: set up your own Chrome for the agent. --attach <port|auto> (BROWSER_LAYER_ATTACH): work in it, in tabs of its own; it never closes yours.
+BROWSER_LAYER_BROWSER=<path> picks the browser.
+install · browser · update · --version
