@@ -1,0 +1,36 @@
+{
+  "none": [],
+  "baseline": [
+    "variants/old-skill.md",
+    "variants/old-help.txt"
+  ],
+  "skill": [
+    "variants/old-skill.md"
+  ],
+  "help": [
+    "variants/old-help.txt"
+  ],
+  "short+help": [
+    "variants/short-skill.md",
+    "variants/old-help.txt"
+  ],
+  "start+short": [
+    "variants/short-skill.md",
+    "variants/help-start.txt"
+  ],
+  "short+help2": [
+    "variants/short-skill.md",
+    "variants/help2.txt"
+  ],
+  "help3": [
+    "variants/help2.txt+variants/rules.txt"
+  ],
+  "stub+help3": [
+    "variants/stub-skill.md",
+    "variants/help2.txt+variants/rules.txt"
+  ],
+  "current": [
+    "skill",
+    "help"
+  ]
+}

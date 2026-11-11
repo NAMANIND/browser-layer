@@ -350,3 +350,19 @@ see `bench/README.md`. A/A of `hardening` against itself: differences by chance 
 tokens +31%, cost +28%, wall +43%, all on 7 of 7 tasks, so token and cost changes of about 10% show; steps and carried characters did
 not move. It cannot detect step, carried-character or look-back effects under about 10%, 25% and 50%, and its agent (Claude haiku, runs
 of about 4 steps, no timeouts) is not the benchmark's, so the long-task loops that cost the real benchmark its steps are out of its reach.
+
+Branch `claude/onboarding-lab-5060e8`: how a model learns the tool, and one document instead of two. Real sizes: the skill was 5,857
+characters and `help` 2,477, so a Codex agent's first call (`cat SKILL.md && browser-layer help`) read about 8.4 KB (2,100 tokens),
+and carried through ~72 steps that is ~150k token-reads a run. In Claude Code only the skill's description is always loaded and the body
+comes in with one Skill call; `help` is then never read. In 1,102 Codex transcripts 1,101 begin with that two-file read. A command-writing
+exam without a browser (`bench/onboarding/`, 32 scenarios, headless `claude -p`; only Claude models were reachable, other families are
+unknown) scored, per haiku (3 repeats) / sonnet (2): both files 0.95 / 0.98; skill alone 0.76 / 0.74 (misses `get --sort/--limit`, `dialog`,
+`do`, `uncheck`, `menu`); `help` alone 0.88 / 0.88 (misses the rules: pop-ups in one call, suggestion lists, `allow images`, `open --out` for many
+pages); nothing 0.21 (invents `search`, `--filter`, `requests`). Invented commands: none with any document, 11 without. A 2 KB judgment-only skill
+plus `help` scored 0.92 / 0.95, and the manual as one 4.9 KB document (Start here, commands, Rules) 0.94 to 1.00; the exam wording was tuned once
+(the `menu` line), so read these as comparisons. Real runs (haiku, the 7 harness tasks, 3 repeats, $0.1 per arm): a stub skill that says "run
+help" costs a step (5.6 steps against 4.3, input tokens +27%, within noise at 7 tasks) and was dropped; the skill body being the manual gave
+score 1.00 against 0.95, steps 4.1 against 4.3, input tokens equal, 6 s less wall time. Kept: `SKILL.md` body is the manual, `help` prints the same
+text, and `test/onboarding.test.ts` fails if they differ; the loop, rules and the commands the exam found missing moved into it once, the skill's
+duplicate prose is gone. Onboarding 8.4 KB → 6.0 KB in one read (frontmatter 1.1 KB of it, which a skill needs), `src/` 3,631 → 3,659 lines (help text,
+not logic). Hosts that run `cat SKILL.md && browser-layer help` now read the manual twice: use one of them.
