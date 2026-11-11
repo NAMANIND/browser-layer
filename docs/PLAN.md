@@ -350,3 +350,12 @@ see `bench/README.md`. A/A of `hardening` against itself: differences by chance 
 tokens +31%, cost +28%, wall +43%, all on 7 of 7 tasks, so token and cost changes of about 10% show; steps and carried characters did
 not move. It cannot detect step, carried-character or look-back effects under about 10%, 25% and 50%, and its agent (Claude haiku, runs
 of about 4 steps, no timeouts) is not the benchmark's, so the long-task loops that cost the real benchmark its steps are out of its reach.
+
+Long tasks for the local test (`--set long`, 11 Nov 2026): six script-checked tasks (site-wide aggregates, a 10-lookup list, two interactive
+lists, an author/tag search form) with a 150-turn, 12-minute limit; haiku, about $0.011 a run. They average 17 steps (9 to 31), not the 30+
+asked for: tasks that fetch many pages in one `open --out` or `each` call stay short, and only separate interactive lookups run long. A/A
+(36 runs, $0.40): chance differences under 12% in cost and score, 15% in wall time and output tokens, 16% in characters returned, 20% in
+steps, 22% in input tokens, 29% in carried, 45% in look-backs. Reverting the `--out` preview (`2c5e4fd`, 18 runs, $0.18) moved steps -3%
+(inside 27%) and look-backs the wrong way, so the long set cannot confirm or reject a preview-sized change; cost and wall effects of about
+15% would show. Run it under `caffeinate -dims`: a sleeping Mac makes runs hang to their time limit.
+
