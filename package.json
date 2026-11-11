@@ -39,6 +39,7 @@
     "test": "tsx --test \"test/*.test.ts\"",
     "measure": "tsc && node bench/measure.mjs",
     "stress": "tsc && node bench/stress.mjs",
+    "carried": "node bench/carried.mjs",
     "record": "node bench/record-corpus.mjs",
     "prepack": "npm run build"
   },
