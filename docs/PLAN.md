@@ -366,3 +366,21 @@ score 1.00 against 0.95, steps 4.1 against 4.3, input tokens equal, 6 s less wal
 text, and `test/onboarding.test.ts` fails if they differ; the loop, rules and the commands the exam found missing moved into it once, the skill's
 duplicate prose is gone. Onboarding 8.4 KB → 6.0 KB in one read (frontmatter 1.1 KB of it, which a skill needs), `src/` 3,631 → 3,659 lines (help text,
 not logic). Hosts that run `cat SKILL.md && browser-layer help` now read the manual twice: use one of them.
+
+Onboarding, second round (same branch). Leave-one-out ablation of the manual (`bench/onboarding/ablate.mjs`, 38 units, haiku ×5, each
+unit asked only on the scenarios that test it): removing the commands cut scores by 0.3 to 1.0 (`allow`, `cookies/storage`, `find`, `eval`, `net`,
+`dialog`, `get`, `hover/check`), and removing these cost nothing: a second `tab` line, the second `--out` line, the separate `each` and `map`
+lines, the click/type examples, the "answers to act on" lines; the `BROWSER_LAYER_BROWSER`, `install` and pop-up lines have no scenario, so
+the exam cannot say. Rules cost 0.03 to 0.1 each on their scenarios; list-complete and know-when-to-stop showed no loss because the scenarios
+cue them, and all safety rules stay. Applying those trims (4,773 characters, exam 0.97 haiku / 0.97 sonnet, same as the full text) was
+tried and reverted: on 2 long tasks (12 runs per arm) it took 14% more steps, 4.0 look-backs against 2.3 and 17% more input tokens, both
+tasks the same direction, for a saving of about 1% of the carried tokens. What stays is the full text with the Rules before the commands:
+with no skill, a model given only the tool's name ran `browser-layer --help | head -40` (haiku and sonnet, all 6 runs that found the
+tool), and the Rules used to start at line 46. On the same 2 long tasks it equals the baseline (score 1.00 against 0.92, steps 10.8 against
+10.5, input tokens -4%); on the 7 short tasks the trimmed text scored 1.00 against 0.95 with no unknown command. The cost: the first 40
+lines now hold Start here, the Rules and the commands up to `get`, so a `head -40` reader misses `net`, `eval`, `allow`, `dialog` (exam 0.76
+against 0.97 for the full text, no invented command); before the move it saw the commands and none of the safety rules (0.91). Wording found
+by the exam: `check`/`uncheck` must sit next to the click examples or haiku writes `tick`/`untick`. The Codex transcripts (44,246
+browser-layer calls) contain no unknown-command or bad-flag error; the errors are runtime (a page that did not answer, a stale ref, a covered
+control), and those answers already say what to run next. No other model family was reachable on this machine (no codex, gemini or
+ollama): only haiku and sonnet were tested.

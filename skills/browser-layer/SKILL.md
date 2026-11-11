@@ -29,6 +29,20 @@ Start here
   Answers to act on:   "covered by …; its controls: …" a pop-up is over it: steps 'click "Reject all"; click 31'.
                        "note: …" something did not take. "blocked: …" see Rules.
 
+Rules
+  A list is complete only when you can show it ended: the site's total matches, the last page has no Next, or scroll
+  brings nothing new three times. Until then say how many of how many.
+  Put filters in the URL when the site does (?q=python&page=2); wait "<text>" when content loads late. When the site drops a
+  setting you gave it, set it another way; add no filters of your own. Follow the site's links and search, not guessed URLs.
+  A field with suggestions (a city, a product search): choose from the list (click the option, or press Enter) before the
+  next field, in the same call: steps 'type "From" Zurich; press Enter; type "To" London; press Enter'.
+  Deliver as you go: write the deliverable early, update it with each finding, mark what you have not checked.
+  Know when to stop: when two different ways to the same thing have failed, report it unavailable and move on.
+  blocked / CAPTCHA: never solve or evade it. A block often covers one page: try the home page, the site's search, its API or
+  sitemap, or another source. A person can clear it: show, then hide. Report what you could not reach as unavailable, never empty.
+  Sign-in: never type passwords; a person runs login <url>. Irreversible steps (submit, pay, send, delete): confirm first
+  unless they already said to. Several agents at once: each its own --session <name>. stop closes the browser when done.
+
 Plain HTTP, no browser:  open <url…>|<ref> [--out f] (pages fetched in parallel) · verbs · do <verb> k=v ... · --json
 Live tabs (headless browser, runs the page's JS):
   tab <url…>                   open tabs (several load together; the first is current; an open page is switched to)
@@ -58,17 +72,3 @@ show / hide: watch the browser in a window. login <url>: a person signs in; the 
 attach: set up your own Chrome for the agent. --attach <port|auto> (BROWSER_LAYER_ATTACH): work in it, in tabs of its own; it never closes yours.
 BROWSER_LAYER_BROWSER=<path> picks the browser.
 install · browser · update · --version
-
-Rules
-  A list is complete only when you can show it ended: the site's total matches, the last page has no Next, or scroll
-  brings nothing new three times. Until then say how many of how many.
-  Put filters in the URL when the site does (?q=python&page=2); wait "<text>" when content loads late. When the site drops a
-  setting you gave it, set it another way; add no filters of your own. Follow the site's links and search, not guessed URLs.
-  A field with suggestions (a city, a product search): choose from the list (click the option, or press Enter) before the
-  next field, in the same call: steps 'type "From" Zurich; press Enter; type "To" London; press Enter'.
-  Deliver as you go: write the deliverable early, update it with each finding, mark what you have not checked.
-  Know when to stop: when two different ways to the same thing have failed, report it unavailable and move on.
-  blocked / CAPTCHA: never solve or evade it. A block often covers one page: try the home page, the site's search, its API or
-  sitemap, or another source. A person can clear it: show, then hide. Report what you could not reach as unavailable, never empty.
-  Sign-in: never type passwords; a person runs login <url>. Irreversible steps (submit, pay, send, delete): confirm first
-  unless they already said to. Several agents at once: each its own --session <name>. stop closes the browser when done.
