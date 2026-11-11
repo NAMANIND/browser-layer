@@ -38,5 +38,11 @@
   ],
   "v2": [
     "help"
+  ],
+  "trimmed": [
+    "variants/manual-trimmed.txt"
+  ],
+  "final": [
+    "help"
   ]
 }
