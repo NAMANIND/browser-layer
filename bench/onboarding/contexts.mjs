@@ -16,9 +16,19 @@ const part = name => name === 'skill' ? ['SKILL.md', read('skills/browser-layer/
 
 export const variants = JSON.parse(readFileSync(join(here, 'variants.json'), 'utf8'))
 
+// The manual before the trims the ablation led to; the ablation's units are lines of this text.
+export const manualV1 = () => readFileSync(join(here, 'variants/manual-v1.txt'), 'utf8')
+
+// `cut:4-4,16-17` is manual v1 without those lines (1-based): the leave-one-out ablation's variants.
+// `head:40` and `v1head:40` are the first lines of the current help and of v1: what `--help | head -40` shows.
+const cut = name => manualV1().split('\n').filter((_, i) => !name.slice(4).split(',').some(r => { const [a, b] = r.split('-').map(Number); return i + 1 >= a && i + 1 <= b })).join('\n')
+
 // What the model is told it has read, as an agent that runs `cat SKILL.md` and `browser-layer help` sees it.
 export function context(name) {
-  const parts = variants[name].map(part)
+  const parts = name.startsWith('cut:') ? [['browser-layer help', cut(name)]]
+    : name.startsWith('head:') ? [['browser-layer help', help().split('\n').slice(0, +name.slice(5)).join('\n')]]
+    : name.startsWith('v1head:') ? [['browser-layer help', manualV1().split('\n').slice(0, +name.slice(7)).join('\n')]]
+    : variants[name].map(part)
   if (!parts.length) return 'You have not been given any documentation for it.'
   return parts.map(([title, text]) => `$ ${title === 'SKILL.md' ? 'cat SKILL.md' : 'browser-layer help'}\n${text}`).join('\n\n')
 }

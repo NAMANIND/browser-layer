@@ -32,5 +32,11 @@
   "current": [
     "skill",
     "help"
+  ],
+  "manual": [
+    "variants/manual-v1.txt"
+  ],
+  "v2": [
+    "help"
   ]
 }

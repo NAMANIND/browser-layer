@@ -1,7 +1,7 @@
 // The command-writing exam. No browser: the model gets one variant's onboarding and one scenario, one turn,
 // no tools, and answers with the shell commands it would run. Answers are kept under --out and graded by report.mjs.
 //
-//   node bench/onboarding/run.mjs --out DIR [--models haiku,sonnet] [--variants baseline,skill] [--repeats 3]
+//   node bench/onboarding/run.mjs --out DIR [--models haiku,sonnet] [--variants 'baseline;skill'] [--repeats 3]
 //        [--scenarios id,id] [--concurrency 6] [--max-usd 2] [--est-usd-per-call 0.002]
 //
 // --models is passed to `claude --model` as it is, so any model name `claude` accepts works here; a model
@@ -17,9 +17,9 @@ const here = dirname(fileURLToPath(import.meta.url))
 const args = process.argv.slice(2)
 const opt = (k, d) => { const i = args.indexOf(k); return i < 0 ? d : args[i + 1] }
 const out = opt('--out')
-if (!out) { console.error('usage: run.mjs --out DIR [--models haiku,sonnet] [--variants a,b] [--repeats 3]'); process.exit(2) }
+if (!out) { console.error('usage: run.mjs --out DIR [--models haiku,sonnet] [--variants "a;b"] [--repeats 3]'); process.exit(2) }
 const models = opt('--models', 'haiku,sonnet').split(',')
-const names = opt('--variants', Object.keys(variants).join(',')).split(',')
+const names = opt('--variants', Object.keys(variants).join(';')).split(';')
 const repeats = +opt('--repeats', 3), concurrency = +opt('--concurrency', 6)
 const maxUsd = +opt('--max-usd', 2), estPerCall = +opt('--est-usd-per-call', 0.002)
 const wanted = opt('--scenarios')?.split(',')

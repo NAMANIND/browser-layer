@@ -41,10 +41,16 @@ function unfold(code) {
   return lines.join('\n')
 }
 
+// A line that starts with a browser-layer verb no unix command shares (menu, dialog…) is a call without its prefix
+// (the model assumed an alias); that is a valid answer, so the checks see it with the prefix.
+const BARE = new Set('verbs tab go back forward reload tabs use steps each dblclick rightclick hover uncheck submit pick press drag scroll upload dialog explore menu eval net cookies storage allow screenshot login attach'.split(' '))
+const prefixed = line => BARE.has(line.trim().split(/\s+/)[0]) ? `browser-layer ${line.trim()}` : line
+
 export function codeOf(answer) {
   const blocks = [...answer.matchAll(/```[a-z]*\n([\s\S]*?)```/g)].map(m => m[1])
   const code = blocks.length ? blocks.join('\n') : answer
-  const lines = code.replace(/\\\n\s*/g, ' ').split('\n').map(l => l.replace(/^\s*\$\s+/, '')).join('\n')
+  // A comment line in the block ("# never solve the CAPTCHA") is not a command the model would run.
+  const lines = code.split('\n').filter(l => !/^\s*#/.test(l)).join('\n').replace(/\\\n\s*/g, ' ').split('\n').map(l => prefixed(l.replace(/^\s*\$\s+/, ''))).join('\n')
   return `${lines}\n${unfold(lines)}`
 }
 
