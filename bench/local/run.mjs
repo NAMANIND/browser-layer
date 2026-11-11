@@ -127,7 +127,7 @@ async function run(job, attempt = 1) {
   writeFileSync(join(dir, 'stream.jsonl'), raw)
   try { execFileSync('browser-layer', ['stop', '--session', 'default'], { env, timeout: 30000, stdio: 'ignore' }) } catch {}
   const events = raw.split('\n').filter(Boolean).flatMap(l => { try { return [JSON.parse(l)] } catch { return [] } })
-  const m = { arm: job.arm.label, rep: job.rep, ...metrics(dir, job.task, Date.now() - start, timedOut, events) }
+  const m = { arm: job.arm.label, rep: job.rep, startedAt: start, ...metrics(dir, job.task, Date.now() - start, timedOut, events) }
   writeFileSync(join(dir, 'metrics.json'), JSON.stringify(m, null, 1))
   rmSync(work, { recursive: true, force: true })
   if (m.limit === 'stalled' && attempt < 3) { rmSync(dir, { recursive: true, force: true }); return run(job, attempt + 1) }

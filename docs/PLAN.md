@@ -359,3 +359,8 @@ steps, 22% in input tokens, 29% in carried, 45% in look-backs. Reverting the `--
 (inside 27%) and look-backs the wrong way, so the long set cannot confirm or reject a preview-sized change; cost and wall effects of about
 15% would show. Run it under `caffeinate -dims`: a sleeping Mac makes runs hang to their time limit.
 
+Pre-release gate (`node bench/local/gate.mjs <candidate> <baseline>`): both task sets for both refs, paired by task, finalcompare.py's 95%
+bootstrap rule in JavaScript, NO-GO if cost, wall time or score is BEHIND or the mean score is lower; steps and input tokens are shown
+but do not veto. About $0.6 and 25-30 minutes at 3 repeats. A candidate that moves cost or wall time by about 15% shows; it does not
+replace the real benchmark.
+

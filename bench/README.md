@@ -115,3 +115,25 @@ carried -7% (detectable 44%), cost -5% (27%), score equal. The preview was measu
 These tasks mostly read pages with `open --out` and then run one script, or use `get` and `eval`, so a preview of the saved file
 rarely saves them a read; the harness shows nothing because the effect is not there on them, or is below 27% with 3 repeats.
 Do not use the long set to accept or reject a change to what a saved answer contains.
+
+## Pre-release gate (`gate.mjs`)
+
+```sh
+node bench/local/gate.mjs <candidate-ref> <baseline-ref> [--repeats 3] [--max-usd 2]
+```
+
+Runs the short and the long set for both refs (haiku, under `caffeinate -dims`, into `bench/local/out/gate-<shas>`; a rerun
+resumes), drops runs that started or ran within a minute of a `pmset` sleep event (delete them and rerun to refill), pairs by task
+over all 13 tasks, and prints one table and `GO` or `NO-GO` (exit 0 or 1). The rule is `bu-run/finalcompare.py`'s: the mean per-task
+difference with a 95% bootstrap interval (10,000 resamples of tasks), AHEAD only when the whole interval is on the candidate's
+side, BEHIND when it is wholly on the other side, else tie. NO-GO when cost, wall time or score is BEHIND, or the mean score is
+lower at all. `node --test bench/local/gate.test.mjs` checks that logic on fixed numbers.
+
+Cost per full run at 3 repeats: 13 tasks × 2 refs × 3 = 78 runs, about $0.6 (short $0.17, long $0.40) and 25-30 minutes.
+
+What it can judge, from the two A/A tables above: cost, wall time and score (chance differences of 4-12%, 8-15%) and output tokens;
+a candidate that is genuinely 15% cheaper or slower shows. It lists steps and input tokens (20-22% on the long set, 9% and 6% on
+the short) but they never veto, and an A/A of one repeat shows them AHEAD by chance. It cannot judge a change to what a saved
+answer holds (the `--out` preview revert moved steps -3%), look-backs, carried characters, or anything the real benchmark's 50-150
+step tasks are needed for. The score rule is strict on purpose: an A/A can lower the mean score by 0.05 by chance, and then a
+rerun is the answer. The agent is Claude haiku, so a GO is not a benchmark score.
