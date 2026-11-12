@@ -429,6 +429,5 @@ Next, each to pass the local gate before it stays:
 4. ~~`browser-layer mcp`~~ Done on `mcp`: one stdio tool `browser` taking the same command line, the manual as its description; every
    call runs the CLI itself (one implementation, sessions work). DESIGN §1 reversed (decided 12 Nov). No SDK, no `--json` for live
    commands (a tool result is text). Not tried in the Claude app or against a model yet; the test speaks JSON-RPC by hand.
-   Numbers: `npm run measure` unchanged, tests 139 → 140 (all green), `src/` 3,680 → 3,735 lines (+55: `mcp.ts` 41 and the
-   tab-less `script.ts` moved out of `cli.ts` 25, minus 25 and the dispatch lines in `cli.ts`).
+   Numbers: `npm run measure` unchanged, tests 139 → 140 (all green), `src/` 3,680 → 3,735 lines (+55: `mcp.ts` 52, `script.ts` 26 moved out of `cli.ts`, which is 23 shorter).
 5. Settle cost, to measure before touching: 119 actions hit the 5 s deadline; the text hash runs on the page every 100 ms.
