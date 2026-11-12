@@ -521,3 +521,8 @@ the old document, so the new one was read before it had parsed, and a page that 
 Fixed, each with a test that failed first: a document that arrives during settle is settled from its own arrival, and a page that
 reads empty is read again by the tool (`settle.revealMs` at most). Tests 144 to 145, measure unchanged, `src/daemon.ts` +14 lines.
 Not confirmed live on Bing: after some twenty searches from this machine it stopped showing results at all.
+
+## Long tasks (12 Nov 2026)
+
+The next phase is [LONG-TASKS.md](LONG-TASKS.md): a cost model, a floor measure that needs no model (`bench/floor`), and seven
+contracts with their tests and numbers. Phase 0 (the floor and endurance harness) comes first and changes no `src/`.
