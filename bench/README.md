@@ -137,3 +137,24 @@ the short) but they never veto, and an A/A of one repeat shows them AHEAD by cha
 answer holds (the `--out` preview revert moved steps -3%), look-backs, carried characters, or anything the real benchmark's 50-150
 step tasks are needed for. The score rule is strict on purpose: an A/A can lower the mean score by 0.05 by chance, and then a
 rerun is the answer. The agent is Claude haiku, so a GO is not a benchmark score.
+
+# bench/floor — what a perfect agent pays, with no model
+
+`npm run floor` runs hand-written command sequences (`tasks.mjs`, the *par scripts*) against a generated local site
+(`site.mjs`) with the built CLI, and reports for each task: whether it was done, calls, characters answered, the
+biggest answer, and the characters read over the whole task (`carried`: every call re-reads the manual and every call
+and answer before it). It costs nothing and takes about four minutes. See `docs/LONG-TASKS.md` §2.
+
+```sh
+npm run floor                 # every task, results to bench/results/floor.json
+npm run floor -- A3           # tasks whose id contains "A3", nothing saved
+npm run floor -- --endure     # A6: 600 calls in one session, results to bench/results/endure.json (about ten minutes)
+```
+
+- Modes: `tool` uses only `browser-layer` (what an MCP or API agent has); `shell` may also run a program, where that is
+  shorter; `plain` is the one command the manual names for the job, with nothing an expert would add.
+- A par script may use only what earlier answers showed it (a ref, a name, an address). It is the best sequence known
+  for the tool as it is; when the tool changes, the script is rewritten to the new best, and the row is compared.
+- A change is good when a row drops and none rises. A `plain` row that says FAILED is the tool giving a wrong or no
+  result to an agent that did what the manual says.
+- It measures the tool, not agents. Whether agents find the short path is `bench/local`'s question.

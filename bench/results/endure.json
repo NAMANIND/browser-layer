@@ -1,0 +1,60 @@
+[
+ {
+  "run": "closing tabs",
+  "calls": 600,
+  "errors": 0,
+  "msP50": [
+   489,
+   473
+  ],
+  "msP95": [
+   657,
+   654
+  ],
+  "answerChars": [
+   22743,
+   23520
+  ],
+  "browserMb": [
+   486,
+   502
+  ],
+  "daemonMb": [
+   135,
+   154
+  ],
+  "processes": [
+   5,
+   5
+  ]
+ },
+ {
+  "run": "keeping tabs",
+  "calls": 200,
+  "errors": 0,
+  "msP50": [
+   478,
+   488
+  ],
+  "msP95": [
+   656,
+   651
+  ],
+  "answerChars": [
+   25617,
+   39959
+  ],
+  "browserMb": [
+   1929,
+   5097
+  ],
+  "daemonMb": [
+   134,
+   160
+  ],
+  "processes": [
+   18,
+   46
+  ]
+ }
+]

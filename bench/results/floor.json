@@ -1,0 +1,214 @@
+{
+ "manual": 5591,
+ "rows": [
+  {
+   "task": "A1 collect, rel",
+   "mode": "tool",
+   "ok": true,
+   "calls": 2,
+   "chars": 2060,
+   "biggest": 1658,
+   "carried": 19439,
+   "seconds": 16,
+   "note": ""
+  },
+  {
+   "task": "A1 collect, rel",
+   "mode": "plain",
+   "ok": true,
+   "calls": 2,
+   "chars": 2060,
+   "biggest": 1658,
+   "carried": 19439,
+   "seconds": 16,
+   "note": ""
+  },
+  {
+   "task": "A1 collect, scroll",
+   "mode": "tool",
+   "ok": true,
+   "calls": 2,
+   "chars": 2000,
+   "biggest": 1658,
+   "carried": 19325,
+   "seconds": 16,
+   "note": ""
+  },
+  {
+   "task": "A1 collect, scroll",
+   "mode": "plain",
+   "ok": true,
+   "calls": 2,
+   "chars": 2000,
+   "biggest": 1658,
+   "carried": 19325,
+   "seconds": 17,
+   "note": ""
+  },
+  {
+   "task": "A1 collect, pager",
+   "mode": "tool",
+   "ok": true,
+   "calls": 3,
+   "chars": 2173,
+   "biggest": 1469,
+   "carried": 27060,
+   "seconds": 3,
+   "note": ""
+  },
+  {
+   "task": "A1 collect, pager",
+   "mode": "plain",
+   "ok": false,
+   "calls": 2,
+   "chars": 1683,
+   "biggest": 1233,
+   "carried": 19114,
+   "seconds": 2,
+   "note": ""
+  },
+  {
+   "task": "A1 collect, button",
+   "mode": "tool",
+   "ok": true,
+   "calls": 2,
+   "chars": 4041,
+   "biggest": 3663,
+   "carried": 21884,
+   "seconds": 17,
+   "note": ""
+  },
+  {
+   "task": "A1 collect, button",
+   "mode": "plain",
+   "ok": false,
+   "calls": 2,
+   "chars": 1611,
+   "biggest": 1233,
+   "carried": 18972,
+   "seconds": 2,
+   "note": ""
+  },
+  {
+   "task": "A1 collect, rerender",
+   "mode": "tool",
+   "ok": true,
+   "calls": 2,
+   "chars": 4693,
+   "biggest": 4319,
+   "carried": 24522,
+   "seconds": 23,
+   "note": ""
+  },
+  {
+   "task": "A1 collect, rerender",
+   "mode": "plain",
+   "ok": false,
+   "calls": 2,
+   "chars": 471,
+   "biggest": 374,
+   "carried": 17832,
+   "seconds": 22,
+   "note": ""
+  },
+  {
+   "task": "A1 collect, rel, slow server",
+   "mode": "tool",
+   "ok": true,
+   "calls": 5,
+   "chars": 2213,
+   "biggest": 1505,
+   "carried": 40075,
+   "seconds": 25,
+   "note": ""
+  },
+  {
+   "task": "A1 collect, rel, slow server",
+   "mode": "plain",
+   "ok": false,
+   "calls": 2,
+   "chars": 504,
+   "biggest": 407,
+   "carried": 17898,
+   "seconds": 22,
+   "note": ""
+  },
+  {
+   "task": "A2 enrich 60",
+   "mode": "tool",
+   "ok": true,
+   "calls": 4,
+   "chars": 8288,
+   "biggest": 6429,
+   "carried": 47013,
+   "seconds": 5,
+   "note": ""
+  },
+  {
+   "task": "A2 enrich 60",
+   "mode": "shell",
+   "ok": true,
+   "calls": 3,
+   "chars": 3369,
+   "biggest": 1588,
+   "carried": 28749,
+   "seconds": 20,
+   "note": ""
+  },
+  {
+   "task": "A3 research 20",
+   "mode": "tool",
+   "ok": true,
+   "calls": 20,
+   "chars": 6356,
+   "biggest": 331,
+   "carried": 202852,
+   "seconds": 18,
+   "note": ""
+  },
+  {
+   "task": "A4 transact 12 steps",
+   "mode": "tool",
+   "ok": true,
+   "calls": 16,
+   "chars": 5677,
+   "biggest": 488,
+   "carried": 153212,
+   "seconds": 17,
+   "note": ""
+  },
+  {
+   "task": "A5 reduce 500",
+   "mode": "tool",
+   "ok": true,
+   "calls": 4,
+   "chars": 24130,
+   "biggest": 11730,
+   "carried": 77443,
+   "seconds": 32,
+   "note": ""
+  },
+  {
+   "task": "A5 reduce 500",
+   "mode": "shell",
+   "ok": true,
+   "calls": 3,
+   "chars": 2560,
+   "biggest": 1658,
+   "carried": 28193,
+   "seconds": 16,
+   "note": ""
+  },
+  {
+   "task": "A7 recover: browser dies while collecting",
+   "mode": "tool",
+   "ok": true,
+   "calls": 4,
+   "chars": 2579,
+   "biggest": 1658,
+   "carried": 33094,
+   "seconds": 22,
+   "note": ""
+  }
+ ]
+}

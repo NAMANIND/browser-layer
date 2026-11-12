@@ -1,8 +1,8 @@
 # browser-layer — long tasks
 
-Goes with [DESIGN.md](DESIGN.md) and [PLAN.md](PLAN.md). Written 12 Nov 2026 on `agent-fixes` (0282e00). Nothing here is built.
+Goes with [DESIGN.md](DESIGN.md) and [PLAN.md](PLAN.md). Written 12 Nov 2026 on `agent-fixes`; floors measured 13 Nov (aaec2a3).
 
-This is not a list of fixes for tasks that went badly. It is a cost model, a way to measure the tool without a model, and
+Phase 0 (the measure) is built and run; the contracts are not. This is not a list of fixes for tasks that went badly. It is a cost model, a way to measure the tool without a model, and
 seven contracts the tool must hold on any long task. Each contract comes from the model or from a standard, has a test that
 fails today, and has a number that says when it is done.
 
@@ -44,16 +44,64 @@ finding.
 |---|---|---|
 | A1 Collect | 500 records over 25 pages. Five variants of "more": `rel=next` link, numbered pager, a button in a language other than English, infinite scroll, a list that re-renders while paging | pages |
 | A2 Enrich | For 60 records of a list, three fields from each record's own page | records |
-| A3 Research | One fact from each of 20 pages on 5 sites; two are slow, one is a 404, one refuses | pages |
+| A3 Research | One fact from each of 20 pages in a chain: the way to the next page is a link whose name only this page gives; two pages are slow | pages |
 | A4 Transact | A 12-step form: dependent dropdowns, a date picker, two validation errors to correct | interactions |
 | A5 Reduce | Three questions over 500 collected records: a filter, a top-10, a count per group | records |
 | A6 Endure | 600 calls in one session, the same 20-call loop repeated | calls |
-| A7 Recover | A1 and A2 again with a fault in the middle: the browser dies, a tab crashes, the agent "forgets" (starts from a blank context) | faults |
+| A7 Recover | A1 again with the browser killed six seconds in (built). A crashed tab and an agent that starts from a blank context are not built yet | faults |
 
-Expected floors today, from reading the code (to be replaced by measured numbers in phase 0):
-A1 is 2 calls where a standard marks "next", and one call per page where the control is not in the English word list
-(`MORE` in `src/daemon.ts`). A2 needs a shell to turn a records file into addresses; tool-only it is one call per record.
-A5 is impossible tool-only: nothing reads a saved file back. A7 loses everything collected before the fault.
+A third mode, **plain**, was added after the first run: the one command the manual names for the job and nothing an
+expert would add. A `plain` row that fails is the tool giving a wrong or no result to an agent that did what it was told.
+
+### Measured floors, 13 Nov 2026 (`npm run floor`, `bench/results/floor.json`)
+
+| Task | Mode | Result | Calls | Characters answered | Read over the task |
+|---|---|---|---|---|---|
+| A1 collect, `rel=next` | tool / plain | done / done | 2 / 2 | 2,060 | 19k |
+| A1 collect, infinite scroll | tool / plain | done / done | 2 / 2 | 2,000 | 19k |
+| A1 collect, numbered pager | tool / plain | done / **wrong** | 3 / 2 | 2,173 | 27k |
+| A1 collect, button not in English | tool / plain | done / **wrong** | 2 / 2 | 4,041 | 22k |
+| A1 collect, list that re-renders | tool / plain | done / **failed** | 2 / 2 | 4,693 | 25k |
+| A1 collect, slow server (400 ms a page) | tool / plain | done / **failed** | 5 / 2 | 2,213 | 40k |
+| A2 enrich 60 | tool / shell | done / done | 4 / 3 | 8,288 / 3,369 | 47k / 29k |
+| A3 research 20 | tool | done | 20 | 6,356 | 203k |
+| A4 transact 12 steps | tool | done | 16 | 5,677 | 153k |
+| A5 reduce 500 | tool / shell | done / done | 4 / 3 | 24,130 / 2,560 | 77k / 28k |
+| A7 browser dies while collecting | tool | done | 4 (2 without the fault) | 2,579 | 33k |
+
+A6 (`npm run floor -- --endure`, `bench/results/endure.json`): 600 calls closing tabs each round: time per call p50 489 →
+473 ms, p95 657 → 654 ms, browser 486 → 502 MB, daemon 135 → 154 MB, no errors. 200 calls never closing a tab (40 tabs):
+time per call unchanged (p50 478 → 488 ms), browser 1,929 → 5,097 MB in 18 → 46 processes, answers 25,617 → 39,959
+characters per 60 calls (`tabs` lists them all).
+
+### What the floors say
+
+1. **A perfect agent already pays little.** Every list shape is 2 to 5 calls, by sequences only an expert would write:
+   24 clicks typed into one `steps`, 25 `get`/`click` pairs in one `steps`, or reading 25 pages by guessed addresses.
+   The tool can do long tasks in few calls. That part of the problem is not capability.
+2. **The plain command is right on 2 of 6 list shapes.** `get --all` answers `ended: end of list` with 20 of 500 records
+   on a numbered pager and on a button not named in English: an agent that trusts it delivers 4% of the list and says
+   it is complete. On a list of more than about 25 pages, or a slower server, it fails at `read.timeoutMs` (`get` counts
+   as a read: 20 s) with nothing saved, and the call that timed out goes on turning pages in the tab: reads made after
+   it lost a page (480 of 500 records) until the tab was closed.
+3. **One file's columns differ between pages.** In `get --all` an optional part (a Sale mark) puts the price in column 4
+   on pages whose first row has no mark and column 5 on the others. `--sort` on the price is wrong, and so is any
+   program that reads the file by column.
+4. **Without a shell the same job costs 2.7 times as much to read** (A5: 77k against 28k) and leaves the arithmetic over
+   500 rows to the model, because nothing reads a saved file back. A2 is 47k against 29k.
+5. **The tasks that are one call per page or per step are where the floor is high** (A3 203k, A4 153k, against 19k to
+   47k for the rest), though no answer in them is over 500 characters. That is the square law; and 57 to 62% of what is
+   read in them is the manual (5,591 characters) read again on every call. With a prompt cache a re-read character
+   costs about a tenth of a new one, so this weighs less in money than in this count.
+6. **A name shared by two kinds of control costs a call.** `check Terms` failed because a link is also named Terms; a
+   link cannot be checked.
+7. **A browser that dies costs two extra calls and all the work again** (16 s of paging redone). Nothing is kept.
+8. **Session length alone costs nothing.** 600 calls are flat in time and memory. Tabs left open are what grows: about
+   110 MB a tab (summed process memory, which counts shared pages more than once) and a longer `tabs` answer.
+
+What this changes below: C1's number is the `plain` rows, not the call count; C5 and C6 cannot be shown by a floor (a
+perfect agent never reads twice or looks after an error it did not make) and are judged on recorded runs and in phase 4;
+C7 loses its worry about session length and keeps the tab bound and the restore.
 
 ## 3. The contracts
 
@@ -69,7 +117,8 @@ line. Missing: the join between them, and continuation that does not depend on E
    navigation landmark (WAI-ARIA); scrolling, for a list with neither. Where none exists the answer names the candidate
    controls and the agent says which: `get <ref> --all --more <ref|name>`. The English word list is then deleted
    (CLAUDE.md rule 4: it is a locale case).
-*Done when.* A1 is 2 calls on all five variants and A2 is 2 calls, both tool-only; calls stay the same at 50 and 500 records.
+*Done when.* Every `plain` A1 row is done (2 of 6 today), or says in its answer that the end is not shown and what to
+name; A2 tool-only is 2 calls and under 30k read (4 and 47k today).
 
 ### C2. What the tool saves, the tool reads back (L1, L2)
 *Rule.* Every file the tool writes (`--out`, a result over `answer.maxChars`) can be queried by the tool with the verbs
@@ -81,15 +130,15 @@ of all answer text in the last run, 42 answers over 8,000 characters.
 `--limit` as now, plus `--where <col><op><value>` (`=`, `~` contains, `<`, `>`, compared as `--sort` compares),
 `--count`, and `--group <col>` (a count per value). `find <text> --in <file>` for text files. Answers that name a saved
 file name these, not `rg` and `sed`.
-*Done when.* A5 is 3 calls tool-only and every answer in it is under `answer.headChars`; A1 to A3 tool-only never need a
-program outside the tool.
+*Done when.* A5 tool-only reads no more than with a shell (77k against 28k today) and its biggest answer is under
+`answer.headChars` (11,730 characters today); no floor script needs a program outside the tool.
 *Known risk.* `find --in` was built once and agents with a shell did not use it. That run measured adoption, not need:
 the tool-only floor measures need. Adoption is measured after, as gap to floor.
 
 ### C3. A record means the same thing in every row, and says what it is (L1, L2)
 *Rule.* A saved record file is usable without looking at the page again: a column holds one field in every row, has a
 name when the page gives one, and holds no page-only marks.
-*State today.* Lists come out as `c1…cN` with no names; one optional part per card makes a column (12 records, 37
+*State today.* The columns of one `get --all` file differ between its pages (finding 3). Lists come out as `c1…cN` with no names; one optional part per card makes a column (12 records, 37
 columns in the last run); cells carry refs (`[4670] link "…"`), which mean nothing once the page is gone.
 *Build.*
 1. Names from standards only: table headers (done), `<dt>` for its `<dd>`, `aria-label`/`aria-labelledby` of a field,
@@ -98,8 +147,8 @@ columns in the last run); cells carry refs (`[4670] link "…"`), which mean not
 3. Column stability (PLAN "Open" item 4). The rule is not known yet. Phase 0 measures it on the corpus and the floor
    site: columns per record field and share of blank cells. Candidate rules are tried against that number; none is
    adopted on one site's evidence.
-*Done when.* On the corpus and floor lists: blank cells under 15% (Amazon is 52% today), and A5's questions are
-answered by column name where the page has names.
+*Done when.* A5's `--sort` on the price column is right with no workaround in the script; on the corpus and floor
+lists blank cells are under 15% (Amazon is 52% today).
 
 ### C4. Work is never lost, and "complete" is only said when shown (L3)
 *Rule.* A call that covers many pages writes as it goes. If it stops (an error, a bound, the browser gone) it answers with
@@ -109,12 +158,13 @@ tried and that the end is not shown.
 *State today.* `get --all` keeps its rows in memory and throws them away on any error (three calls of 12 to 17 s each
 ended in `error: … not on the page any more` with nothing saved). It answers `end of list` when scrolling brought nothing,
 which is not the same as an end; one task fetched the same list four times and got 40, 40, 70 and 40 records.
-*Build.* `get --all`, `each` and bulk `open` append to `--out` per page; the answer has three endings: `ended` (shown
+*Build.* A call that collects is not a read: its limit is per page, not 20 s for the whole list, and a call that
+stopped does not go on acting in the tab. `get --all`, `each` and bulk `open` append to `--out` per page; the answer has three endings: `ended` (shown
 how), `not shown to be complete` (what was tried), `stopped` (where, why, and that the same call continues). Re-running
 skips what the file already has. The manual's rule "a list is complete only when you can show it ended" becomes
 something the tool states.
-*Done when.* A7: with a fault at any point, the finished file equals the fault-free one and the extra cost is at most 2
-calls. A1 on the re-rendering variant completes.
+*Done when.* A7 is 3 calls and repeats no page already saved (4 calls and all 25 pages today); the slow-server and
+re-rendering `plain` rows are done; no `plain` row says a list ended when it did not.
 
 ### C5. An answer carries the next decision, inside one budget (L1, L2)
 *Rule.* No answer makes the agent call again for something that answer had room for; and no answer is bigger than its
@@ -130,8 +180,9 @@ row makes an 8,000 to 10,000 character "preview".
    keys it makes unused are deleted.
 2. Every failed action answers as `steps` already does on a failure: the error, then the page as it is now (changed lines).
 3. A preview is cut to its budget in characters, wide rows included.
-*Done when.* A3 is one call per page that reads; A4 has no call whose only purpose is to look after an error; no answer
-in any floor script exceeds its budget. `npm run measure` map sizes do not grow by more than 10%.
+*Done when.* A4 is 15 calls (16 today: finding 6); no answer in any floor script exceeds its budget; `npm run measure`
+map sizes do not grow by more than 10%. The view rule cannot be shown by a floor (A3 is already one call a page for a
+perfect agent): it is kept only if agent runs in phase 4 show fewer calls per page opened.
 
 ### C6. Each thing is shown once, and the tool keeps the account (L2)
 *Rule.* DESIGN §1a already says it. It must hold for every kind of answer, not only the ones that remember.
@@ -151,12 +202,12 @@ dies, or an agent that lost its context, costs one call to be back where it was.
 *State today.* Nothing tests a long session. Tabs pile up (31 opened in one task) with no bound. When the browser goes away the
 next command starts a fresh one with no tabs. An agent whose context was compacted has no way to ask where it is.
 *Build.*
-1. A6 as a test with budgets: p95 time of the last 60 calls within 20% of the first 60; daemon memory flat after call 100.
-   Whatever it shows is fixed at its cause.
+1. A6 stays as the check (session length is flat today: finding 8).
 2. The session's tabs (address, which is current) are kept on disk; a new daemon reopens them, as `show`/`hide` already do.
 3. `status`: the session's tabs, the files it saved with their sizes and endings (C4), and the last few calls with how
    each ended. One call puts an agent with a blank context back in the task.
-4. A bound on tabs per session from what A6 measures, closing the least recently used; its address stays in `status`.
+4. A bound on tabs per session, closing the least recently used; its address stays in `status`. A6 measured about
+   110 MB a tab and no cost in time at 40 tabs, so the bound is about memory: the number comes from that.
 *Done when.* A6 holds its budgets; A7's "browser dies" and "agent forgets" each cost at most 2 calls.
 
 ## 4. Order, and how to run it
@@ -165,7 +216,7 @@ Each item is one session in its own worktree from `agent-fixes`, test first, sma
 
 | Phase | Sessions (parallel within a phase) | Touches | Leaves |
 |---|---|---|---|
-| 0 | `floor`: the site, checkers, par scripts for A1 to A5, both modes · `endure`: A6 and A7 harness | `bench/floor/` only | The floor table in this file: today's numbers for every task |
+| 0 ✅ | `bench/floor`: the site, checkers, par scripts for A1 to A5 and A7 in three modes, A6 | `bench/floor/` only | The measured table in §2 |
 | 1 | `resume` (C4) · `readback` (C2) · `one-view` (C5) | `daemon.ts` collect code · `data.ts`, `cli.ts` · `daemon.ts` view code | Floors after each |
 | 2 | `join` (C1) · `columns` (C3) | collect code · `reader.ts`, `data.ts` | Floors after each |
 | 3 | `ledger` (C6) · `survive` (C7) | view code · `daemon.ts` start-up, `client.ts` | Floors after each |
@@ -179,8 +230,9 @@ are green, and the size note is written. A contract whose floor does not move is
 
 ## 5. What this plan does not claim
 
-- The floors above marked "expected" are read from code, not measured. Phase 0 measures them; if a floor is already
-  better than stated, its contract is dropped.
+- The floors are measured on one generated site. It has no ads, no overlays and no slow scripts; real pages cost more
+  than these numbers, never less.
+- The par scripts are the best sequences found by hand, not proven to be the best there are.
 - Lower floors do not prove agents will take the shorter path. Phase 4 measures that. Earlier work (`find --in`, the
   `--out` outline) lowered a floor and went unused.
 - C3's column rule is unknown. It may turn out that no general rule holds, and then the contract is cut to names and

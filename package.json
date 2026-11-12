@@ -41,7 +41,8 @@
     "stress": "tsc && node bench/stress.mjs",
     "carried": "node bench/carried.mjs",
     "record": "node bench/record-corpus.mjs",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "floor": "tsc && node bench/floor/run.mjs"
   },
   "engines": {
     "node": ">=22"
