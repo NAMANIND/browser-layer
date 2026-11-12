@@ -119,3 +119,67 @@ cursor-agent harness multiplies step count by a large per-step prompt.
 
 Charts for posts (SVG and 2× PNG) are in `charts/`, and `charts/results.html` is a page with the
 charts and side-by-side transcripts; `node bench/charts.mjs` rebuilds all of them from `results/`.
+
+
+### Head to head on Haiku: browser-layer against Browser Use 1.0 (12 Nov 2026)
+
+Claude Code (`claude -p --model haiku`, tools Bash and Read only, project settings only) is the brain; the only thing that
+changes is the browser tool, and the task text is the same for both. The 10 scenarios are web-agent-bench's (controlled,
+scroll, dynamic, hard, their checks as they are), plus four listing-to-the-end tasks on this repo's fixture site
+(`agents/site.mjs`): the sum of the Pending orders and the highest order (120 orders over 6 pages, a Next button), and the
+Backorder count and the highest price of a 100-item catalog over 10 server-rendered pages (`rel=next`). 5 runs per
+tool per task (more than the 3 asked for: a run costs under half a cent), 140 runs, concurrency 2, tools alternating order.
+browser-layer is a packed build of this branch (`npm pack`, as `bench/local/run.mjs` installs it). Browser Use is
+`browser-harness` 0.1.13 (the Browser Use 1.0 CLI), one headless Chrome per run. Both are held by a PreToolUse text filter
+(`agents/guard.mjs`): browser-layer by web-agent-bench's own rules (live-tab commands only; no eval, net, cookies, storage,
+login, plain-HTTP open/do, no file reads), Browser Use by the earlier run's (helpers and `js()` on the DOM; no imports,
+files, processes, `cdp()`, `http_get`, network calls). A text filter, not a sandbox. A refused call is a step.
+Rows: `results/h2h-haiku.jsonl` (140), `results/h2h-haiku-login-fix.jsonl` (5, below). Cells are passes · median steps (range)
+· median tokens (input, cache and output) · median wall time (range) · mean usd.
+
+| Task | browser-layer | Browser Use 1.0 |
+|---|---|---|
+| controlled/login | 5/5 · 3 steps (3–3) · 34k · 9 s (9–10) · $0.0017 | 5/5 · 4 steps (4–9) · 53k · 11 s (10–23) · $0.0031 |
+| controlled/shop-filter | 5/5 · 3 steps (3–4) · 34k · 8 s (8–9) · $0.0018 | 5/5 · 4 steps (3–13) · 54k · 10 s (9–35) · $0.0033 |
+| controlled/todos | 5/5 · 3 steps (3–6) · 34k · 11 s (10–15) · $0.0019 | 5/5 · 6 steps (6–9) · 82k · 23 s (15–29) · $0.0041 |
+| scroll/scroll-bottom | 5/5 · 2 steps (2–6) · 25k · 9 s (7–16) · $0.0020 | 5/5 · 5 steps (4–5) · 65k · 12 s (9–20) · $0.0028 |
+| scroll/load-more | 5/5 · 5 steps (4–5) · 56k · 14 s (14–16) · $0.0025 | 5/5 · 6 steps (5–14) · 84k · 25 s (19–49) · $0.0046 |
+| dynamic/wait-for-value | 5/5 · 3 steps (3–4) · 34k · 11 s (10–18) · $0.0018 | 5/5 · 5 steps (3–6) · 65k · 14 s (11–36) · $0.0028 |
+| dynamic/poll-status | 5/5 · 3 steps (3–3) · 34k · 11 s (11–16) · $0.0017 | 5/5 · 6 steps (6–6) · 77k · 23 s (17–29) · $0.0030 |
+| hard/multi-step-form | 5/5 · 6 steps (5–8) · 66k · 18 s (17–26) · $0.0026 | 5/5 · 10 steps (9–14) · 153k · 29 s (25–43) · $0.0061 |
+| hard/paginated-search | 5/5 · 11 steps (10–13) · 135k · 40 s (28–49) · $0.0046 | 5/5 · 14 steps (7–17) · 212k · 40 s (23–59) · $0.0070 |
+| hard/modal-trap | 4/5 · 5 steps (5–5) · 54k · 18 s (17–25) · $0.0024 | 4/5 · 11 steps (4–13) · 154k · 31 s (13–39) · $0.0051 |
+| orders-pending | 5/5 · 5 steps (4–11) · 62k · 21 s (18–38) · $0.0044 | 5/5 · 6 steps (5–6) · 92k · 21 s (20–26) · $0.0046 |
+| orders-top | 5/5 · 4 steps (4–5) · 47k · 18 s (14–27) · $0.0030 | 5/5 · 5 steps (5–10) · 73k · 21 s (20–33) · $0.0047 |
+| catalog-backorder | 5/5 · 5 steps (4–12) · 62k · 26 s (19–28) · $0.0039 | 5/5 · 5 steps (5–6) · 68k · 15 s (12–24) · $0.0035 |
+| catalog-priciest | 5/5 · 4 steps (4–6) · 47k · 17 s (17–26) · $0.0028 | 5/5 · 5 steps (4–8) · 69k · 14 s (10–18) · $0.0037 |
+| **All 70 runs** | **69/70 · 342 steps · 4.02M tokens · 20.5 min · $0.186** | **69/70 · 490 steps · 6.93M tokens · 25.9 min · $0.292** |
+
+The `controlled/login` row for browser-layer is the rerun after the fix below; as first run it was 0/5 (2 steps, 25k).
+
+**Finding.** Ahead of Browser Use on every cost measure, level on score. Both pass 69 of 70. browser-layer used 1.7× fewer
+tokens (4.02M against 6.93M), 1.4× fewer steps (342 against 490), 21% less time (20.5 against 25.9 min) and 36% less money
+($0.19 against $0.29). It is ahead on median steps in every scenario but one (catalog-backorder, level at 5); the gap is widest where the page does
+the work: multi-step-form 6 against 10 steps, todos 3 against 6, poll-status 3 against 6, load-more 5 against 6.
+On the four listing tasks the two are close (111 against 116 steps, browser-layer 7.4 against 6.5 min, but 17% fewer tokens): `get --all` answers
+a 120-row table in one call, and Browser Use's agent writes a loop in Python that does the same in one script; browser-layer
+is slower on the catalog tasks (26 s against 15 s, 17 against 14 s); in the transcripts Haiku first tried `--out` and `cd`
+there, which the guard refuses, and retried; the time was not otherwise broken down. On Sonnet the earlier run was a tie;
+the lead on Haiku is in steps and tokens, which this run does not explain further.
+
+**Losses and their causes** (transcripts in each row's `dir`):
+- `controlled/login`, browser-layer 0/5 (first run). Not an agent mistake: `help` said "never type passwords; a person runs
+  `login <url>`", Haiku obeyed it although the task gave the username and password, called `login` (refused by the guard,
+  which has no person to hand to) and answered that sign-in needs a person. Sonnet had typed the password anyway. A general
+  flaw of the help text, not of the site: it now says a password the user gave in the task may be typed; any other stays
+  with a person. Test first (`test/onboarding.test.ts`, failed before), 143 tests pass; the 5 reruns pass in 3 steps, 34k.
+- `hard/modal-trap`, 4/5 for both tools. In each tool's failing run Haiku stopped at the cookie banner over "Account settings"
+  and asked which button to click rather than choosing one. That is the model's caution, the same for both tools; browser-layer's
+  answer named the banner's controls ("click one by name, then this again") and the agent still declined. Not changed.
+- Where browser-layer was not ahead (orders-pending steps, catalog-backorder and catalog-priciest time): the guard. It refuses
+  reading a file back (`wc`, `cd … &&`) and web-agent-bench's rules were written for agent-browser, so `--out` runs, which are
+  how browser-layer keeps big answers out of context, cost a refused call each. Those 35 refusals (53 for Browser Use, mostly
+  `cdp()` and imports) count as steps for both.
+
+Caveats: one fixture site per scenario, answers exact; Haiku only; the guard is a text filter; 5 runs each, so ranges are shown. Spend: about $0.52
+of the $3 (140 runs $0.48, the login rerun and a smoke test the rest) (runs under half a cent each with Bash and Read only, a small system prompt).

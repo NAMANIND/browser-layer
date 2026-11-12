@@ -40,7 +40,7 @@ Rules
   Know when to stop: when two different ways to the same thing have failed, report it unavailable and move on.
   blocked / CAPTCHA: never solve or evade it. A block often covers one page: try the home page, the site's search, its API or
   sitemap, or another source. A person can clear it: show, then hide. Report what you could not reach as unavailable, never empty.
-  Sign-in: never type passwords; a person runs login <url>. Irreversible steps (submit, pay, send, delete): confirm first
+  Sign-in: type a password only if the user gave it in the task; otherwise a person runs login <url>. Irreversible steps (submit, pay, send, delete): confirm first
   unless they already said to. Several agents at once: each its own --session <name>. stop closes the browser when done.
 
 Plain HTTP, no browser:  open <url…>|<ref> [--out f] (pages fetched in parallel) · verbs · do <verb> k=v ... · --json

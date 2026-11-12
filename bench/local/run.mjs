@@ -7,11 +7,11 @@
 // An arm is `label=git-ref`; `,skill=filler` appends 14,000 characters of DESIGN.md to the skill, `,skill=<ref>`
 // takes the skill from another ref. A run that already has a metrics.json in DIR is not repeated.
 import { execFileSync, spawn } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
-import { homedir, tmpdir } from 'node:os'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { carriedRow } from '../carried.mjs'
+import { build } from './build.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: here, encoding: 'utf8' }).trim()
@@ -38,21 +38,6 @@ if (!out || !arms.length) { console.error('usage: run.mjs --out DIR --arm label=
 const wanted = opt('--tasks')?.split(',')
 const set = opt('--set', 'short')
 const tasks = JSON.parse(readFileSync(join(here, 'tasks.json'), 'utf8')).filter(t => wanted ? wanted.includes(t.id) : !!t.long === (set === 'long'))
-
-// A build is a packed and installed copy of the ref, kept per commit so arms and later runs share it.
-function build(ref) {
-  const sha = git('rev-parse', ref).trim()
-  const root = join(tmpdir(), 'bl-bench', 'builds', sha)
-  if (!existsSync(join(root, 'prefix/bin/browser-layer'))) {
-    rmSync(root, { recursive: true, force: true })
-    mkdirSync(join(root, 'src'), { recursive: true })
-    execFileSync('sh', ['-c', `git -C '${repo}' archive ${sha} | tar -x -C '${join(root, 'src')}'`])
-    symlinkSync(join(repo, 'node_modules'), join(root, 'src/node_modules'))
-    const tgz = execFileSync('npm', ['pack', '--silent', '--pack-destination', root], { cwd: join(root, 'src'), encoding: 'utf8' }).trim().split('\n').pop()
-    execFileSync('npm', ['install', '-g', '--silent', '--prefix', join(root, 'prefix'), join(root, tgz)])
-  }
-  return { sha, root }
-}
 
 function skillText(arm) {
   const text = git('show', `${arm.skill && arm.skill !== 'filler' ? arm.skill : arm.ref}:skills/browser-layer/SKILL.md`)
