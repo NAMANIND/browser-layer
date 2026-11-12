@@ -56,6 +56,7 @@ Live tabs (headless browser, runs the page's JS):
   click · dblclick · rightclick · hover <ref>      check · uncheck <ref>      submit <ref>
   type <ref> <text> [--enter] [--keys]   pick <ref> <option>   press <key>   drag <ref> <onto ref>
   scroll [ref] [down|up|top|bottom]   upload <ref> <file...>   wait [--gone] <text>
+  viewport 1440x900 | mobile | reset   the tab's layout size or a phone (touch, narrow); shown in every answer's tab line until reset; reload a page already open to apply touch
   dialog accept [text] | dismiss   explore [ref] (open menus, list them)
   menu "A > B > C"             open a hover menu path in one call (instead of hover and click one by one)
   eval <js>                    run JavaScript in the page; the result as JSON; its fetch() carries the site's cookies:
@@ -73,7 +74,7 @@ attach: set up your own Chrome for the agent. --attach <port|auto> (BROWSER_LAYE
 BROWSER_LAYER_BROWSER=<path> picks the browser.
 install · browser · update · --version`
 
-const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'dialog', 'eval', 'allow', 'explore', 'menu', 'check', 'uncheck', 'submit', 'drag', 'find', 'cookies', 'storage', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop', 'screenshot'])
+const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'viewport', 'dialog', 'eval', 'allow', 'explore', 'menu', 'check', 'uncheck', 'submit', 'drag', 'find', 'cookies', 'storage', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop', 'screenshot'])
 
 function fail(msg: string): never {
   console.error(msg)
@@ -297,6 +298,7 @@ function liveCommand({ cmd, target, rest, page, limit, sort, cols, file, has }: 
     ;[c.ref, c.files, c.full] = [ref, [resolve(file ?? `screenshot-${Date.now()}.png`)], has('--full')]
   }
   if (cmd === 'scroll') [c.ref, c.dir] = target && /^\d+$/.test(target) ? [target, rest[0]] : [undefined, target]
+  if (cmd === 'viewport') c.text = target
   if (cmd === 'dialog') [c.dir, c.text] = [target, rest.length ? rest.join(' ') : undefined]
   if (cmd === 'wait' || cmd === 'eval') c.text = [target, ...rest].filter(Boolean).join(' ')
   if (cmd === 'allow') [c.text, c.dir] = [target, rest[0]]

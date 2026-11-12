@@ -57,6 +57,14 @@ const server = createServer((req, res) => {
       <div id="hov">Hover over me</div><p id="out"></p>
       <script>document.getElementById('hov').addEventListener('mouseenter', e => { e.target.textContent = 'Nice hovering!' })</script>`)
   }
+  if (req.url === '/vp') {
+    res.setHeader('content-type', 'text/html')
+    return res.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>vp</title>
+      <style>#narrow{display:none}@media (max-width:900px){#wide{display:none}#narrow{display:block}}</style>
+      <p id="wide">wide layout</p><p id="narrow">narrow layout</p><p id="size"></p>
+      <script>const show = () => { document.getElementById('size').textContent = 'inner ' + innerWidth + 'x' + innerHeight + ' touch ' + (navigator.maxTouchPoints > 0) }
+      show(); addEventListener('resize', show)</script>`)
+  }
   if (req.url === '/view') {
     res.setHeader('content-type', 'text/html')
     // A result list: each item is one row on screen whatever blocks it is built from.
@@ -1460,4 +1468,34 @@ test('an answer repeats the tab line only when the page or the tab changed since
   const other = (await run('tab', `${base}/page/alpha`)).out
   assert.match(other, /^tab \d+ +\S+\/page\/alpha/)
   assert.match((await run('use', opened.match(/^tab (\d+)/)![1])).out, /^tab \d+ +\S+\/counter/)
+})
+
+test('viewport sets the tab size, mobile emulates a phone, reset restores, and it survives navigation', async () => {
+  let r = await openRead(`${base}/vp`)
+  assert.match(r.out, /wide layout/)
+  assert.match(r.out, /inner 1280x900 touch false/)
+  r = await run('viewport', '800x600')
+  assert.match(r.out, /viewport 800x600/)
+  r = await run('read')
+  assert.match(r.out, /narrow layout/)
+  assert.match(r.out, /inner 800x600 touch false/)
+  r = await run('reload')
+  assert.match(r.out, /viewport 800x600/)
+  r = await run('read')
+  assert.match(r.out, /inner 800x600/)
+  r = await run('viewport', 'mobile')
+  assert.match(r.out, /viewport mobile 390x664/)
+  // A page decides on touch when its document is created, so a page already open is reloaded.
+  await run('reload')
+  r = await run('read')
+  assert.match(r.out, /inner 390x664 touch true/)
+  r = await run('viewport', 'reset')
+  assert.match(r.out, /viewport 1280x900/)
+  await run('reload')
+  r = await run('read')
+  assert.match(r.out, /inner 1280x900 touch false/)
+  assert.doesNotMatch((await run('reload')).out, /viewport/)
+  r = await run('viewport', 'big')
+  assert.notEqual(r.code, 0)
+  assert.match(r.out, /usage: browser-layer viewport/)
 })

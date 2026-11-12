@@ -57,6 +57,7 @@ Live tabs (headless browser, runs the page's JS):
   click · dblclick · rightclick · hover <ref>      check · uncheck <ref>      submit <ref>
   type <ref> <text> [--enter] [--keys]   pick <ref> <option>   press <key>   drag <ref> <onto ref>
   scroll [ref] [down|up|top|bottom]   upload <ref> <file...>   wait [--gone] <text>
+  viewport 1440x900 | mobile | reset   the tab's layout size or a phone (touch, narrow); shown in every answer's tab line until reset; reload a page already open to apply touch
   dialog accept [text] | dismiss   explore [ref] (open menus, list them)
   menu "A > B > C"             open a hover menu path in one call (instead of hover and click one by one)
   eval <js>                    run JavaScript in the page; the result as JSON; its fetch() carries the site's cookies:

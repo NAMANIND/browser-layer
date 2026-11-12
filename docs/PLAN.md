@@ -229,6 +229,12 @@ half of the lost score is sites refusing a headless browser, the same for both t
 Tried and dropped: a note after 80 commands telling the agent to deliver what it has. It cut cost 54% on six
 long tasks but cost score on four of them and did not rescue the two worst runaways.
 
+## Viewport (12 Nov 2026)
+`viewport <w>x<h> | mobile | reset`, per tab, CDP Emulation; the tab line shows `[viewport …]` while set. Why: held-out task
+bu2-167 scored 0.42 against 0.92 because `window.resizeTo` does nothing and a layout audit at 1440 wide was measured at 1280
+(bu2-158 needed mobile). Test: `viewport` in test/live.test.ts. `src/` +30 lines (3,782 to 3,808 incl. this change);
+`npm run measure` exits 0, reader numbers unchanged. Unproven: no benchmark run; the mobile profile is one device (iPhone 13).
+
 ## Open
 
 Next phase, in order. Each starts with a failing test and reports numbers before and after.
