@@ -398,3 +398,33 @@ bootstrap rule in JavaScript, NO-GO if cost, wall time or score is BEHIND or the
 but do not veto. About $0.6 and 25-30 minutes at 3 repeats. A candidate that moves cost or wall time by about 15% shows; it does not
 replace the real benchmark.
 
+
+## Agent fixes (branch `agent-fixes`, 12 Nov 2026)
+
+From the 1,715 commands of the 50-task run (what agents did with the tool, not its score) and a full read of `src/`.
+The run's 16% longer wall time was not the tool: five gaps of 10 to 33 minutes with no command running (model calls), against
+one of 7 minutes in the other arm; without them 245 against 262 task-minutes. The browser is 27% of a task's wall time.
+
+Done, each with a test that failed first:
+- **A page that arrives with its content hidden** is waited on until it shows (`settle.hiddenMs`). Bing answered with an empty
+  map at the 5 s deadline; live, the same two searches now answer with their results in 5.9 s (`shown after 5859 ms`).
+- **A control under its own label is clicked** (HTML label activation): 17 `covered by <label>` errors in 5 tasks, each after the
+  5 s wait, and agents worked around them with `eval "label.click()"`.
+- **`wait` matches as `find` does** (case, runs of spaces): 18 waits ran their 15 s and failed.
+- **`find --urls`** gives a link its address: 30 of 133 `eval` calls only pulled `href`s.
+- **A list's sample in the map** is its first row that shows something (Google's results read `list of 33:  …`).
+- **A plain HTTP fetch has `load.timeoutMs`**: a server that never answered held `open` for Node's default (minutes).
+
+Numbers: `npm run measure` unchanged (read p50 18 / 40 / 93 / 61 / 5 ms, same lines, chars and refs); tests 134 → 139, all green;
+`src/` 3,659 → 3,680 lines (+21: `daemon.ts` 14, mostly the hidden-page wait; the fetch limit 4; the label rule 2; the policy key 1).
+
+Found, not fixed: DuckDuckGo's JavaScript page gives a headless browser no results and makes no request for them (the site's
+choice; `open https://html.duckduckgo.com/html/?q=…` reads its results in one call). Live commands have no `--json`.
+
+Next, each to pass the local gate before it stays:
+1. `get <ref> --all`: follow the page's own next control, "load more" or scroll to the list's end in one call, records to a
+   file, saying how it ended. No paging verb exists; one task reported 65 products of 1,181.
+2. A bound on one action's changed lines (one calendar click answers 3 to 15k characters); replay on the transcripts first.
+3. Link names in the map when a region has many (a results page reads `links: 47`): costs characters on every page.
+4. `browser-layer mcp`: one tool taking the same command line, for agents without a shell. Reverses DESIGN §1; needs a decision.
+5. Settle cost, to measure before touching: 119 actions hit the 5 s deadline; the text hash runs on the page every 100 ms.

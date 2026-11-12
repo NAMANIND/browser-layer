@@ -278,7 +278,8 @@ them with refs, since guessing would act on the wrong control.
 Before pointer input, the target is waited for (up to `actions.timeoutMs`) until it has a box, is
 enabled, has stopped moving, and is the element at its own center (hit test against layout, through
 shadow roots and frames). Failure names the last reason: `it has no box on the page`, `it is disabled`,
-`it is still moving`, `covered by <div> "Cookie wall"`.
+`it is still moving`, `covered by <div> "Cookie wall"`. A control's own `<label>` over it is not a cover: a click on
+a label acts on its control (HTML label activation), which is how a styled checkbox is clicked.
 
 ### 5.2 Input
 
@@ -298,7 +299,9 @@ page starts within `settle.thirdPartyMs` (a search box served by a search API), 
 arrived makes in its first `settle.arrivalMs`, each for that long at most (results from another site's API;
 ad scripts keep making more, so each is bounded). Measured on news, travel and retail home pages: BBC 3.2 s → 2.7 s,
 CNN from the 5 s deadline to 4.4 s, Zillow 2.9 s → 2.1 s, Stack Overflow 1.5 s → 1.9 s. A page with plenty of text but hardly any shown
-(results revealed after load) gets `settle.revealMs` to show it. A document that has not arrived in
+(results revealed after load) gets `settle.revealMs` to show it; one that arrives like that and never goes quiet (results kept
+back while the site checks the visitor) is waited on past the deadline until it shows, `settle.hiddenMs` at most, and the answer
+says `shown after N ms`. A document that has not arrived in
 `load.domMs` is read as far as it got, and the answer says so. The page's standing connections are not the command's doing: requests open
 when it began, and requests that reopen one of their channels (same origin and path, as a long-poll
 reconnects), do not hold it. Measured on Google Sheets, whose DOM is still but whose `bind` channel is
@@ -313,7 +316,7 @@ again`, at no cost to any page that has content, and the agent's next read shows
 | Capability | Commands |
 |---|---|
 | Navigation | `tab <url…>` (several load together and each answers with its map, the first is current; a page already open in the session switches to its tab), `go <url>`, `back`, `forward`, `reload`, `tabs` (by last use), `use`, `close [id]` (`--all`: every tab of the session), `stop` (the browser; in a named session it closes that session's tabs and leaves the browser to the others) |
-| Reading | `map`, `read [ref] [--page N]`, `find <text>`, `get <ref>` (records), `wait [--gone] <text>` |
+| Reading | `map`, `read [ref] [--page N]`, `find <text>` (`--urls`: each link with its address), `get <ref>` (records), `wait [--gone] <text>` (matched as `find` matches: case and runs of spaces do not matter) |
 | Menus | `explore [ref]`, `menu "A > B > C"` |
 | Pointer | `click`, `dblclick`, `rightclick`, `hover`, `drag <ref> <onto ref>` (pointer drags and HTML drag and drop) |
 | Keyboard | `type <ref> <text> [--enter] [--keys]` (replace as typing over a selection; `--keys` sends one key event per character), `press <key or combo>` |
@@ -354,6 +357,7 @@ Keys are added when the phase that uses them lands.
 | `settle.quietMs` | 400 | How long the shown text must stay the same |
 | `settle.deadlineMs` | 5000 | Max wait after an action |
 | `settle.revealMs` | 2500 | Wait for text a page holds but does not show yet |
+| `settle.hiddenMs` | 12000 | A page that arrived holding text it does not show is waited on this long in all, past the deadline. Bing shows its results 6 to 10 s after load; at the 5 s deadline the map had none of them (28 of 76 search-engine page loads in 50 agent runs read empty) |
 | `settle.thirdPartyMs` | 1000 | Another site's fetch/XHR started this soon after an action on a loaded page holds settle |
 | `settle.arrivalMs` | 2000 | On a page that just arrived, another site's fetch/XHR started in this window holds settle, each for this long at most |
 | `open.dialogChars` | 6000 | A dialog an action opened answers whole up to this size (regions already shown, one line each), else with its map |
@@ -389,7 +393,7 @@ Keys are added when the phase that uses them lands.
 | `open.perHost` | 6 | Of those, at most this many on one site: the connections a browser opens to one host (HTTP/1.1 practice), so a bulk fetch is no heavier on a site than a person's page load |
 | `sessions.max` | 8 | Parallel sessions |
 | `sessions.idleMs` | 900000 | A session unused this long loses its tabs when another session runs a command, so it stops holding a slot of `sessions.max` |
-| `load.timeoutMs` | 30000 | Navigation timeout (until the response begins) |
+| `load.timeoutMs` | 30000 | Navigation timeout (until the response begins); for a plain HTTP fetch (`open`, `do`), the limit on each request, headers and body |
 | `load.domMs` | 10000 | Wait for the document; after it, the page is read as far as it got |
 | `load.retryMs` | 8000 | Longest wait before loading a page again after a 429 |
 | `viewport.width` / `.height` | 1280 / 900 | Layout size; decides responsive variants |
