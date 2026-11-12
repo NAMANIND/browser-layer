@@ -25,6 +25,23 @@ browser-layer used about half the tokens of either and the fewest steps, and was
 Agent: cursor-agent with `claude-sonnet-5-thinking-high`, one run per tool per task. Tasks, runner,
 raw data and method: [github.com/NAMANIND/browser-layer](https://github.com/NAMANIND/browser-layer/blob/main/bench/RESULTS.md).
 
+### Against Browser Use 1.0 CLI
+
+On 50 open-web tasks from BU Bench V2.1 that were never used while tuning, run by the same agent (Codex,
+gpt-6-luna) and scored by the same judge, one run per task and tool, 5 tasks at a time:
+
+| | browser-layer 0.1.4 | Browser Use 1.0 CLI |
+|---|---|---|
+| Mean score | 0.404 | 0.408 |
+| Minutes per task | 6.4 | 5.5 |
+| Steps per task | 44.3 | 41.0 |
+| Cost per task at list price | $0.42 | $0.47 |
+| Timeouts | 1 | 1 |
+
+Paired by task, no metric differs beyond chance (95% intervals include zero): the two tools are level on score,
+with browser-layer 11% cheaper and 16% slower in total, both inside the noise at 50 tasks. Many of these tasks
+hit sites that block automated browsers, which lowers both scores.
+
 ## Install
 
 Needs Node.js 22 or newer, on macOS, Linux or Windows.
@@ -49,6 +66,7 @@ browser-layer install --with-deps  # Linux: also installs the libraries Chromium
 browser-layer tab google.com/travel/flights   # opens a live tab; answers with the page map
 browser-layer type 15 Mumbai                  # answers with what changed
 browser-layer click "Search"                  # a control by ref or by name
+browser-layer steps 'type 15 Pune --enter; click "Search"'   # several steps in one call
 browser-layer read 231                        # one region in full
 browser-layer get 233 --sort c11 --limit 3    # a list or table as records (TSV)
 browser-layer net                             # the API calls the page made
@@ -64,6 +82,8 @@ only those.
 **Long answers**: an answer over 20,000 characters is saved whole to `<home>/results/` and the reply gives its first
 4,000 characters and how to take the rest with `rg -n`, `sed -n`, `tail -c` or `jq`, so one big page or `eval` result
 never fills the agent's context.
+With `--out <file>` on `open`, `read`, `find` or `get` the whole result goes to a file and the reply shows its first
+1,500 characters.
 
 `browser-layer help` lists every command. A background daemon keeps the browser and its tabs alive
 between commands and exits after 30 idle minutes. Its state (profile, cookies, last page) lives in
