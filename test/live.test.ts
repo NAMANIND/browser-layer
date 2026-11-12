@@ -148,7 +148,7 @@ const server = createServer((req, res) => {
     <script>setTimeout(() => b.disabled = false, 800); document.querySelector('[aria-label="Cookie wall"]').style.top = document.querySelectorAll('button')[1].getBoundingClientRect().top - 5 + 'px'</script>`)
   if (req.url === '/busy') return page('busy', `<button onclick="o.textContent = 'pressed'">Press</button><p id="o">idle</p><p id="t">0</p><script>setInterval(() => t.textContent = Date.now(), 50)</script>`)
   // A picture the server never finishes sending: decoration cannot change the text, so it must not hold settle.
-  if (req.url === '/stuck') return page('stuck', `<button onclick="document.body.append(Object.assign(new Image(), { src: '/never.gif' })); o.textContent = 'added'">Add</button><p id="o">text</p>`)
+  if (req.url === '/slow-picture') return page('slow-picture', `<button onclick="document.body.append(Object.assign(new Image(), { src: '/never.gif' })); o.textContent = 'added'">Add</button><p id="o">text</p>`)
   if (req.url === '/never.gif') return
   if (req.url === '/later') return page('later', `<p>loading</p><script>setTimeout(() => document.body.insertAdjacentHTML('beforeend', '<p>ready now</p>'), 700)</script>`)
   if (req.url === '/api') return page('api', `<p id="o">loading</p><script>
@@ -819,7 +819,7 @@ test('settle says why it stopped: idle, or the deadline on a page that never goe
 })
 
 test('a picture still on its way does not hold settle: it cannot change the text', async () => {
-  const page = await openRead(`${base}/stuck`)
+  const page = await openRead(`${base}/slow-picture`)
   await run('allow', 'images')
   const r = await run('click', ref(page.out, /button "Add"/))
   assert.match(r.out, /added/)
