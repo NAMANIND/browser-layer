@@ -42,6 +42,29 @@ Paired by task, no metric differs beyond chance (95% intervals include zero): th
 with browser-layer 11% cheaper and 16% slower in total, both inside the noise at 50 tasks. Many of these tasks
 hit sites that block automated browsers, which lowers both scores.
 
+## What's new in 0.1.4
+
+- **Many pages in one call.** `tab <url…>` opens several pages at once and answers with each map.
+  `each '<read>' <url…>` runs one read (`find`, `read`, `get`, `eval`…) on every page and answers once per page.
+  `open <url…>` fetches plain pages in parallel. With `--out <file>` each page is written under a `== address`
+  line, so one `rg -n` or `sed -n` works across all of them.
+- **Sitemaps and feeds as data.** An XML sitemap or feed is read one record per line, not as one long run of text.
+  No line of a saved `--out` file is longer than 2,000 characters.
+- **One ceiling for every answer.** An answer over 20,000 characters is saved whole to `<home>/results/` and the
+  reply gives its first 4,000 with how to read the rest. A result saved with `--out` shows its first 1,500
+  characters. `read --full` folds regions already shown in the tab.
+- **Shorter answers.** The tab line (address and title) appears only when it changed, command hints and the
+  footer's link lists are gone, and a repeated call that gets the same answer says so.
+- **Agents side by side.** Each `--session` has its own command queue, so agents do not wait on each other.
+  `stop` in a named session closes only that session's tabs, `close --all` closes all of them in one call,
+  and a session idle for 15 minutes loses its tabs when another session runs.
+- **More controls found.** Date, time and colour inputs, contenteditable editors, hover targets and scrollers
+  now get a ref.
+- **Steadier daemon.** The client waits for a daemon that is still starting Chrome, a command is not sent
+  again when the daemon died while running it (a click or submit could have run twice), and a request it cannot
+  parse no longer crashes it.
+- **One manual.** `browser-layer help` and the agent skill (`SKILL.md`) are the same text, so an agent reads it once.
+
 ## Install
 
 Needs Node.js 22 or newer, on macOS, Linux or Windows.
