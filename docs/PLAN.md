@@ -510,3 +510,13 @@ map characters 249 → 795 (hacker-news), 1,697 → 4,013 (github-repo), 1,805 �
 of links the agent mostly reaches through `find` or `get --urls` anyway. A name past `mapFew` of the first few (a bounded
 sample) would still add to each page what 8 does now. Not shipped; `find <text>` is the call that gives the names of the
 links the agent wants, and it costs only when asked.
+
+### Derived values in the final answer: tried, reverted (12 Nov 2026)
+
+BU Bench bu2-153 lost 0.18 on one rubric item because the answer gave correct rates and totals without the numbers and arithmetic
+behind them. Tried one Rules line (before "Deliver as you go"): "A derived value (rate, total, count, comparison): give the numbers
+it comes from and the arithmetic." (+99 characters in help and skill, with a test). Local gate, Haiku, 13 tasks × 3 repeats
+(`gate.mjs <branch> agent-fixes --repeats 3`): score 0.9677 vs 0.9349 (tie), usd 0.0081 vs 0.0069 (BEHIND, +17%, interval
+0.0002..0.0022), wall 89.9 s vs 84.5 s (tie), steps 11.3 vs 9.7 (tie), input tokens 250k vs 210k (tie). NO-GO on cost, so the line
+and its test are reverted. These tasks have no derived-value rubric, so the gate cannot show the benefit, only the cost; a
+held-out task that grades derivations would be the test of a retry.
