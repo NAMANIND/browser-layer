@@ -247,6 +247,13 @@ passed 3k.
   current source; inline `data:` pictures have none), each once per record, since stores link a card's
   picture, title and price to one page. Without it, and in reading and the map, both are left out: a
   store's tracked links are hundreds of characters each.
+- **The whole list** (`get --all`): the list's own way to more is pressed until nothing new arrives: a link marked
+  `rel=next` (HTML link types), else a link or button named as paging controls are (Next, Load more, Show more, ›);
+  with none, the page scrolls to its end, which is how an infinite list asks for more. A record is new when no
+  earlier record has the same cells; the list is found again after each step (its ref, else the largest list of its
+  kind, since a new page has new refs). The answer says how it ended: `end of list` (no control, scrolling brought
+  nothing), `no new items` (a control was pressed and nothing came), or `bound hit` (`get.rounds`).
+  Records go to `--out` as any `get` does; without it the answer is the usual one page.
 - **Sorting** uses the standard collator with numeric ordering, after removing digit-group separators
   and turning 12-hour times into 24-hour ones. Empty values sort last.
 
@@ -380,6 +387,7 @@ Keys are added when the phase that uses them lands.
 | `explore.depth` | 2 | Levels of submenus `explore` opens |
 | `explore.max` | 40 | Most menus one `explore` opens |
 | `explore.waitMs` | 1500 | Settle deadline after opening or closing a menu while exploring |
+| `get.rounds` | 50 | `get --all` presses the list's next control (or scrolls) at most this many times; the answer says when this ended it |
 | `data.rows` | 20 | Lines `find` returns (`get` with no `--limit` returns the records that fit `render.pageChars`) |
 | `data.minRepeats` | 3 | Siblings sharing a signature before they count as records |
 | `data.minParts` | 2 | Block-level parts each of those siblings needs |

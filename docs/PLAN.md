@@ -421,9 +421,14 @@ Numbers: `npm run measure` unchanged (read p50 18 / 40 / 93 / 61 / 5 ms, same li
 Found, not fixed: DuckDuckGo's JavaScript page gives a headless browser no results and makes no request for them (the site's
 choice; `open https://html.duckduckgo.com/html/?q=…` reads its results in one call). Live commands have no `--json`.
 
+`get <ref> --all` (12 Nov 2026): follows a `rel=next` link, a Next / Load more / Show more control, or scrolls, until the list
+ends, no new records arrive, or `get.rounds` (50) is reached; records go to `--out`, the answer says how
+it ended. Tested on pages behind a link, a Load more button, an infinite scroll, a button that adds nothing, and a bound.
+Not proven: against real stores (the 1,181-product task); a scroll inside an inner scroller (only the page scrolls); a bound
+that lands exactly on the last page reads as `bound hit`.
+
 Next, each to pass the local gate before it stays:
-1. `get <ref> --all`: follow the page's own next control, "load more" or scroll to the list's end in one call, records to a
-   file, saying how it ended. No paging verb exists; one task reported 65 products of 1,181.
+1. ~~`get <ref> --all`~~ done (below).
 2. A bound on one action's changed lines (one calendar click answers 3 to 15k characters); replay on the transcripts first.
 3. Link names in the map when a region has many (a results page reads `links: 47`): costs characters on every page.
 4. `browser-layer mcp`: one tool taking the same command line, for agents without a shell. Reverses DESIGN §1; needs a decision.
