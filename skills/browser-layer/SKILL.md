@@ -36,7 +36,6 @@ Rules
   setting you gave it, set it another way; add no filters of your own. Follow the site's links and search, not guessed URLs.
   A field with suggestions (a city, a product search): choose from the list (click the option, or press Enter) before the
   next field, in the same call: steps 'type "From" Zurich; press Enter; type "To" London; press Enter'.
-  A derived value (rate, total, count, comparison): give the numbers it comes from and the arithmetic.
   Deliver as you go: write the deliverable early, update it with each finding, mark what you have not checked.
   Know when to stop: when two different ways to the same thing have failed, report it unavailable and move on.
   blocked / CAPTCHA: never solve or evade it. A block often covers one page: try the home page, the site's search, its API or
