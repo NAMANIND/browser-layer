@@ -19,6 +19,8 @@ export const FLIGHTS = Array.from({ length: 25 }, (_, i) => {
   return { airline: airlines[i % 5], dep, arr: dep + 130 + stops * 95, stops, price: Math.round((4800 + rand() * 6000) / 5) * 5, best: i % 7 === 0 }
 })
 export const ORDERS = Array.from({ length: 120 }, (_, i) => ({ id: `ORD-${5000 + i}`, customer: `Customer ${i + 1}`, amount: Math.round(rand() * 9000 + 500), status: ['Paid', 'Shipped', 'Refunded', 'Pending', 'Paid'][Math.floor(rand() * 5)] }))
+// A catalog of 100 items over 10 server-rendered pages, each linking rel=next to the following one.
+export const CATALOG = Array.from({ length: 100 }, (_, i) => ({ sku: `SKU-${7000 + i}`, name: `Item ${i + 1}`, price: Math.round(rand() * 4000 + 100), stock: ['In stock', 'In stock', 'Backorder', 'Out of stock'][Math.floor(rand() * 4)] }))
 export const REPORT_TOTAL = 48213
 export const state = { signups: [], settings: { email: true, sms: false } }
 export function resetState() { state.signups = []; state.settings = { email: true, sms: false } }
@@ -66,6 +68,11 @@ const APPS = {
     <script>const orders = ${JSON.stringify(ORDERS)}; let p = 0; const per = 20
       function draw() { rows.innerHTML = orders.slice(p * per, p * per + per).map(o => '<tr><td>' + o.id + '</td><td>' + o.customer + '</td><td>₹' + o.amount + '</td><td>' + o.status + '</td></tr>').join(''); pg.textContent = 'Page ' + (p + 1) + ' of ' + Math.ceil(orders.length / per); prev.disabled = p === 0; next.disabled = (p + 1) * per >= orders.length }
       prev.onclick = () => { p--; draw() }; next.onclick = () => { p++; draw() }; draw()</script>`),
+  '/catalog': (res, url) => {
+    const p = Math.min(10, Math.max(1, Number(url.searchParams.get('page')) || 1))
+    page(res, `Catalog, page ${p}`, `<main><h1>Catalog</h1><p>Page ${p} of 10</p><table><thead><tr><th>SKU</th><th>Item</th><th>Price</th><th>Availability</th></tr></thead><tbody>${CATALOG.slice(p * 10 - 10, p * 10).map(c => `<tr><td>${c.sku}</td><td>${c.name}</td><td>₹${c.price}</td><td>${c.stock}</td></tr>`).join('')}</tbody></table>
+    ${p > 1 ? `<a rel="prev" href="/catalog?page=${p - 1}">Previous</a>` : ''} ${p < 10 ? `<a rel="next" href="/catalog?page=${p + 1}">Next</a>` : ''}</main>`)
+  },
   '/signup': res => page(res, 'Teamly — Sign up', `<main><h1>Create your account</h1><div id="step"></div></main>
     <script>const data = {}; let s = 1
       function draw() {
@@ -86,7 +93,7 @@ const APPS = {
 export function startSite(port = 0) {
   const server = createServer((req, res) => {
     const url = new URL(req.url, 'http://x')
-    if (req.method === 'GET' && APPS[url.pathname]) return APPS[url.pathname](res)
+    if (req.method === 'GET' && APPS[url.pathname]) return APPS[url.pathname](res, url)
     if (url.pathname === '/reports/q3.csv') { res.setHeader('content-type', 'text/csv'); res.setHeader('content-disposition', 'attachment; filename="q3-report.csv"'); return res.end(`Month,Revenue\nJuly,15200\nAugust,17488\nSeptember,15525\nTotal,${REPORT_TOTAL}\n`) }
     if (url.pathname === '/api/signup' && req.method === 'POST') { let b = ''; req.on('data', c => (b += c)); req.on('end', () => { state.signups.push(JSON.parse(b)); res.end('{}') }); return }
     if (url.pathname === '/login' && req.method === 'POST') {
