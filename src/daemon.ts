@@ -295,8 +295,7 @@ const holdsBack = async (tab: Tab) => await Promise.race([tab.page.evaluate('win
 // or a dialog is waiting (the page is blocked until it is answered); or the deadline passes. A page with
 // plenty of text but hardly any shown is given settle.revealMs to show it. A document that has not
 // finished arriving in load.domMs is read as far as it got. Says which.
-async function settle(tab: Tab, deadline = policy['settle.deadlineMs']): Promise<string> {
-  const start = Date.now()
+async function settle(tab: Tab, deadline = policy['settle.deadlineMs'], start = Date.now()): Promise<string> {
   const arrived = await tab.page.waitForLoadState('domcontentloaded', { timeout: policy['load.domMs'] }).then(() => true, () => false)
   if (!arrived) return `still loading after ${policy['load.domMs'] / 1000} s; this is what has arrived`
   if (tab.doc !== tab.startDoc) tab.arrived ??= Date.now()
@@ -304,8 +303,13 @@ async function settle(tab: Tab, deadline = policy['settle.deadlineMs']): Promise
   let last: unknown
   let hidden: boolean | undefined
   let quietSince = Date.now()
+  // An action that navigates commits its new document during this wait. That document is settled like one
+  // that was opened, from its own arrival: read before it has parsed (its head waiting on a script), it is empty.
+  const doc = tab.doc
+  const moved = () => tab.doc !== doc && Date.now() - start < policy['load.timeoutMs']
   while (Date.now() < end) {
     if (tab.dialog) return 'dialog'
+    if (moved()) return settle(tab, deadline, start)
     // A dialog opening mid-read blocks page scripts, so the read is bounded.
     const text = await Promise.race([tab.page.evaluate('window.__alText?.() ?? 0').catch(() => -2), sleep(500).then(() => -3)])
     if (text !== last || caused(tab) > 0) { last = text; hidden = undefined; quietSince = Date.now() }
@@ -320,6 +324,7 @@ async function settle(tab: Tab, deadline = policy['settle.deadlineMs']): Promise
   if (tab.doc === tab.startDoc || !await holdsBack(tab)) return `deadline ${deadline} ms (the page kept changing)`
   while (Date.now() - start < policy['settle.hiddenMs']) {
     if (tab.dialog) return 'dialog'
+    if (moved()) return settle(tab, deadline, start)
     if (!await holdsBack(tab)) return `shown after ${Date.now() - start} ms`
     await sleep(100)
   }
@@ -389,7 +394,13 @@ async function blocked(tab: Tab, tree: Node): Promise<string> {
 // page load shows regions already shown, unchanged, in one line; one the agent asks for (map, a
 // switch to an open tab) is whole, since that is when it wants every ref again.
 async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>, settled = '', note = '', whole = false): Promise<string> {
-  const { tree, origin, text } = snap ?? await snapshot(tab)
+  let { tree, origin, text } = snap ?? await snapshot(tab)
+  // A page that reads empty went quiet before it drew (a timer, a fade-in still at opacity 0). Telling the agent
+  // to read again costs it a call, so it is read again here until it has something, settle.revealMs at most.
+  for (const end = Date.now() + policy['settle.revealMs']; !text && Date.now() < end;) {
+    await sleep(policy['settle.quietMs'])
+    ;({ tree, origin, text } = await snapshot(tab))
+  }
   remember(tab, text)
   const now = new Map<number, string>()
   const map = renderMap(tree, origin, caps(), policy['render.mapFew'], { before: whole ? new Map() : tab.seen.map, now })

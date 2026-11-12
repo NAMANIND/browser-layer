@@ -165,6 +165,10 @@ const server = createServer((req, res) => {
   // Another site's request that never finishes (an ad server) beside the site's own data call.
   if (req.url === '/thirdparty') return page('thirdparty', `<p id="o">loading</p><script>fetch('http://localhost:${port}/hang').catch(() => {})
     fetch('/slow').then(r => r.text()).then(t => o.textContent = 'own data: ' + t)</script>`)
+  // A page whose parsing waits on another site's script: until that comes, the document has no content.
+  if (req.url === '/next') return page('next', `<a href="/report">Open the report</a>`)
+  if (req.url === '/report') return page('report', `<script src="http://localhost:${port}/late.js"></script><h1>Quarterly report</h1><p>Revenue rose.</p>`)
+  if (req.url === '/late.js') { res.setHeader('content-type', 'text/javascript'); return void setTimeout(() => res.end(''), 1200) }
   // Results served by another site's API a moment after the page loads.
   if (req.url === '/listing') return page('listing', `<p id="o">loading results</p><script>fetch('http://localhost:${port}/slow-api').then(r => r.text()).then(t => o.textContent = 'results: ' + t)</script>`)
   if (req.url === '/slow-api') { res.setHeader('access-control-allow-origin', '*'); return void setTimeout(() => res.end('slow data'), 800) }
@@ -181,7 +185,8 @@ const server = createServer((req, res) => {
   // A document whose end arrives late: what came first is still readable.
   if (req.url === '/slowdoc') { res.setHeader('content-type', 'text/html'); res.write('<title>slowdoc</title><p>first part</p>'); return void setTimeout(() => res.end('<p>last part</p>'), 4000) }
   // An app that draws its page after the DOM has gone quiet: a timer, client-side rendering.
-  if (req.url === '/draws-late') return page('draws-late', `<script>setTimeout(() => { document.body.innerHTML = '<p>Drawn at last</p>' }, 2500)</script>`)
+  if (req.url === '/draws-late') return page('draws-late', `<script>setTimeout(() => { document.body.innerHTML = '<p>Drawn at last</p>' }, 6000)</script>`)
+  if (req.url === '/draws-soon') return page('draws-soon', `<script>setTimeout(() => { document.body.innerHTML = '<p>Drawn soon</p>' }, 1500)</script>`)
   // A banner over a control, with buttons that answer it.
   if (req.url === '/banner') return page('banner', `<button onclick="o.textContent = 'reached'">Behind</button><p id="o">not yet</p>
     <div id="b" style="position:fixed;inset:0;background:#fff"><p>We use cookies</p><button onclick="b.remove()">Reject all</button><button onclick="b.remove()">Accept all</button></div>`)
@@ -1251,6 +1256,10 @@ test('a document whose end is slow to arrive is read as far as it got', async ()
 test('a page with nothing drawn yet says it may still be loading; a page with only a form does not', async () => {
   const blank = await run('tab', `${base}/draws-late`)
   assert.match(blank.out, /no content yet: the page may still be loading; read again/)
+  // One that draws a moment after it went quiet is read again here, not by the agent in another call.
+  const soon = await run('tab', `${base}/draws-soon`)
+  assert.doesNotMatch(soon.out, /no content yet/)
+  assert.match(soon.out, /text: 10 chars/)
   assert.doesNotMatch((await run('tab', `${base}/form2`)).out, /still be loading/)
 })
 
@@ -1281,6 +1290,13 @@ test('a control under its own label is clicked through the label, as a person cl
   const r = await run('check', 'Recalls')
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /recalls true/)
+})
+
+test('a page an action navigates to is read once its document has arrived, not while it waits on a script', async () => {
+  await run('tab', `${base}/next`)
+  const r = await run('click', 'Open the report')
+  assert.doesNotMatch(r.out, /no content yet/)
+  assert.match(r.out, /Quarterly report/)
 })
 
 test('a page that arrives with its content hidden is waited on past the deadline, until it shows', async () => {

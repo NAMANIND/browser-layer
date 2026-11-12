@@ -324,9 +324,13 @@ when it began, and requests that reopen one of their channels (same origin and p
 reconnects), do not hold it. Measured on Google Sheets, whose DOM is still but whose `bind` channel is
 always open: actions settle in 0.4–1.4 s instead of the 5 s deadline.
 
-A page can draw after the network and DOM went quiet (a timer, client-side rendering). Settle does not wait
-for that: the map of a page with nothing on it says `no content yet: the page may still be loading; read
-again`, at no cost to any page that has content, and the agent's next read shows what landed.
+A page can draw after the network and DOM went quiet (a timer, client-side rendering, a fade-in still at opacity 0). Settle
+does not wait for that, at no cost to any page that has content; a page that then reads empty is read again by the tool until it
+has something, `settle.revealMs` at most, since telling the agent to read again costs it a call. One still empty says `no content
+yet: the page may still be loading; read again`.
+
+An action that navigates commits its new document while settle waits. That document is settled from its own arrival, as one that
+was opened is: read before it has parsed (its head waiting on a script), it is empty.
 
 ## 6. Browser coverage
 

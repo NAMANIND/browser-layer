@@ -510,3 +510,14 @@ map characters 249 → 795 (hacker-news), 1,697 → 4,013 (github-repo), 1,805 �
 of links the agent mostly reaches through `find` or `get --urls` anyway. A name past `mapFew` of the first few (a bounded
 sample) would still add to each page what 8 does now. Not shipped; `find <text>` is the call that gives the names of the
 links the agent wants, and it costs only when asked.
+
+## Empty answers on pages that had content (12 Nov 2026, from the 35-task run on `agent-fixes`)
+
+That run (bu2-151..185) tied again, 36.3 against 34.9. Read from its 1,338 commands: in 13 of 35 tasks both tools were turned away
+by the site (Cloudflare, 403) and scored the same, 0.24 and 0.22; on the other 22 both scored 0.43. The earlier fixes did fire
+(`shown after` 22 times, no label cover, 4 failed waits against 19, search pages read empty 6 of 56 against 28 of 80), but 44 answers
+said `no content yet` on a page whose next `read` had content, each a wasted call: a click or Enter that navigates was settled on
+the old document, so the new one was read before it had parsed, and a page that fades in was read while still at opacity 0.
+Fixed, each with a test that failed first: a document that arrives during settle is settled from its own arrival, and a page that
+reads empty is read again by the tool (`settle.revealMs` at most). Tests 144 to 145, measure unchanged, `src/daemon.ts` +14 lines.
+Not confirmed live on Bing: after some twenty searches from this machine it stopped showing results at all.
