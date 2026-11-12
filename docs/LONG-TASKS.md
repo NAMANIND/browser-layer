@@ -114,6 +114,10 @@ characters per 60 calls (`tabs` lists them all).
 No other row moved, beyond 1k more read per task from two more lines in the manual. `npm run measure` unchanged; tests 145 → 148.
 The two rows that say so become `done` with C1 (continuation by `aria-current`, and a control the agent names).
 
+After C2 for records and columns that line up (13 Nov): A5 tool-only 77k → 29k read. The manual grew from 5,591 to
+5,789 characters for the new `get` lines, which every call re-reads: A3 203k → 206k, A4 153k → 156k. That is the price
+of any new verb, and it is paid most by the tasks that already cost most. Tests 148 → 153, `npm run measure` unchanged.
+
 What this changes below: C1's number is the `plain` rows, not the call count; C5 and C6 cannot be shown by a floor (a
 perfect agent never reads twice or looks after an error it did not make) and are judged on recorded runs and in phase 4;
 C7 loses its worry about session length and keeps the tab bound and the restore.
@@ -147,6 +151,10 @@ of all answer text in the last run, 42 answers over 8,000 characters.
 file name these, not `rg` and `sed`.
 *Done when.* A5 tool-only reads no more than with a shell (77k against 28k today) and its biggest answer is under
 `answer.headChars` (11,730 characters today); no floor script needs a program outside the tool.
+*Done for records, 13 Nov:* `get <file>` with `--where`, `--count`, `--group`, on a file or a list, and inside `steps`.
+A5 tool-only: 4 calls, 24,130 characters answered, 77k read → 3 calls, 3,134, 29k (with a shell: 29k); biggest answer
+1,647. Not done: text files. An answer over `answer.maxChars`, and a bulk `--out` file, still name `rg` and `sed`, which
+an agent without a shell does not have; no floor row needs one yet, so `find --in` waits for a row that does.
 *Known risk.* `find --in` was built once and agents with a shell did not use it. That run measured adoption, not need:
 the tool-only floor measures need. Adoption is measured after, as gap to floor.
 
@@ -162,6 +170,8 @@ columns in the last run); cells carry refs (`[4670] link "…"`), which mean not
 3. Column stability (PLAN "Open" item 4). The rule is not known yet. Phase 0 measures it on the corpus and the floor
    site: columns per record field and share of blank cells. Candidate rules are tried against that number; none is
    adopted on one site's evidence.
+*Done, 13 Nov, for columns across pages:* a field is the same column on every page of one `get --all`; A5's scripts
+lost their workaround. Names, refs in files and the blank-cell rule are not started.
 *Done when.* A5's `--sort` on the price column is right with no workaround in the script; on the corpus and floor
 lists blank cells are under 15% (Amazon is 52% today).
 
@@ -234,7 +244,7 @@ Each item is one session in its own worktree from `agent-fixes`, test first, sma
 | Phase | Sessions (parallel within a phase) | Touches | Leaves |
 |---|---|---|---|
 | 0 ✅ | `bench/floor`: the site, checkers, par scripts for A1 to A5 and A7 in three modes, A6 | `bench/floor/` only | The measured table in §2 |
-| 1 | `resume` (C4; `get --all` ✅) · `readback` (C2) · `one-view` (C5) | `daemon.ts` collect code · `data.ts`, `cli.ts` · `daemon.ts` view code | Floors after each |
+| 1 | `resume` (C4; `get --all` ✅) · `readback` (C2; records ✅) · `one-view` (C5) | `daemon.ts` collect code · `data.ts`, `cli.ts` · `daemon.ts` view code | Floors after each |
 | 2 | `join` (C1) · `columns` (C3) | collect code · `reader.ts`, `data.ts` | Floors after each |
 | 3 | `ledger` (C6) · `survive` (C7) | view code · `daemon.ts` start-up, `client.ts` | Floors after each |
 | 4 | Local agent gate on Haiku (short, long, and the floor tasks as prompts), then one paid run if the gate is clean | none | Gap to floor per task; RESULTS |

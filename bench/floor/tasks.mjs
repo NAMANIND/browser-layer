@@ -120,20 +120,24 @@ export const TASKS = [
     },
     check: () => JSON.stringify(Object.entries(state.wizard ?? {}).sort()) === JSON.stringify(Object.entries(EXPECTED).sort()),
   },
-  // The list's optional part (a Sale mark) lands in column 4 on some pages and 5 on others, so the price is taken
-  // as the cell that starts with $, and the tool's own --sort on it cannot be used.
   {
     id: 'A5 reduce 500',
+    // The list is saved once and asked three questions, each answered by the tool: no row enters the conversation
+    // but the ten that are the answer.
     tool: async t => {
-      const half = async (address, order) => (await t.bl('get', ref(await t.bl('tab', address), 'list of 20'), '--all', '--sort', 'c2', ...order, '--limit', '250', '--cols', 'c1,c3,c4,c5'))
-        .split('\n').map(l => l.match(/link "([^"]+)"\t(\w+)\t.*\$([\d.]+)/)).filter(Boolean).map(m => ({ name: m[1], cat: m[2], price: Number(m[3]) }))
-      const rows = [...await half(`${t.base}/list/rel`, []), ...await half(`${t.base}/list/rel?page=1`, ['--desc'])]
-      return { ...reduced(rows), top10: rows.sort((a, b) => b.price - a.price).slice(0, 10).map(r => r.name) }
+      const file = t.out('all.tsv')
+      await getAll(t, ref(await t.bl('tab', `${t.base}/list/rel`), 'list of 20'))
+      const out = await t.bl('steps', `get ${file} --where c3=Garden --where "c4<100" --count; get ${file} --group c3; get ${file} --sort c4 --desc --limit 10 --cols c1`)
+      return {
+        cheapGarden: Number(out.match(/(\d+) of 500 records/)[1]),
+        perCategory: Object.fromEntries(CATEGORIES.map(c => [c, Number(out.match(new RegExp(`^${c}\\t(\\d+)$`, 'm'))[1])])),
+        top10: [...out.matchAll(/link "([^"]+)"/g)].map(m => m[1]),
+      }
     },
     shell: async t => {
       const file = t.out('all.tsv')
       await getAll(t, ref(await t.bl('tab', `${t.base}/list/rel`), 'list of 20'))
-      const out = await t.sh(`awk -F'\\t' 'NR>1 { p=substr($4 ~ /^[$]/ ? $4 : $5, 2)+0; n[$3]++; if ($3=="Garden" && p<100) g++; print p "\\t" $1 > "${file}.byprice" } END { print "cheapGarden " g; for (c in n) print "cat " c " " n[c] }' ${file}; sort -gr ${file}.byprice | head -10`)
+      const out = await t.sh(`awk -F'\\t' 'NR>1 { p=substr($4,2)+0; n[$3]++; if ($3=="Garden" && p<100) g++; print p "\\t" $1 > "${file}.byprice" } END { print "cheapGarden " g; for (c in n) print "cat " c " " n[c] }' ${file}; sort -gr ${file}.byprice | head -10`)
       return {
         cheapGarden: Number(out.match(/cheapGarden (\d+)/)[1]),
         perCategory: Object.fromEntries(CATEGORIES.map(c => [c, Number(out.match(new RegExp(`cat ${c} (\\d+)`))[1])])),

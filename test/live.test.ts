@@ -601,6 +601,24 @@ test('a field is in the same column on every page of get --all, wherever an opti
   assert.deepEqual(rows.filter(r => r[2]).map(r => r[0]), ['Item 4', 'Item 8'])
 })
 
+test('get reads a saved records file back: --where, --count, --group and --sort, inside steps too', async () => {
+  const out = join(home, 'back.tsv')
+  await run('get', ref((await run('tab', `${base}/pg?last=2&p=0`)).out, /list of \d+/), '--all', '--out', out)
+  const cheap = await run('get', out, '--where', 'c2<500')
+  assert.match(cheap.out, /12 records, 2 columns \(5 match c2<500\)/)
+  assert.match(cheap.out, /Item 4\t₹400/)
+  assert.doesNotMatch(cheap.out, /Item 5/)
+  assert.match((await run('get', out, '--where', 'c1~item 1', '--count')).out, /3 of 12 records match c1~item 1/)
+  assert.match((await run('get', out, '--group', 'c2', '--limit', '2')).out, /c2\tcount\n₹\d+\t1\n/)
+  const both = await run('steps', `get ${out} --count; get ${out} --sort c2 --desc --limit 1`)
+  assert.match(both.out, /12 of 12 records/)
+  assert.match(both.out, /Item 11\t₹1100/)
+  assert.match((await run('get', join(home, 'policy.json'))).out, /not a records file/)
+  assert.match((await run('get', join(home, 'nothing.tsv'))).out, /no such file/)
+  // The same on a list on the page.
+  assert.match((await run('get', ref((await run('tab', `${base}/pg?last=2&p=1`)).out, /list of \d+/), '--where', 'c2>600', '--count')).out, /1 of 4 records match c2>600/)
+})
+
 test('get --all has a time limit for each page, not one for the whole list', async () => {
   // Six pages of 1.2 s each take longer than a read may (read.timeoutMs, 5 s here).
   const list = ref((await run('tab', `${base}/pg?last=5&p=0&ms=1200`)).out, /list of \d+/)

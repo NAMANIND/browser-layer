@@ -10,7 +10,7 @@ import { ceiling, home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, humanCheck, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
 import { bounded, bulkAnswer, bulkFile, diffLines, findRef, goneLines, itemsLine, paginate, renderMap, renderText, type Bulk } from './render.js'
 import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
-import { query, records, toTsv, type Query, type Records } from './data.js'
+import { fromTsv, group, query, records, toTsv, where, type Query, type Records } from './data.js'
 import { pidPath, ping, socketPath, VERSION } from './client.js'
 import { loadPolicy, type Policy } from './policy.js'
 
@@ -154,7 +154,7 @@ type Tab = {
 }
 export type Command = {
   cmd: string; session: string; urls?: boolean; out?: string; url?: string; pages?: string[]; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean
-  page?: number; files?: string[]; dir?: string; gone?: boolean; keys?: boolean; to?: string; full?: boolean; version?: string
+  page?: number; files?: string[]; file?: string; dir?: string; gone?: boolean; keys?: boolean; to?: string; full?: boolean; version?: string
   // steps: the commands to run, each with the text it was given as.
   steps?: Command[]; raw?: string
 } & Query
@@ -551,7 +551,7 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
         remember(tab, snap.text)
         return `${await header(tab)}  — it opened what is below${where ? `; ${where} changed too (read <ref> shows it)` : ''}${settled ? `, settled: ${settled}` : ''}\n\n${outside.map(l => `+ ${l}`).join('\n')}`
       }
-      const body = [...outside.map(l => `+ ${l}`), ...found.map(n => recordsView(n, snap.origin, {}))].join('\n\n')
+      const body = [...outside.map(l => `+ ${l}`), ...found.map(n => recordsView(`[${n.ref}] ${n.role}`, records(n, snap.origin, caps()), {}))].join('\n\n')
       if (!found.length || body.length > policy['render.pageChars']) return mapView(tab, snap, settled, where && `new records in ${where} (browser-layer get <ref> reads them)`)
       remember(tab, snap.text)
       return `${await header(tab)}  — new records in ${where}${settled ? `, settled: ${settled}` : ''}\n\n${body}`
@@ -581,22 +581,25 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
   return [head, '', ...goneLines(removed, policy['render.mapFew']), ...shown.map(l => `+ ${l}`)].join('\n').trimEnd()
 }
 
-// A collection as records (TSV): sorted, limited and column-picked as asked, and never more than one page
-// in an answer (the column line included); --out writes them all.
-function recordsView(node: Node, origin: string, q: Query & { out?: string }, collected?: { data: Records; ended: string }): string {
-  const all = collected?.data ?? records(node, origin, { ...caps(), urls: q.urls })
-  const out = query(all, q)
-  const ended = collected ? ` — ${collected.ended}` : ''
+// Records (a collection on the page, a list collected over its pages, a file get saved) as TSV: filtered, counted,
+// grouped, sorted, limited and column-picked as asked, and never more than one page in an answer (the column line
+// included); --out writes them all. what: what they are, for the answer's first line.
+function recordsView(what: string, all: Records, q: Query & { out?: string }, ended = ''): string {
+  const kept = q.where ? where(all, q.where) : all
+  const matching = q.where ? ` match ${q.where.join(' and ')}` : ''
+  if (q.count) return `${what}: ${kept.rows.length} of ${all.rows.length} records${matching}${ended}`
+  const from = q.group ? group(kept, q.group) : kept
+  const out = query(from, q)
   if (q.out) return saved(q.out, toTsv(out), `${out.rows.length} records, ${out.columns.length} columns (TSV)${ended}`)
   const asked = out.rows.length
   let size = toTsv({ ...out, rows: [] }).length
   const fits = out.rows.findIndex(r => (size += r.join('\t').length + 1) > policy['render.pageChars'])
   if (fits >= 0) out.rows = out.rows.slice(0, fits)
-  const head = `[${node.ref}] ${node.role}: ${all.rows.length} records, ${all.columns.length} columns${ended}`
-  if (!out.rows.length && asked) return `${head} — too wide for one answer: --cols picks columns, read ${node.ref} reads it as text, --out <file> writes all`
-  const what = [q.sort ? `sorted by ${q.sort}${q.desc ? ' descending' : ''}` : '', out.rows.length < all.rows.length ? `first ${out.rows.length}` : ''].filter(Boolean).join(', ')
-  const rest = out.rows.length < asked || (q.limit === undefined && out.rows.length < all.rows.length) ? `\n… ${all.rows.length - out.rows.length} more records: --limit, --cols, or --out <file> for all` : ''
-  return `${head}${what ? ` (${what})` : ''}\n\n${toTsv(out)}${rest}`
+  const head = `${what}: ${all.rows.length} records, ${all.columns.length} columns${q.where ? ` (${kept.rows.length}${matching})` : ''}${ended}`
+  if (!out.rows.length && asked) return `${head} — too wide for one answer: --cols picks columns, --out <file> writes all`
+  const how = [q.sort ? `sorted by ${q.sort}${q.desc ? ' descending' : ''}` : '', out.rows.length < from.rows.length ? `first ${out.rows.length}` : ''].filter(Boolean).join(', ')
+  const rest = out.rows.length < asked || (q.limit === undefined && out.rows.length < from.rows.length) ? `\n… ${from.rows.length - out.rows.length} more records: --limit, --cols, or --out <file> for all` : ''
+  return `${head}${how ? ` (${how})` : ''}\n\n${toTsv(out)}${rest}`
 }
 
 // get --all (DESIGN §4.5): the list's own way to more, pressed until nothing new arrives. A rel=next link (HTML link
@@ -638,9 +641,9 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
   if (mark && existsSync(mark) && existsSync(q.out!)) {
     const [began, reached, columns] = readFileSync(mark, 'utf8').split('\n')
     if ([began, reached].map(pageOf).includes(pageOf(from))) {
-      const [head, ...saved] = readFileSync(q.out!, 'utf8').trimEnd().split('\n')
-      names = head.split('\t').map(h => h.split(' ').slice(1).join(' '))
-      saved.forEach(l => add(l.split('\t')))
+      const saved = fromTsv(readFileSync(q.out!, 'utf8'))
+      names = saved.names
+      saved.rows.forEach(add)
       fields.push(...columns.split('\t'))
       if (pageOf(reached) !== pageOf(from)) {
         await tab.page.goto(reached, COMMIT())
@@ -657,11 +660,11 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
   }
   const finished = (ending: string) => {
     if (mark) rmSync(mark, { force: true })
-    return recordsView(list, origin, q, { data: data(), ended: ending })
+    return recordsView(`[${list.ref}] ${list.role}`, data(), q, ` — ${ending}`)
   }
   const stopped = (why: string) => (q.out
     ? `saved ${q.out}: ${rows.size} records so far — stopped: ${why}; the same command carries on`
-    : recordsView(list, origin, q, { data: data(), ended: `stopped: ${why}` }))
+    : recordsView(`[${list.ref}] ${list.role}`, data(), q, ` — stopped: ${why}`))
   // One page more: the list's way on is pressed, or the page scrolled, and the list read again. Nothing to return
   // when the way on that earlier pages had is gone.
   let pressed = ''
@@ -1063,12 +1066,17 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     return mapView(need(c.session), undefined, '', '', true)
   },
   async get(c) {
+    // A file get saved is records as much as a list on a page is, and needs no page.
+    if (c.file) {
+      if (!existsSync(c.file)) throw new Error(`no such file: ${c.file}`)
+      return recordsView(c.file, fromTsv(readFileSync(c.file, 'utf8')), c)
+    }
     const tab = need(c.session)
     const { tree, origin } = await within(snapshot(tab), policy['read.timeoutMs'])
     const node = findRef(tree, Number(c.ref))
     if (!node) throw new Error(`[${c.ref}] is not on the page — run: browser-layer map`)
     if (!records(node, origin, caps()).rows.length) throw new Error(`[${c.ref}] has no rows; get works on the lists and tables the map shows`)
-    return `${await header(tab)}  — ${c.all ? await recordsAll(tab, node, origin, c) : recordsView(node, origin, c)}`
+    return `${await header(tab)}  — ${c.all ? await recordsAll(tab, node, origin, c) : recordsView(`[${node.ref}] ${node.role}`, records(node, origin, { ...caps(), urls: c.urls }), c)}`
   },
   async read(c) {
     const ref = c.ref === undefined ? undefined : Number(c.ref)

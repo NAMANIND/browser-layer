@@ -51,9 +51,9 @@ Live tabs (headless browser, runs the page's JS):
   map                          regions, fields, actions, lists and links, with refs
   read [ref] [--page N] [--full]   the page or one region; read again: what changed
   find <text> [--page N] [--urls]   lines that contain it (--urls: each link with its address)
-  get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]   a list or table as records (TSV)
-  get <ref> --all --out f      every record of a list: follows its next link, Load more or scroll; says "ended" only when the page
-                               shows the end; if it stops, f has what it got and the same command carries on
+  get <ref|file> [--where col=v|col~v|col<n|col>n] [--count] [--group col] [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]
+                               records (TSV) of a list or table, or of a file get saved: filter and count here, not in a shell
+  get <ref> --all --out f      every record of a list: follows its next link, Load more or scroll; says if the end is shown
   --out <file>                 on open, read, find, get: the whole result to a file
   click · dblclick · rightclick · hover <ref>      check · uncheck <ref>      submit <ref>
   type <ref> <text> [--enter] [--keys]   pick <ref> <option>   press <key>   drag <ref> <onto ref>

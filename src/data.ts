@@ -111,26 +111,61 @@ const sortKey = (v: string) =>
   v.replace(/(\d)[,  ](?=\d)/g, '$1')
     .replace(/\b(\d{1,2}):(\d\d)\s?([AP])M\b/gi, (_, h, m, p) => `${String((Number(h) % 12) + (p.toUpperCase() === 'P' ? 12 : 0)).padStart(2, '0')}:${m}`)
 
-export type Query = { sort?: string; desc?: boolean; limit?: number; cols?: string[]; urls?: boolean }
+export type Query = { sort?: string; desc?: boolean; limit?: number; cols?: string[]; urls?: boolean; where?: string[]; count?: boolean; group?: string }
+
+// A column is named by its id (c3) or, in a table, by its header text.
+function index(data: Records, c: string) {
+  const i = data.columns.indexOf(c) >= 0 ? data.columns.indexOf(c) : data.names.findIndex(n => n && n.toLowerCase() === c.toLowerCase())
+  if (i < 0) throw new Error(`no column "${c}"; columns are ${data.columns.map((id, k) => (data.names[k] ? `${id} (${data.names[k]})` : id)).join(', ')}`)
+  return i
+}
+
+// --where <column><op><value>, every condition holding: = is the whole cell and ~ a part of it, whatever the case;
+// < and > compare the number in the cell with the number given, separators removed as sorting removes them
+// ("$1,250.00" is over 1000). A cell with no number is neither under nor over.
+const numberIn = (v: string) => { const m = sortKey(v).match(/-?\d+(?:\.\d+)?/); return m ? Number(m[0]) : undefined }
+export function where(data: Records, conditions: string[]): Records {
+  const holds = conditions.map(c => {
+    const m = c.match(/^(.+?)\s*(=|~|<|>)\s*(.*)$/)
+    if (!m) throw new Error(`--where takes <column><op><value>, the op one of = (is) ~ (contains) < > (numbers), not "${c}"`)
+    const [i, op, want, than] = [index(data, m[1].trim()), m[2], m[3].trim().toLowerCase(), numberIn(m[3])]
+    if ((op === '<' || op === '>') && than === undefined) throw new Error(`--where ${op} compares numbers, and "${m[3]}" has none`)
+    return (row: string[]) => {
+      const cell = (row[i] ?? '').trim().toLowerCase(), n = numberIn(cell)
+      return op === '=' ? cell === want : op === '~' ? cell.includes(want) : n !== undefined && (op === '<' ? n < than! : n > than!)
+    }
+  })
+  return { ...data, rows: data.rows.filter(row => holds.every(h => h(row))) }
+}
+
+// --group <column>: how many rows have each of its values, the most first.
+export function group(data: Records, column: string): Records {
+  const i = index(data, column)
+  const counts = new Map<string, number>()
+  for (const row of data.rows) counts.set(row[i], (counts.get(row[i]) ?? 0) + 1)
+  return { columns: [data.columns[i], 'count'], names: [data.names[i], ''], rows: [...counts].sort((a, b) => b[1] - a[1]).map(([v, n]) => [v, String(n)]) }
+}
 
 export function query(data: Records, q: Query): Records {
-  // A column is named by its id (c3) or, in a table, by its header text.
-  const index = (c: string) => {
-    const i = data.columns.indexOf(c) >= 0 ? data.columns.indexOf(c) : data.names.findIndex(n => n && n.toLowerCase() === c.toLowerCase())
-    if (i < 0) throw new Error(`no column "${c}"; columns are ${data.columns.map((id, k) => (data.names[k] ? `${id} (${data.names[k]})` : id)).join(', ')}`)
-    return i
-  }
   let rows = data.rows
   if (q.sort) {
-    const i = index(q.sort)
+    const i = index(data, q.sort)
     // Rows with no value in the sort column go last either way.
     rows = [...rows].sort((a, b) => (!a[i] ? 1 : !b[i] ? -1 : collator.compare(sortKey(a[i]), sortKey(b[i])) * (q.desc ? -1 : 1)))
   }
   if (q.limit !== undefined) rows = rows.slice(0, q.limit)
-  const pick = q.cols?.map(index) ?? data.columns.map((_, i) => i)
+  const pick = q.cols?.map(c => index(data, c)) ?? data.columns.map((_, i) => i)
   return { columns: pick.map(i => data.columns[i]), names: pick.map(i => data.names[i]), rows: rows.map(r => pick.map(i => r[i])) }
 }
 
 // Tab-separated: a header of column ids (with names where the table has them), then one record per line.
 export const toTsv = (data: Records) =>
   [data.columns.map((c, i) => (data.names[i] ? `${c} ${data.names[i]}` : c)).join('\t'), ...data.rows.map(r => r.join('\t'))].join('\n')
+
+// A file toTsv wrote, read back: what the tool saves, the tool can query (get <file>).
+export function fromTsv(text: string): Records {
+  const [head, ...lines] = text.replace(/\n$/, '').split('\n')
+  const cells = head.split('\t')
+  if (!cells.every(c => /^c\d+( |$)/.test(c))) throw new Error('not a records file: its first line is not columns c1, c2, …, as get --out and get --all --out write them')
+  return { columns: cells.map(c => c.split(' ')[0]), names: cells.map(c => c.split(' ').slice(1).join(' ')), rows: lines.map(l => cells.map((_, i) => l.split('\t')[i] ?? '')) }
+}

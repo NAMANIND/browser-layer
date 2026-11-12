@@ -1,14 +1,14 @@
 {
- "manual": 5703,
+ "manual": 5742,
  "rows": [
   {
    "task": "A1 collect, rel",
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 2078,
-   "biggest": 1676,
-   "carried": 19793,
+   "chars": 2049,
+   "biggest": 1647,
+   "carried": 19881,
    "seconds": 16,
    "note": ""
   },
@@ -17,9 +17,9 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 2078,
-   "biggest": 1676,
-   "carried": 19793,
+   "chars": 2049,
+   "biggest": 1647,
+   "carried": 19881,
    "seconds": 16,
    "note": ""
   },
@@ -30,7 +30,7 @@
    "calls": 2,
    "chars": 2030,
    "biggest": 1688,
-   "carried": 19691,
+   "carried": 19808,
    "seconds": 17,
    "note": ""
   },
@@ -41,7 +41,7 @@
    "calls": 2,
    "chars": 2030,
    "biggest": 1688,
-   "carried": 19691,
+   "carried": 19808,
    "seconds": 17,
    "note": ""
   },
@@ -52,7 +52,7 @@
    "calls": 3,
    "chars": 2173,
    "biggest": 1469,
-   "carried": 27508,
+   "carried": 27664,
    "seconds": 3,
    "note": ""
   },
@@ -63,7 +63,7 @@
    "calls": 2,
    "chars": 1760,
    "biggest": 1310,
-   "carried": 19527,
+   "carried": 19644,
    "seconds": 2,
    "note": ""
   },
@@ -74,7 +74,7 @@
    "calls": 2,
    "chars": 4041,
    "biggest": 3663,
-   "carried": 22220,
+   "carried": 22337,
    "seconds": 17,
    "note": ""
   },
@@ -85,7 +85,7 @@
    "calls": 2,
    "chars": 1688,
    "biggest": 1310,
-   "carried": 19385,
+   "carried": 19502,
    "seconds": 2,
    "note": ""
   },
@@ -96,7 +96,7 @@
    "calls": 2,
    "chars": 4693,
    "biggest": 4319,
-   "carried": 24858,
+   "carried": 24975,
    "seconds": 23,
    "note": ""
   },
@@ -105,9 +105,9 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 2047,
-   "biggest": 1673,
-   "carried": 19744,
+   "chars": 2018,
+   "biggest": 1644,
+   "carried": 19832,
    "seconds": 22,
    "note": ""
   },
@@ -116,9 +116,9 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 2083,
-   "biggest": 1676,
-   "carried": 19813,
+   "chars": 2054,
+   "biggest": 1647,
+   "carried": 19901,
    "seconds": 26,
    "note": ""
   },
@@ -127,9 +127,9 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 2083,
-   "biggest": 1676,
-   "carried": 19813,
+   "chars": 2054,
+   "biggest": 1647,
+   "carried": 19901,
    "seconds": 26,
    "note": ""
   },
@@ -140,7 +140,7 @@
    "calls": 4,
    "chars": 8288,
    "biggest": 6429,
-   "carried": 47573,
+   "carried": 47768,
    "seconds": 5,
    "note": ""
   },
@@ -149,9 +149,9 @@
    "mode": "shell",
    "ok": true,
    "calls": 3,
-   "chars": 3387,
-   "biggest": 1606,
-   "carried": 29233,
+   "chars": 3405,
+   "biggest": 1624,
+   "carried": 29425,
    "seconds": 20,
    "note": ""
   },
@@ -162,7 +162,7 @@
    "calls": 20,
    "chars": 6356,
    "biggest": 331,
-   "carried": 205204,
+   "carried": 206023,
    "seconds": 18,
    "note": ""
   },
@@ -173,7 +173,7 @@
    "calls": 16,
    "chars": 5677,
    "biggest": 488,
-   "carried": 155116,
+   "carried": 155779,
    "seconds": 17,
    "note": ""
   },
@@ -181,11 +181,11 @@
    "task": "A5 reduce 500",
    "mode": "tool",
    "ok": true,
-   "calls": 4,
-   "chars": 24166,
-   "biggest": 11748,
-   "carried": 78075,
-   "seconds": 31,
+   "calls": 3,
+   "chars": 3134,
+   "biggest": 1647,
+   "carried": 29261,
+   "seconds": 16,
    "note": ""
   },
   {
@@ -193,9 +193,9 @@
    "mode": "shell",
    "ok": true,
    "calls": 3,
-   "chars": 2578,
-   "biggest": 1676,
-   "carried": 28677,
+   "chars": 2549,
+   "biggest": 1647,
+   "carried": 28755,
    "seconds": 16,
    "note": ""
   },
@@ -204,10 +204,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 4,
-   "chars": 2597,
-   "biggest": 1676,
-   "carried": 33672,
-   "seconds": 18,
+   "chars": 2568,
+   "biggest": 1647,
+   "carried": 33838,
+   "seconds": 17,
    "note": ""
   }
  ]

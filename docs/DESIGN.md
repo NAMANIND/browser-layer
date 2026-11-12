@@ -270,7 +270,14 @@ passed 3k.
   holds the address where the collection began and the one it has reached. A call that stops (a page that fails,
   `get.rounds`, the browser gone) answers `stopped`, with why; the same command, run on either of those pages, keeps
   the saved records and carries on from the address reached, so no saved page is turned again.
-  Records go to `--out` as any `get` does; without it the answer is the usual one page.
+  Records go to `--out` as any `get` does; without it the answer is the usual one page. A column is a field (its
+  path in the row; a table's cell position) over the whole list, not a place on one page: a page whose first row has
+  an optional part does not move the fields after it.
+- **Read back** (`get <file>`): what the tool saves, the tool queries. A file `get --out` wrote is records as a list
+  on a page is, with no page needed, so it works for an agent that has no shell and inside `steps`. On a file or a
+  list: `--where <column><op><value>` (every condition holding; `=` the whole cell and `~` a part of it, whatever the
+  case; `<` and `>` the number in the cell against the number given, separators removed as sorting removes them),
+  `--count` (how many, of how many), `--group <column>` (the rows per value, the most first).
 - **Sorting** uses the standard collator with numeric ordering, after removing digit-group separators
   and turning 12-hour times into 24-hour ones. Empty values sort last.
 
@@ -344,7 +351,7 @@ was opened is: read before it has parsed (its head waiting on a script), it is e
 | Capability | Commands |
 |---|---|
 | Navigation | `tab <url…>` (several load together and each answers with its map, the first is current; a page already open in the session switches to its tab), `go <url>`, `back`, `forward`, `reload`, `tabs` (by last use), `use`, `close [id]` (`--all`: every tab of the session), `stop` (the browser; in a named session it closes that session's tabs and leaves the browser to the others) |
-| Reading | `map`, `read [ref] [--page N]`, `find <text>` (`--urls`: each link with its address), `get <ref>` (records), `wait [--gone] <text>` (matched as `find` matches: case and runs of spaces do not matter) |
+| Reading | `map`, `read [ref] [--page N]`, `find <text>` (`--urls`: each link with its address), `get <ref|file>` (records: of a list, or of a file `get` saved), `wait [--gone] <text>` (matched as `find` matches: case and runs of spaces do not matter) |
 | Menus | `explore [ref]`, `menu "A > B > C"` |
 | Pointer | `click`, `dblclick`, `rightclick`, `hover`, `drag <ref> <onto ref>` (pointer drags and HTML drag and drop) |
 | Keyboard | `type <ref> <text> [--enter] [--keys]` (replace as typing over a selection; `--keys` sends one key event per character), `press <key or combo>` |
