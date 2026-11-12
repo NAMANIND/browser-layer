@@ -83,6 +83,22 @@ browser-layer install              # macOS, Windows, or Linux with the system li
 browser-layer install --with-deps  # Linux: also installs the libraries Chromium needs (uses sudo)
 ```
 
+### As an MCP tool
+
+For agents without a shell (the Claude app, the API), one tool, `browser`, takes the same command line:
+
+```bash
+claude mcp add browser-layer -- browser-layer mcp
+```
+
+Claude desktop: add to `claude_desktop_config.json`
+
+```json
+{ "mcpServers": { "browser-layer": { "command": "browser-layer", "args": ["mcp"] } } }
+```
+
+The tool's description is the manual; `--session <name>` in the command gives the agent its own tabs.
+
 ## Use
 
 ```bash

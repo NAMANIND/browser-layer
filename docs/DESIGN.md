@@ -24,9 +24,19 @@ calling an API with `curl` next time). This tool is the browser, not a second ag
 4. **Fast because of less, not because of tricks.** Fewer bytes, fewer steps, deltas instead of
    full re-reads.
 
+### MCP (decided 12 Nov 2026)
+
+The first draft kept MCP out because the agent has a terminal. Agents in the Claude app and the API have
+none, so `browser-layer mcp` serves one stdio MCP tool, `browser`, that takes the command line the CLI takes
+and answers with the text the CLI prints; the manual is its description. Each call runs the CLI itself, so
+there is one implementation of every verb, `--session` and the daemon work as in a shell, and an answer is
+the same characters an agent sees in a terminal. No MCP SDK: the server answers four methods
+(`initialize`, `ping`, `tools/list`, `tools/call`) in under 60 lines. Live commands stay without `--json`:
+the answers are text for a model, and a tool result is text.
+
 ### Out of scope
 
-MCP or other agent protocols (the agent has a terminal), learning and replay inside the tool,
+Other agent protocols, learning and replay inside the tool,
 vision (`screenshot` saves a picture for a person or a judge; the agent reads text), cloud or
 multi-user hosting, anti-bot evasion. The browser says it is automated; a site that refuses it (HTTP
 403 or 429) or puts a CAPTCHA in front of the page is reported as `blocked:` with the ways out: the
