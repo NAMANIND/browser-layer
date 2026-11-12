@@ -111,6 +111,8 @@ line2</textarea>
     res.setHeader('content-type', 'application/json')
     return res.end(JSON.stringify({ q: url.searchParams.get('q') }))
   }
+  // A server that takes the request and never answers.
+  if (url.pathname === '/never') return
   res.statusCode = 404
   res.end()
 })
@@ -129,6 +131,7 @@ before(() => new Promise<void>(r => server.listen(0, '127.0.0.1', () => {
   r()
 })))
 after(() => {
+  server.closeAllConnections()
   server.close()
   rmSync(env.BROWSER_LAYER_HOME, { recursive: true, force: true })
 })
@@ -288,4 +291,11 @@ test('no file saved with open --out has a line longer than save.lineChars, JSON 
   }
   await run('open', '--out', file, `${base}/wide.json`)
   assert.equal(JSON.parse(readFileSync(file, 'utf8')).length, 300)
+})
+
+test('a page that never answers fails after load.timeoutMs, and the other pages of the call still answer', async () => {
+  writeFileSync(join(env.BROWSER_LAYER_HOME, 'policy.json'), JSON.stringify({ 'load.timeoutMs': 1000 }))
+  const out = await run('open', `${base}/never`, `${base}/wide`)
+  assert.match(out.out, /\/never\nerror: no answer in 1 s/)
+  assert.match(out.out, /word1 /)
 })

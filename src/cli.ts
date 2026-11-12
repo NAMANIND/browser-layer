@@ -182,7 +182,7 @@ const why = (err: unknown) => {
 }
 
 async function fetchText(url: string, policy: Policy): Promise<Omit<Bulk, 'address'>> {
-  const res = await request(url)
+  const res = await request(url, policy['load.timeoutMs'])
   const data = dataBody(res)
   if (data !== undefined) return { status: res.status, title: '', text: data }
   const { page, text } = await readPage(res, policy)
@@ -486,7 +486,7 @@ async function main() {
     const address = (a: string) => /^\d+$/.test(a)
       ? needPage().links[Number(a)] ?? fail(`[${a}] is not a link on the last page`)
       : /^https?:\/\//i.test(a) ? a : `https://${a}`
-    if (!rest.length) return show(await request(address(target)), json, file)
+    if (!rest.length) return show(await request(address(target), loadPolicy()['load.timeoutMs']), json, file)
     return openMany([target, ...rest].map(address), file)
   }
 
@@ -509,10 +509,10 @@ async function main() {
     if (method === 'GET') {
       const url = new URL(verb.action)
       url.search = body.toString()
-      return show(await request(url.href), json, file)
+      return show(await request(url.href, loadPolicy()['load.timeoutMs']), json, file)
     }
     const headers: Record<string, string> = type ? { 'content-type': type } : {}
-    return show(await request(verb.action, { method, body: body instanceof FormData ? body : body.toString(), headers: { ...headers, referer: page.url, origin: new URL(page.url).origin } }), json, file)
+    return show(await request(verb.action, loadPolicy()['load.timeoutMs'], { method, body: body instanceof FormData ? body : body.toString(), headers: { ...headers, referer: page.url, origin: new URL(page.url).origin } }), json, file)
   }
 
   if (cmd && cmd !== 'help' && cmd !== '--help' && cmd !== '-h') {

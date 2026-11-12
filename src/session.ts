@@ -70,14 +70,18 @@ function cookieHeader(jar: Cookie[], url: URL): string {
 export type Response = { url: string; status: number; type: string; body: string }
 
 // Plain HTTP with a persistent cookie jar. Redirects are followed by hand so every hop's cookies are kept.
-export async function request(url: string, init: { method?: string; body?: string | FormData; headers?: Record<string, string> } = {}): Promise<Response> {
+// A server that takes the request and never answers would hold the call for as long as Node allows (minutes):
+// each fetch, headers and body, has timeoutMs.
+export async function request(url: string, timeoutMs: number, init: { method?: string; body?: string | FormData; headers?: Record<string, string> } = {}): Promise<Response> {
   let target = new URL(url)
   let method = init.method ?? 'GET'
   let body = init.body
   let headers = { ...init.headers }
+  const late = (err: Error) => { throw err.name === 'TimeoutError' ? new Error(`no answer in ${timeoutMs / 1000} s`) : err }
   for (let hop = 0; hop < 10; hop++) {
     const cookie = cookieHeader(loadJar(), target)
     const res = await fetch(target, {
+      signal: AbortSignal.timeout(timeoutMs),
       method,
       body,
       redirect: 'manual',
@@ -87,7 +91,7 @@ export async function request(url: string, init: { method?: string; body?: strin
         ...headers,
         ...(cookie ? { cookie } : {}),
       },
-    })
+    }).catch(late)
     // Read again before storing: pages fetched at the same time must not overwrite each other's cookies.
     const jar = loadJar()
     storeCookies(jar, target, res.headers)
@@ -98,7 +102,7 @@ export async function request(url: string, init: { method?: string; body?: strin
       if (res.status !== 307 && res.status !== 308) { method = 'GET'; body = undefined; headers = {} }
       continue
     }
-    return { url: target.href, status: res.status, type: res.headers.get('content-type') ?? '', body: await res.text() }
+    return { url: target.href, status: res.status, type: res.headers.get('content-type') ?? '', body: await res.text().catch(late) }
   }
   throw new Error(`too many redirects from ${url}`)
 }
