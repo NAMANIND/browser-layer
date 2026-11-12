@@ -114,7 +114,9 @@ const server = createServer((req, res) => {
     const [p, last, ms] = [Number(q.get('p')), Number(q.get('last')), Number(q.get('ms'))]
     // ms: a server that takes that long over every page. cover: page 2 comes with something over its next link.
     const cover = q.has('cover') && p === 2 ? '<div id="ov" style="position:fixed;inset:0;background:#fff"><button onclick="ov.remove()">Close</button></div>' : ''
-    return void setTimeout(() => page('pg', `<main><ul>${Array.from({ length: 4 }, (_, i) => `<li><h3>Item ${p * 4 + i}</h3><p>₹${p * 4 + i}00</p></li>`).join('')}</ul>${p < last ? `<a rel="next" href="/pg?last=${last}&p=${p + 1}${ms ? `&ms=${ms}` : ''}${q.has('cover') ? '&cover' : ''}">Older</a>` : ''}</main>${cover}`), ms)
+    // mark: an optional part before the price, on the first row of every page but the first.
+    const mark = (i: number) => (q.has('mark') && p > 0 && i === 0 ? '<div>New</div>' : '')
+    return void setTimeout(() => page('pg', `<main><ul>${Array.from({ length: 4 }, (_, i) => `<li><h3>Item ${p * 4 + i}</h3>${mark(i)}<p>₹${p * 4 + i}00</p></li>`).join('')}</ul>${p < last ? `<a rel="next" href="/pg?last=${last}&p=${p + 1}${ms ? `&ms=${ms}` : ''}${q.has('cover') ? '&cover' : ''}${q.has('mark') ? '&mark' : ''}">Older</a>` : ''}</main>${cover}`), ms)
   }
   // A list paged only by numbered links: nothing marks one of them as the next page.
   if (req.url === '/numbers') return page('numbers', `<main><ul><li><h3>Item 0</h3><p>₹0</p></li><li><h3>Item 1</h3><p>₹100</p></li><li><h3>Item 2</h3><p>₹200</p></li></ul><nav aria-label="Pagination"><a aria-current="page" href="/numbers">1</a> <a href="/numbers?p=2">2</a></nav></main>`)
@@ -588,6 +590,15 @@ test('get --all follows the list to its end: a rel=next link, Load more, a scrol
   const plain = await run('get', await list('/pg?last=2&p=0'), '--all')
   assert.match(plain.out, /12 records/)
   assert.match(plain.out, /Item 11\t₹1100/)
+})
+
+test('a field is in the same column on every page of get --all, wherever an optional part first appears', async () => {
+  const out = join(home, 'columns.tsv')
+  await run('get', ref((await run('tab', `${base}/pg?last=2&p=0&mark`)).out, /list of \d+/), '--all', '--out', out)
+  const rows = readFileSync(out, 'utf8').trimEnd().split('\n').slice(1).map(l => l.split('\t'))
+  assert.equal(rows.length, 12)
+  assert.deepEqual(rows.map(r => r[1]), Array.from({ length: 12 }, (_, i) => `₹${i}00`))
+  assert.deepEqual(rows.filter(r => r[2]).map(r => r[0]), ['Item 4', 'Item 8'])
 })
 
 test('get --all has a time limit for each page, not one for the whole list', async () => {

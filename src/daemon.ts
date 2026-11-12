@@ -606,8 +606,8 @@ const MORE = /^(?:(?:next(?: page)?|load more|show more|see more|view more|more 
 
 // It says a list ended only when the page shows it: the way on that was pressed is no longer there, or scrolling, which
 // had been bringing rows, brings no more. Anything else is "not shown to be complete", with what was tried.
-// The file is written page by page, and beside it, while the list is unfinished, where the collection began and the
-// address it has reached. A call that stops (a page that fails, get.rounds, the browser gone) has lost nothing, and
+// The file is written page by page, and beside it, while the list is unfinished, where the collection began, the
+// address it has reached and its columns' fields. A call that stops (a page that fails, get.rounds, the browser gone) has lost nothing, and
 // the same command, run on either of those pages, carries on: the saved rows are kept and no saved page is turned again.
 async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { out?: string }): Promise<string> {
   const rows = new Map<string, string[]>()
@@ -615,10 +615,14 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
   let list = first
   // A row is its text: its refs change when the page re-renders it, and when the browser starts again.
   const add = (row: string[]) => rows.set(row.join('\t').replace(/\[\d+\] /g, ''), row)
+  // A column is a field (its path in the row; a table's cell position), not a place on one page: a page whose first
+  // row has an optional part would otherwise put every field after it one column over.
+  const fields: string[] = []
   const take = () => {
     const r = records(list, origin, { ...caps(), urls: q.urls })
     if (r.names.length > names.length) names = r.names
-    r.rows.forEach(add)
+    const column = (r.keys ?? r.columns).map(k => (fields.includes(k) ? fields.indexOf(k) : fields.push(k) - 1))
+    for (const row of r.rows) add(Array.from(row.reduce((cells, v, i) => { cells[column[i]] = v; return cells }, Array<string>(fields.length)), v => v ?? ''))
   }
   const data = (): Records => {
     const columns = Array.from({ length: Math.max(...[...rows.values()].map(r => r.length)) }, (_, i) => `c${i + 1}`)
@@ -632,11 +636,12 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
   const mark = q.out && `${q.out}.unfinished`
   let from = tab.page.url()
   if (mark && existsSync(mark) && existsSync(q.out!)) {
-    const [began, reached] = readFileSync(mark, 'utf8').split('\n')
+    const [began, reached, columns] = readFileSync(mark, 'utf8').split('\n')
     if ([began, reached].map(pageOf).includes(pageOf(from))) {
       const [head, ...saved] = readFileSync(q.out!, 'utf8').trimEnd().split('\n')
       names = head.split('\t').map(h => h.split(' ').slice(1).join(' '))
       saved.forEach(l => add(l.split('\t')))
+      fields.push(...columns.split('\t'))
       if (pageOf(reached) !== pageOf(from)) {
         await tab.page.goto(reached, COMMIT())
         await settle(tab)
@@ -648,7 +653,7 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
   const keep = () => {
     if (!q.out) return
     writeFileSync(q.out, `${toTsv(data())}\n`)
-    writeFileSync(mark!, `${from}\n${tab.page.url()}`)
+    writeFileSync(mark!, `${from}\n${tab.page.url()}\n${fields.join('\t')}`)
   }
   const finished = (ending: string) => {
     if (mark) rmSync(mark, { force: true })

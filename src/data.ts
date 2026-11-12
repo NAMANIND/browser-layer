@@ -3,7 +3,8 @@ import { cellsOf, COLLECTIONS, isHeaderRow, picturesIn, rowsOf, SEGMENT, SPACE, 
 
 // A collection as records: columns and rows of cell text. Column ids are always c1…cN; a table's
 // header row also gives them names.
-export type Records = { columns: string[]; names: string[]; rows: string[][] }
+// keys: for a list, each column's field path (what makes it that column), so pages of one list can be lined up.
+export type Records = { columns: string[]; names: string[]; rows: string[][]; keys?: string[] }
 
 // A part made only of punctuation or symbols (a dash between two times) carries no data.
 const mark = /^[\p{P}\p{S}]+$/u
@@ -100,7 +101,7 @@ function listRecords(list: Node, origin: string, caps: Caps): Records {
     return cell
   })
   const columns = keys.map((_, i) => `c${i + 1}`)
-  return { columns, names: columns.map(() => ''), rows: cells.map(cell => keys.map(k => cell.get(k) ?? '')) }
+  return { columns, names: columns.map(() => ''), rows: cells.map(cell => keys.map(k => cell.get(k) ?? '')), keys }
 }
 
 // Numbers compare as numbers: digit-group separators go ("₹1,18,899"), 12-hour times become
