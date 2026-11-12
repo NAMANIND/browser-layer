@@ -49,6 +49,7 @@ Live tabs (headless browser, runs the page's JS):
   read [ref] [--page N] [--full]   the page or one region; read again: what changed
   find <text> [--page N] [--urls]   lines that contain it (--urls: each link with its address)
   get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]   a list or table as records (TSV)
+  get <ref> --all --out f      every record of a list: follows its next link, Load more or scroll to the end, says how it ended
   --out <file>                 on open, read, find, get: the whole result to a file
   click · dblclick · rightclick · hover <ref>      check · uncheck <ref>      submit <ref>
   type <ref> <text> [--enter] [--keys]   pick <ref> <option>   press <key>   drag <ref> <onto ref>
@@ -328,7 +329,7 @@ function liveCommand({ cmd, target, rest, page, limit, sort, cols, file, has }: 
   if (cmd === 'menu') c.text = [target, ...rest].filter(Boolean).join(' ')
   if (cmd === 'read') c.full = has('--full')
   if (cmd === 'read' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: browser-layer read [ref] [--page N]')
-  if (cmd === 'get') c.ref = target && /^\d+$/.test(target) ? target : fail('usage: browser-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]')
+  if (cmd === 'get') c.ref = target && /^\d+$/.test(target) ? target : fail('usage: browser-layer get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls] [--all]')
   if (cmd === 'type' || cmd === 'pick') c.text = rest.join(' ')
   if (cmd === 'press') c.key = target ?? fail('usage: browser-layer press <key>')
   return c

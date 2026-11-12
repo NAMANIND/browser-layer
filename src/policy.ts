@@ -36,6 +36,7 @@ export const DEFAULTS = {
   'render.nameChars': 120,
   'render.labelChars': 40,
   'render.mapFew': 8,
+  'get.rounds': 50,
   'data.rows': 20,
   'data.minRepeats': 3,
   'data.minParts': 2,

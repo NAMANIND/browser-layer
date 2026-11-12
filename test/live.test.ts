@@ -99,6 +99,19 @@ const server = createServer((req, res) => {
   // A paged table: Next replaces every row, which leaves the table's shape (and so the map) as it was.
   if (req.url === '/paged') return page('paged', `<main><table id="t"></table><button onclick="go(1)">Next</button><button>Delete</button><button>Delete all</button></main>
     <script>let p = 0; const go = d => { p += d; t.innerHTML = '<tr><th>Order</th><th>Status</th></tr>' + Array.from({ length: 30 }, (_, i) => '<tr><td>ORD-' + (p * 30 + i) + '</td><td>Paid</td></tr>').join('') }; go(0)</script>`)
+  // Lists longer than one answer, each the way sites make them: pages behind a rel=next link (named so no label gives it
+  // away), a "Load more" button, a list that grows when its end scrolls into view, and a button that adds nothing.
+  if (req.url?.startsWith('/pg')) {
+    const q = new URL(req.url, 'http://x').searchParams
+    const [p, last] = [Number(q.get('p')), Number(q.get('last'))]
+    return page('pg', `<main><ul>${Array.from({ length: 4 }, (_, i) => `<li><h3>Item ${p * 4 + i}</h3><p>₹${p * 4 + i}00</p></li>`).join('')}</ul>${p < last ? `<a rel="next" href="/pg?last=${last}&p=${p + 1}">Older</a>` : ''}</main>`)
+  }
+  if (req.url === '/more') return page('more', `<main><ul id="l"></ul><button id="b">Load more</button></main>
+    <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 100)</script>`)
+  if (req.url === '/infinite') return page('infinite', `<main><ul id="l"></ul><div id="end">end</div></main>
+    <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li style="height:300px"><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 20) io.disconnect() }
+    const io = new IntersectionObserver(es => { if (es[0].isIntersecting) add() }); add(); io.observe(end)</script>`)
+  if (req.url === '/stuck') return page('stuck', `<main><ul><li><h3>Item 0</h3><p>₹0</p></li><li><h3>Item 1</h3><p>₹100</p></li><li><h3>Item 2</h3><p>₹200</p></li></ul><button>Load more</button></main>`)
   // A site that turns automated browsers away.
   // A page whose script never returns once its button is clicked: its renderer stops answering.
   if (req.url === '/freeze') return page('freeze', '<button onclick="for (;;) {}">Freeze</button>')
@@ -319,7 +332,7 @@ const server = createServer((req, res) => {
 
 const home = mkdtempSync(join(tmpdir(), 'al-'))
 // Short waits so the failure paths (covered, never quiet) are tested in seconds, not the defaults.
-writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'actions.timeoutMs': 1500, 'settle.deadlineMs': 2000, 'settle.hiddenMs': 6000, 'wait.timeoutMs': 3000, 'command.timeoutMs': 8000, 'load.domMs': 2000, 'each.concurrency': 3 }))
+writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'actions.timeoutMs': 1500, 'settle.deadlineMs': 2000, 'settle.hiddenMs': 6000, 'wait.timeoutMs': 3000, 'command.timeoutMs': 8000, 'load.domMs': 2000, 'each.concurrency': 3, 'get.rounds': 6 }))
 const upload = join(home, 'upload-test.txt')
 writeFileSync(upload, 'resume')
 // Deep enough that home/daemon.sock passes the ~104-byte Unix socket path limit.
@@ -520,6 +533,33 @@ test('get turns a list or table into records that line up, sort as numbers, and 
   const bad = await run('get', list, '--sort', 'price')
   assert.equal(bad.code, 1)
   assert.match(bad.out, /no column "price"; columns are c1, c2, c3, c4/)
+})
+
+test('get --all follows the list to its end: a rel=next link, Load more, a scroll; each says how it ended', async () => {
+  const out = join(home, 'all.tsv')
+  const lines = () => readFileSync(out, 'utf8').trimEnd().split('\n')
+  const list = async (path: string) => ref((await run('tab', `${base}${path}`)).out, /list of \d+/)
+  const pages = await run('get', await list('/pg?last=2&p=0'), '--all', '--out', out)
+  assert.match(pages.out, /12 records, 2 columns/)
+  assert.match(pages.out, /ended: end of list/)
+  assert.deepEqual(lines().slice(1).map(l => l.split('\t')[0]), Array.from({ length: 12 }, (_, i) => `Item ${i}`))
+  const more = await run('get', await list('/more'), '--all', '--out', out)
+  assert.match(more.out, /15 records/)
+  assert.match(more.out, /ended: end of list/)
+  assert.equal(lines().length, 16)
+  const scrolled = await run('get', await list('/infinite'), '--all', '--out', out)
+  assert.match(scrolled.out, /20 records/)
+  assert.match(scrolled.out, /ended: end of list/)
+  assert.equal(lines().length, 21)
+  const stuck = await run('get', await list('/stuck'), '--all', '--out', out)
+  assert.match(stuck.out, /3 records/)
+  assert.match(stuck.out, /ended: no new items/)
+  const bound = await run('get', await list('/pg?last=40&p=0'), '--all', '--out', out)
+  assert.match(bound.out, new RegExp(`${4 * (6 + 1)} records`))
+  assert.match(bound.out, /ended: bound hit \(get\.rounds 6\)/)
+  const plain = await run('get', await list('/pg?last=2&p=0'), '--all')
+  assert.match(plain.out, /12 records/)
+  assert.match(plain.out, /Item 11\t₹1100/)
 })
 
 test('controls can be named instead of numbered; new records under an unchanged map are named', async () => {

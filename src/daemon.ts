@@ -10,7 +10,7 @@ import { ceiling, home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, humanCheck, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
 import { bounded, bulkAnswer, bulkFile, diffLines, findRef, goneLines, itemsLine, paginate, renderMap, renderText, type Bulk } from './render.js'
 import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
-import { query, records, toTsv, type Query } from './data.js'
+import { query, records, toTsv, type Query, type Records } from './data.js'
 import { pidPath, ping, socketPath, VERSION } from './client.js'
 import { loadPolicy, type Policy } from './policy.js'
 
@@ -564,19 +564,59 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
 
 // A collection as records (TSV): sorted, limited and column-picked as asked, and never more than one page
 // in an answer (the column line included); --out writes them all.
-function recordsView(node: Node, origin: string, q: Query & { out?: string }): string {
-  const all = records(node, origin, { ...caps(), urls: q.urls })
+function recordsView(node: Node, origin: string, q: Query & { out?: string }, collected?: { data: Records; ended: string }): string {
+  const all = collected?.data ?? records(node, origin, { ...caps(), urls: q.urls })
   const out = query(all, q)
-  if (q.out) return saved(q.out, toTsv(out), `${out.rows.length} records, ${out.columns.length} columns (TSV)`)
+  const ended = collected ? ` — ended: ${collected.ended}` : ''
+  if (q.out) return saved(q.out, toTsv(out), `${out.rows.length} records, ${out.columns.length} columns (TSV)${ended}`)
   const asked = out.rows.length
   let size = toTsv({ ...out, rows: [] }).length
   const fits = out.rows.findIndex(r => (size += r.join('\t').length + 1) > policy['render.pageChars'])
   if (fits >= 0) out.rows = out.rows.slice(0, fits)
-  const head = `[${node.ref}] ${node.role}: ${all.rows.length} records, ${all.columns.length} columns`
+  const head = `[${node.ref}] ${node.role}: ${all.rows.length} records, ${all.columns.length} columns${ended}`
   if (!out.rows.length && asked) return `${head} — too wide for one answer: --cols picks columns, read ${node.ref} reads it as text, --out <file> writes all`
   const what = [q.sort ? `sorted by ${q.sort}${q.desc ? ' descending' : ''}` : '', out.rows.length < all.rows.length ? `first ${out.rows.length}` : ''].filter(Boolean).join(', ')
   const rest = out.rows.length < asked || (q.limit === undefined && out.rows.length < all.rows.length) ? `\n… ${all.rows.length - out.rows.length} more records: --limit, --cols, or --out <file> for all` : ''
   return `${head}${what ? ` (${what})` : ''}\n\n${toTsv(out)}${rest}`
+}
+
+// get --all (DESIGN §4.5): the list's own way to more, pressed until nothing new arrives. A rel=next link (HTML link
+// types) or a control named as paging controls are is pressed; with none, the page scrolls to its end, which is how an
+// infinite list asks for more. A row is new when no earlier row has its cells.
+const MORE = /^(?:(?:next(?: page)?|load more|show more|see more|view more|more results)\s*[›»→>]?|[›»→>])$/i
+
+async function recordsAll(tab: Tab, first: Node, origin: string, urls?: boolean) {
+  const rows = new Map<string, string[]>()
+  let names: string[] = []
+  const take = (list: Node) => {
+    const r = records(list, origin, { ...caps(), urls })
+    if (r.names.length > names.length) names = r.names
+    for (const row of r.rows) rows.set(row.join('\t'), row)
+  }
+  const done = (ended: string) => {
+    const width = Math.max(...[...rows.values()].map(r => r.length))
+    const columns = Array.from({ length: width }, (_, i) => `c${i + 1}`)
+    return { data: { columns, names: columns.map((_, i) => names[i] ?? ''), rows: [...rows.values()].map(r => columns.map((_, i) => r[i] ?? '')) }, ended }
+  }
+  take(first)
+  let list = first
+  for (let round = 0; ; round++) {
+    if (round === policy['get.rounds']) return done(`bound hit (get.rounds ${round})`)
+    const before = rows.size
+    const rel = await tab.page.evaluate(`document.querySelector('a[rel~=next],link[rel~=next]')?.href`).catch(() => undefined)
+    const controls = withRefs((await snapshot(tab)).tree).filter(n => (n.role === 'link' || n.role === 'button') && !n.states?.includes('disabled'))
+    const more = controls.find(n => rel && n.url === rel) ?? controls.find(n => MORE.test((n.name ?? '').trim()))
+    if (more) await pointerAt(tab, String(more.ref), {})
+    else await tab.page.evaluate('document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)')
+    await settle(tab)
+    // The same list: its ref if the page kept it, else the largest list of its kind (a new page has new refs).
+    const same = withRefs((await snapshot(tab)).tree).filter(n => n.role === list.role)
+    const found = same.find(n => n.ref === list.ref) ?? same.sort((a, b) => records(b, origin, caps()).rows.length - records(a, origin, caps()).rows.length)[0]
+    if (!found) return done('the list left the page')
+    list = found
+    take(list)
+    if (rows.size === before) return done(more ? 'no new items' : 'end of list')
+  }
 }
 
 // The engine session for a cross-origin frame. Playwright gives such a frame its own session; the frame
@@ -949,7 +989,7 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     const node = findRef(tree, Number(c.ref))
     if (!node) throw new Error(`[${c.ref}] is not on the page — run: browser-layer map`)
     if (!records(node, origin, caps()).rows.length) throw new Error(`[${c.ref}] has no rows; get works on the lists and tables the map shows`)
-    return `${await header(tab)}  — ${recordsView(node, origin, c)}`
+    return `${await header(tab)}  — ${recordsView(node, origin, c, c.all ? await recordsAll(tab, node, origin, c.urls) : undefined)}`
   },
   async read(c) {
     const ref = c.ref === undefined ? undefined : Number(c.ref)
