@@ -429,8 +429,8 @@ that lands exactly on the last page reads as `bound hit`.
 
 Next, each to pass the local gate before it stays:
 1. ~~`get <ref> --all`~~ done (below).
-2. A bound on one action's changed lines (one calendar click answers 3 to 15k characters); replay on the transcripts first.
-3. Link names in the map when a region has many (a results page reads `links: 47`): costs characters on every page.
+2. ~~A bound on one action's changed lines~~ — replayed, does not pay, not built (below).
+3. ~~Link names in the map when a region has many~~ — measured, costs too much, not built (below).
 4. ~~`browser-layer mcp`~~ Done on `mcp`: one stdio tool `browser` taking the same command line, the manual as its description; every
    call runs the CLI itself (one implementation, sessions work). DESIGN §1 reversed (decided 12 Nov). No SDK, no `--json` for live
    commands (a tool result is text). Not tried in the Claude app or against a model yet; the test speaks JSON-RPC by hand.
@@ -473,3 +473,40 @@ found the stopping daemon's pid still alive, so it did not launch, and failed wh
 `src/` 3,680 → 3,685 (+5, the client). Six merged branches without a worktree were deleted (`candidate-2`, `candidate-3`,
 `exp-preview`, `hardening`, `lean-answers`, `xml-records`); the 14 merged `claude/*` branches each have a clean worktree and are
 listed in the report, not removed.
+
+### A bound on an action's changed lines: replayed, not built (12 Nov 2026)
+
+Replay of the 50-task run (final-A, 1,715 commands; checked against fresh25-money1 and shared25-money2). Only commands that
+are one action (click, type, press, pick, …) and so have one answer: 193 in final-A, 244k characters of the run's 4.4M. The
+cut text is the changed lines past a cap; "needed" means a ref in the cut lines was used by one of the next three commands.
+Carried = characters × commands left in the task (as `bench/carried.mjs`); a needed cut is charged a median `read` (1.8k) and
+one more command carried. Carried total of the run: 123M.
+
+| cap (lines) | answers over | cut chars | needed | net carried saved | of the run |
+|---|---|---|---|---|---|
+| 20 | 59 | 65k | 19 | 1.0M | 0.8% |
+| 30 | 24 | 44k | 5 | 1.5M | 1.2% |
+| 40 | 18 | 31k | 2 | 1.2M | 1.0% |
+| 60 | 7 | 12k | 0 | 0.5M | 0.4% |
+
+The other two runs give 0.1% to 1.1% (cap 40: 0.4% and 0.3%). Why it does not pay:
+- The best case is about 1% of carried characters, and one task (bu2-122, a date picker) holds 35 of the 99 action answers
+  over 3k; the rest is spread thin.
+- The big answers are mostly the page's new content, not noise: after a date click, the flight results (`+ [1072] link "From
+  50550 …` with times, carrier, price) are what the task asks for. "Needed" counts only refs clicked next, so it understates:
+  an agent that reads a price off the answer leaves no trace. 8 of 18 answers over cap 40 were followed at once by `read`, `map`,
+  `find` or `get`, so cutting would turn some of them into the extra step PLAN §"Smaller answers" warned about.
+- Chained commands (`click a && click b && read`, the common calendar form) put several answers in one output; a bound on one
+  answer would not shorten those, which are the largest ones (10 to 16k).
+Not shipped. The way to shrink these answers is not a cap but not repeating what did not change (Google's flight list re-sent
+as "new" after each date click, the same `Loading prices` / `Reload` lines): that is the diff's job, `diffLines`, and a
+separate piece of work with its own test.
+
+### Link names in the map: measured, not built (12 Nov 2026)
+
+On `npm run measure`'s corpus, naming every link of a region in the map (instead of `links: N` past `render.mapFew`):
+map characters 249 → 795 (hacker-news), 1,697 → 4,013 (github-repo), 1,805 → 2,110 (google-flights), 2,174 → 2,174
+(amazon-search), 558 → 590 (react-todomvc). Together 6.5k → 9.7k, +49%, on every map the agent reads, for pages whose lists
+of links the agent mostly reaches through `find` or `get --urls` anyway. A name past `mapFew` of the first few (a bounded
+sample) would still add to each page what 8 does now. Not shipped; `find <text>` is the call that gives the names of the
+links the agent wants, and it costs only when asked.
