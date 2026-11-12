@@ -15,3 +15,9 @@ test('help lets an agent type a password the user gave in the task', () => {
   const help = execFileSync(process.execPath, ['--import', 'tsx', 'src/cli.ts', 'help'], { encoding: 'utf8' })
   assert.match(help, /Sign-in:[^\n]*the user gave/)
 })
+
+// A judge reads the final answer: a derived value shown without its inputs cannot be checked (BU Bench bu2-153).
+test('help asks for the source numbers and arithmetic behind a derived value', () => {
+  const help = execFileSync(process.execPath, ['--import', 'tsx', 'src/cli.ts', 'help'], { encoding: 'utf8' })
+  assert.match(help, /derived[^\n]*arithmetic/)
+})
