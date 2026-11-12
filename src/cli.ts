@@ -10,6 +10,8 @@ import { loadPolicy, type Policy } from './policy.js'
 import { live, ping, VERSION } from './client.js'
 import { findBrowser, openChrome, openInspectPage, PROFILE_FLAGS } from './browser.js'
 import type { Command } from './daemon.js'
+import { script } from './script.js'
+import { serve } from './mcp.js'
 
 const HELP = `browser-layer — websites as text and verbs for agents. <ref> is a number from the map, or a control's name.
 
@@ -268,33 +270,6 @@ function parse(words: string[]) {
   return { cmd, target, rest, page, limit, sort, cols, file, session, profile, attach, has }
 }
 
-// steps: commands separated by ; or a new line, each read as words the way a shell reads them ('…' and
-// "…" quote, \ escapes inside "…"). The text of each step is kept for its line in the answer.
-function script(text: string): { raw: string; words: string[] }[] {
-  const steps: { raw: string; words: string[] }[] = []
-  let words: string[] = [], word: string | undefined, quote = '', raw = ''
-  const end = () => { if (word !== undefined) words.push(word); word = undefined }
-  const close = () => { end(); if (words.length) steps.push({ raw: raw.trim(), words }); words = []; raw = '' }
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (quote) {
-      raw += ch
-      if (ch === quote) quote = ''
-      else if (ch === '\\' && quote === '"' && i + 1 < text.length) word = (word ?? '') + text[++i], raw += text[i]
-      else word = (word ?? '') + ch
-    } else if (ch === ';' || ch === '\n') close()
-    else {
-      raw += ch
-      if (ch === '"' || ch === "'") { quote = ch; word ??= '' }
-      else if (/\s/.test(ch)) end()
-      else word = (word ?? '') + ch
-    }
-  }
-  if (quote) fail(`steps: a ${quote} is not closed`)
-  close()
-  return steps
-}
-
 type Parsed = ReturnType<typeof parse>
 
 // A live-tab command from its parsed words.
@@ -451,6 +426,8 @@ async function main() {
     rmSync(join(home(), 'cookies.json'), { force: true })
     return console.log("Saved. The agent's browser uses this session from the next command.")
   }
+
+  if (cmd === 'mcp') return serve()
 
   if (cmd === 'steps') {
     const steps = script([target, ...rest].join(' ')).map(({ raw, words }) => {
