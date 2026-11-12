@@ -293,7 +293,7 @@ Settled when the site's own requests the command caused have finished and the sh
 (`innerText`, and text drawn on canvases) has not changed for `settle.quietMs`, when a dialog is waiting,
 or at `settle.deadlineMs`. Every answer says which (`idle in 412 ms`, `deadline 5000 ms`). The agent reads
 text, so text is what settle waits on: ads, timers and animations change the DOM all the time without
-changing a word. Another site's requests (ads, analytics, widgets; a site is its registrable domain) do not
+changing a word. Pictures, fonts and media (`DECORATION`) never hold it: they cannot change the text. Another site's requests (ads, analytics, widgets; a site is its registrable domain) do not
 hold a page, except their fetch/XHR calls where content may come from them: those an action on a loaded
 page starts within `settle.thirdPartyMs` (a search box served by a search API), and those a page that just
 arrived makes in its first `settle.arrivalMs`, each for that long at most (results from another site's API;

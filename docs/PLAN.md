@@ -427,4 +427,41 @@ Next, each to pass the local gate before it stays:
 2. A bound on one action's changed lines (one calendar click answers 3 to 15k characters); replay on the transcripts first.
 3. Link names in the map when a region has many (a results page reads `links: 47`): costs characters on every page.
 4. `browser-layer mcp`: one tool taking the same command line, for agents without a shell. Reverses DESIGN §1; needs a decision.
-5. Settle cost, to measure before touching: 119 actions hit the 5 s deadline; the text hash runs on the page every 100 ms.
+5. Settle cost: measured (below); decoration no longer holds it. What still holds it needs a decision and the gate.
+
+
+## Settle cost (12 Nov 2026)
+
+The 119 deadline waits of the 50-task run, about 10 minutes. Measured with the real daemon on live pages (a temporary trace in
+`settle`, removed again; scripts in the session notes), plus the 100 agent runs in `bu-run/smoke/browser-layer`.
+
+- **The 100 runs:** 190 answers said `deadline 5000 ms` in 3,332 commands: 126 clicks, 22 screenshots, 12 `type`.
+- **Live, 45 pages (the hosts that hit it most, opened and clicked): 54 settles, 170 s.** 118 s were needed (the text's last change
+  plus `settle.quietMs`); 51 s (30%) were waiting after the text had gone quiet. 6 settles hit the deadline: 5 were wasted (text
+  quiet 2.2 to 4.4 s before it; each held by one request still in flight), 1 was needed (text still changing at 5.0 s).
+  What held the 5: a first-party tag-manager script (3), a first-party tracking `fetch` (the same one on two pages), a picture,
+  a favicon. 13 more settles ended idle more than 1 s after the text went quiet, 33 s in all.
+- **The text hash:** 0.02 to 0.26 ms per call on the corpus pages (4k to 13k characters), once per 100 ms: 0.1 to 0.3% of the page
+  thread. Not a cost. (From the CLI side one poll is 1 to 10 ms, the protocol round trip.)
+- **The reader's small calls** (`describeNode` and `callFunctionOn` per hooked element, up to 1,900): they run in parallel, so a
+  read costs 85 to 320 ms even with 1,000 listeners on the page (1,610 calls, 317 ms), against a settle wait of seconds.
+  Pages seen live: 35 to 494 calls, 73 to 152 ms per read. Not worth batching.
+- **Cross-origin frames read one after another:** 1, 4 and 8 cross-origin frames add 5, 12 and 19 ms to a read (the first read,
+  which opens each frame's session, 12, 39 and 64 ms). Not worth parallelising.
+
+Shipped: **a picture, font or media request never holds settle** (`DECORATION`, which the daemon already refuses to load unless
+`allow images`; a stuck one held a click for the whole deadline). Test failed first. `npm run measure` unchanged, `src/` 3,680.
+
+Did not pay: bounding how long a request may hold settle. The 5 wasted deadlines were held by first-party analytics (a script
+from the site's own tag manager, a tracking `fetch`), which no standard tells from a search API; and a supersports.com search
+changed its text at 3.6 s, as the request that held it finished: a 3 s bound would have read stale text. A shorter bound, or one
+that stops holding for a request while the text is quiet, saves about 1 s per settle on the pages measured; it changes what agents
+read, so it goes through the local gate before it stays (`settle.requestMs` is the one tunable it would add).
+
+Housekeeping: the suite five times under CPU load (10 busy loops, 10 cores), 140 tests each: 4 runs green, 1 failed in
+`a daemon from another version … stops, and the next command starts a fresh one` (`daemon did not start`). Cause: the next command
+found the stopping daemon's pid still alive, so it did not launch, and failed when that process finished exiting. Fixed in
+`client.ts` (it launches when the daemon it waited on is gone), with a test that failed first (`sleep 1` as the leaving daemon).
+`src/` 3,680 → 3,685 (+5, the client). Six merged branches without a worktree were deleted (`candidate-2`, `candidate-3`,
+`exp-preview`, `hardening`, `lean-answers`, `xml-records`); the 14 merged `claude/*` branches each have a clean worktree and are
+listed in the report, not removed.
