@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { chmodSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { chromium, type Browser, type BrowserContext, type CDPSession, type Dialog, type Page, type Request, type Route } from 'playwright-core'
+import { chromium, devices, type Browser, type BrowserContext, type CDPSession, type Dialog, type Page, type Request, type Route } from 'playwright-core'
 import { isTracker } from './trackers.js'
 import { findBrowser } from './browser.js'
 import { ceiling, home, loadJar, saveJar, type Cookie } from './session.js'
@@ -149,6 +149,8 @@ type Tab = {
   // The document the current command began on, and when a new one arrived during it: which of another
   // site's data calls count (caused).
   startDoc?: number; arrived?: number
+  // view: the size and kind of viewport `viewport` set; absent while the browser's own applies.
+  view?: { width: number; height: number; mobile: boolean }
 }
 export type Command = {
   cmd: string; session: string; urls?: boolean; out?: string; url?: string; pages?: string[]; ref?: string; text?: string; key?: string; id?: number; enter?: boolean; all?: boolean
@@ -364,8 +366,14 @@ const header = async (tab: Tab) => {
   const what = `${tab.page.url()}${title ? `  "${title}"` : ''}`
   const same = headed.get(tab.session) === `${tab.id} ${what}`
   headed.set(tab.session, `${tab.id} ${what}`)
-  return same ? `tab ${tab.id}` : `tab ${tab.id}  ${what}`
+  const view = tab.view ? `  [viewport ${tab.view.mobile ? 'mobile ' : ''}${tab.view.width}x${tab.view.height}]` : ''
+  return `${same ? `tab ${tab.id}` : `tab ${tab.id}  ${what}`}${view}`
 }
+
+// The viewport an agent gets from `viewport mobile`: a standard phone (Playwright's published descriptor, so
+// size, pixel ratio, touch and user agent agree with each other as a real device's do).
+const PHONE = devices['iPhone 13']
+const sizeOf = (tab: Pick<Tab, 'view'>) => tab.view ?? { width: policy['viewport.width'], height: policy['viewport.height'] }
 
 // A page that turned the agent away: the site refused this browser, or put a human check in front of it.
 // The agent never solves or evades either (DESIGN §1: no anti-bot evasion), but a block often covers one
@@ -1138,7 +1146,7 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
   async scroll(c) {
     const tab = need(c.session)
     const dir = c.dir ?? 'down'
-    const vp = tab.page.viewportSize() ?? { width: policy['viewport.width'], height: policy['viewport.height'] }
+    const vp = sizeOf(tab)
     const t = c.ref ? targetOf(tab, c.ref) : undefined
     if (dir === 'down' || dir === 'up') await wheel(t, tab.cdp, (dir === 'down' ? 1 : -1) * vp.height * 0.8, [vp.width, vp.height], policy['actions.timeoutMs'])
     else if (dir === 'top' || dir === 'bottom') {
@@ -1147,6 +1155,22 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
       else await tab.page.evaluate(`(${to}).call(window)`)
     } else throw new Error(`scroll takes down, up, top or bottom, not "${dir}"`)
     return answer(tab)
+  },
+  // Emulation belongs to the tab, so it holds across navigations, reads and reloads.
+  async viewport(c) {
+    const tab = need(c.session)
+    const size = /^(\d+)x(\d+)$/.exec(c.text ?? '')
+    if (!size && c.text !== 'mobile' && c.text !== 'reset') throw new Error('usage: browser-layer viewport <width>x<height> | mobile | reset')
+    const phone = c.text === 'mobile'
+    const view = size ? { width: +size[1], height: +size[2], mobile: false } : phone ? { ...PHONE.viewport, mobile: true } : undefined
+    // Reset returns to the launch size: clearing the override would fall back to the window, not the policy size.
+    await tab.cdp.send('Emulation.setDeviceMetricsOverride', { ...(view ?? sizeOf({})), mobile: !!view?.mobile, deviceScaleFactor: phone ? PHONE.deviceScaleFactor : 1 })
+    await tab.cdp.send('Emulation.setTouchEmulationEnabled', { enabled: phone, maxTouchPoints: phone ? 5 : undefined })
+    await tab.cdp.send('Emulation.setUserAgentOverride', { userAgent: phone ? PHONE.userAgent : '' })
+    tab.view = view
+    // The page's layout reacts to the new size (media queries, resize handlers).
+    const settled = unusual(await settle(tab))
+    return `${await header(tab)}  — ${view ? 'set' : `viewport ${sizeOf(tab).width}x${sizeOf(tab).height} (reset)`}${settled ? `, settled: ${settled}` : ''}`
   },
   async wait(c) {
     const tab = need(c.session)
@@ -1240,7 +1264,7 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
       clip = { x: left + ox + sx, y: top + oy + sy, width: right - left, height: bottom - top }
     })
     const height = c.full && !clip ? (await tab.page.evaluate('document.documentElement.scrollHeight')) as number : 0
-    if (height > SHOT_MAX_PX) clip = { x: 0, y: 0, width: policy['viewport.width'], height: SHOT_MAX_PX }
+    if (height > SHOT_MAX_PX) clip = { x: 0, y: 0, width: sizeOf(tab).width, height: SHOT_MAX_PX }
     await tab.page.screenshot({ path: c.files![0], fullPage: !!c.full || !!clip, clip })
     return `saved ${c.files![0]}${height > SHOT_MAX_PX ? ` (the first ${SHOT_MAX_PX} px of ${height})` : ''}`
   },
