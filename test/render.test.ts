@@ -79,3 +79,9 @@ test('a bulk file is bounded line by line, and the answer counts the file lines'
   const lines = file.trimEnd().split('\n').length
   assert.match(bulkAnswer('open', [page], 'f.txt', { ...DEFAULTS, 'save.lineChars': 100 }), new RegExp(`· ${lines - 1} lines,`))
 })
+
+test('a list whose first row shows nothing is sampled by the first row that does', () => {
+  const row = (t: string): Node => ({ row: true, block: true, children: t ? [{ text: t }] : [] })
+  const tree: Node = { block: true, children: [{ ref: 5, role: 'list', block: true, children: [row(''), row('First result'), row('Second')] }] }
+  assert.match(renderMap(tree, 'https://x.test', { nameChars: 120, labelChars: 40 }, 8), /\[5\] list of 3: First result …/)
+})

@@ -142,7 +142,7 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number, s
         const rows = all.filter(r => r !== header)
         if (rows.length) {
           const line = (r: Node) => clipTo(renderText({ block: true, children: [r] }, origin, caps).replace(/\n/g, ' · '), caps.nameChars)
-          const sample = header ? `columns ${cellsOf(header).map(c => renderText({ block: true, children: c.children }, origin, caps)).join(' · ')}` : `${line(rows[0])}${rows.length > 1 ? ' …' : ''}`
+          const sample = header ? `columns ${cellsOf(header).map(c => renderText({ block: true, children: c.children }, origin, caps)).join(' · ')}` : `${line(rows.find(r => line(r)) ?? rows[0])}${rows.length > 1 ? ' …' : ''}`
           lists.push(`[${n.ref}] ${n.role} of ${rows.length}: ${sample}`)
           // Whatever else the container holds (a heading, pagination) still belongs in the map, and so
           // does a collection nested inside one of its rows.
