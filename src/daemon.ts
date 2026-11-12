@@ -271,8 +271,8 @@ const registrable = (url: string) => {
   } catch { return '' }
 }
 // Requests the current command caused that are still in flight and that the page's content waits on: the
-// site's own. Another site's requests (ads, analytics, widgets) keep a page busy for seconds and change
-// nothing the agent reads, so only its data calls (fetch, XHR) count, and only where content may come from
+// site's own, never decoration (pictures, fonts, media cannot change the text). Another site's requests
+// (ads, analytics, widgets) keep a page busy for seconds and change nothing the agent reads, so only its data calls (fetch, XHR) count, and only where content may come from
 // them: on a loaded page, those an action starts right away (a search box served by a search API); on a
 // page that just arrived, those its scripts make in its first settle.arrivalMs, each for that long at most,
 // since ad scripts keep making more (results served by another site's API).
@@ -280,7 +280,7 @@ const caused = (tab: Tab) => {
   const site = registrable(tab.page.url())
   const began = commandStart.get(tab.session) ?? 0
   return [...tab.pending].filter(([r, at]) => {
-    if (at < began || tab.standing.has(channel(r.url())) || r.resourceType() === 'eventsource' || isTracker(r.url())) return false
+    if (at < began || tab.standing.has(channel(r.url())) || r.resourceType() === 'eventsource' || DECORATION.has(r.resourceType()) || isTracker(r.url())) return false
     if (registrable(r.url()) === site) return true
     if (r.resourceType() !== 'xhr' && r.resourceType() !== 'fetch') return false
     if (tab.doc === tab.startDoc) return at - began < policy['settle.thirdPartyMs']

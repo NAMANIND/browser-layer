@@ -134,6 +134,9 @@ const server = createServer((req, res) => {
     <button onclick="o.textContent = 'never'">Under the wall</button><div style="position:fixed;left:0;right:0;bottom:0;height:300px;background:#fff" aria-label="Cookie wall">wall</div>
     <script>setTimeout(() => b.disabled = false, 800); document.querySelector('[aria-label="Cookie wall"]').style.top = document.querySelectorAll('button')[1].getBoundingClientRect().top - 5 + 'px'</script>`)
   if (req.url === '/busy') return page('busy', `<button onclick="o.textContent = 'pressed'">Press</button><p id="o">idle</p><p id="t">0</p><script>setInterval(() => t.textContent = Date.now(), 50)</script>`)
+  // A picture the server never finishes sending: decoration cannot change the text, so it must not hold settle.
+  if (req.url === '/stuck') return page('stuck', `<button onclick="document.body.append(Object.assign(new Image(), { src: '/never.gif' })); o.textContent = 'added'">Add</button><p id="o">text</p>`)
+  if (req.url === '/never.gif') return
   if (req.url === '/later') return page('later', `<p>loading</p><script>setTimeout(() => document.body.insertAdjacentHTML('beforeend', '<p>ready now</p>'), 700)</script>`)
   if (req.url === '/api') return page('api', `<p id="o">loading</p><script>
     fetch('/api/items', { headers: { authorization: 'Bearer secret-token' } }).then(r => r.json()).then(j => o.textContent = j.items.join(', '))
@@ -773,6 +776,14 @@ test('settle says why it stopped: idle, or the deadline on a page that never goe
   const quiet = await openRead(`${base}/mouse`)
   assert.match((await run('dblclick', ref(quiet.out, /button "Target"/))).out, /settled: idle in \d+ ms[\s\S]*double/)
   assert.match((await run('rightclick', ref(quiet.out, /button "Target"/))).out, /context menu/)
+})
+
+test('a picture still on its way does not hold settle: it cannot change the text', async () => {
+  const page = await openRead(`${base}/stuck`)
+  await run('allow', 'images')
+  const r = await run('click', ref(page.out, /button "Add"/))
+  assert.match(r.out, /added/)
+  assert.doesNotMatch(r.out, /deadline/)
 })
 
 test('confirm and prompt wait for the agent, then the page continues', async () => {
