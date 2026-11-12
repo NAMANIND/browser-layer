@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { spawn } from 'node:child_process'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -52,4 +53,19 @@ test('attached by port, the client does not tell the person to click Allow: only
 
 test('attached to the Chrome that has remote debugging on, a slow start says to click Allow', async () => {
   assert.match(await waitingForChrome('ws://127.0.0.1:9222/devtools/browser/x'), /click Allow in Chrome/)
+})
+
+test('a daemon still exiting when the next command comes is replaced, not waited on until the command fails', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'al-'))
+  process.env.BROWSER_LAYER_HOME = dir
+  const { live, pidPath } = await import('../src/client.js')
+  const leaving = spawn('sleep', ['1'])
+  writeFileSync(pidPath(), String(leaving.pid))
+  try {
+    const r = await live({ cmd: 'tabs', session: 'default' })
+    assert.equal(r.ok, true, r.error)
+  } finally {
+    await live({ cmd: 'stop' })
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

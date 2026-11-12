@@ -119,18 +119,23 @@ export async function live(c: Command): Promise<Reply> {
   }
   mkdirSync(home(), { recursive: true })
   const attached = !!process.env.BROWSER_LAYER_ATTACH
-  const mine = pending() === undefined && takeLock()
-  if (mine) {
+  const launch = () => {
     const pid = startDaemon()
     if (pid) writeFileSync(pidPath(), String(pid))
   }
+  let mine = pending() === undefined && takeLock()
+  if (mine) launch()
   const started = Date.now()
   try {
     for (let i = 0; ; i++) {
       await new Promise(r => setTimeout(r, 150))
       if (await ping()) return send(c, wait)
       // A daemon that exited (Don't allow, Chrome would not start) is no longer worth waiting for.
-      if (!pending()) break
+      if (!pending()) {
+        // The daemon waited on was one that was exiting (an old version): its exit leaves nothing to wait for.
+        if (mine || !(mine = takeLock())) break
+        launch()
+      }
       if (!attached) {
         if (Date.now() - started > LAUNCH_WAIT_MS) throw new Error('the browser is still starting; run the command again')
         continue
