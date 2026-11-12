@@ -111,9 +111,13 @@ const server = createServer((req, res) => {
   // away), a "Load more" button, a list that grows when its end scrolls into view, and a button that adds nothing.
   if (req.url?.startsWith('/pg')) {
     const q = new URL(req.url, 'http://x').searchParams
-    const [p, last] = [Number(q.get('p')), Number(q.get('last'))]
-    return page('pg', `<main><ul>${Array.from({ length: 4 }, (_, i) => `<li><h3>Item ${p * 4 + i}</h3><p>₹${p * 4 + i}00</p></li>`).join('')}</ul>${p < last ? `<a rel="next" href="/pg?last=${last}&p=${p + 1}">Older</a>` : ''}</main>`)
+    const [p, last, ms] = [Number(q.get('p')), Number(q.get('last')), Number(q.get('ms'))]
+    // ms: a server that takes that long over every page. cover: page 2 comes with something over its next link.
+    const cover = q.has('cover') && p === 2 ? '<div id="ov" style="position:fixed;inset:0;background:#fff"><button onclick="ov.remove()">Close</button></div>' : ''
+    return void setTimeout(() => page('pg', `<main><ul>${Array.from({ length: 4 }, (_, i) => `<li><h3>Item ${p * 4 + i}</h3><p>₹${p * 4 + i}00</p></li>`).join('')}</ul>${p < last ? `<a rel="next" href="/pg?last=${last}&p=${p + 1}${ms ? `&ms=${ms}` : ''}${q.has('cover') ? '&cover' : ''}">Older</a>` : ''}</main>${cover}`), ms)
   }
+  // A list paged only by numbered links: nothing marks one of them as the next page.
+  if (req.url === '/numbers') return page('numbers', `<main><ul><li><h3>Item 0</h3><p>₹0</p></li><li><h3>Item 1</h3><p>₹100</p></li><li><h3>Item 2</h3><p>₹200</p></li></ul><nav aria-label="Pagination"><a aria-current="page" href="/numbers">1</a> <a href="/numbers?p=2">2</a></nav></main>`)
   if (req.url === '/more') return page('more', `<main><ul id="l"></ul><button id="b">Load more</button></main>
     <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 100)</script>`)
   if (req.url === '/infinite') return page('infinite', `<main><ul id="l"></ul><div id="end">end</div></main>
@@ -348,7 +352,7 @@ const server = createServer((req, res) => {
 
 const home = mkdtempSync(join(tmpdir(), 'al-'))
 // Short waits so the failure paths (covered, never quiet) are tested in seconds, not the defaults.
-writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'actions.timeoutMs': 1500, 'settle.deadlineMs': 2000, 'settle.hiddenMs': 6000, 'wait.timeoutMs': 3000, 'command.timeoutMs': 8000, 'load.domMs': 2000, 'each.concurrency': 3, 'get.rounds': 6 }))
+writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'actions.timeoutMs': 1500, 'settle.deadlineMs': 2000, 'settle.hiddenMs': 6000, 'wait.timeoutMs': 3000, 'command.timeoutMs': 8000, 'read.timeoutMs': 5000, 'load.domMs': 2000, 'each.concurrency': 3, 'get.rounds': 6 }))
 const upload = join(home, 'upload-test.txt')
 writeFileSync(upload, 'resume')
 // Deep enough that home/daemon.sock passes the ~104-byte Unix socket path limit.
@@ -557,25 +561,57 @@ test('get --all follows the list to its end: a rel=next link, Load more, a scrol
   const list = async (path: string) => ref((await run('tab', `${base}${path}`)).out, /list of \d+/)
   const pages = await run('get', await list('/pg?last=2&p=0'), '--all', '--out', out)
   assert.match(pages.out, /12 records, 2 columns/)
-  assert.match(pages.out, /ended: end of list/)
+  assert.match(pages.out, /ended: no next link on the last page/)
   assert.deepEqual(lines().slice(1).map(l => l.split('\t')[0]), Array.from({ length: 12 }, (_, i) => `Item ${i}`))
   const more = await run('get', await list('/more'), '--all', '--out', out)
   assert.match(more.out, /15 records/)
-  assert.match(more.out, /ended: end of list/)
+  assert.match(more.out, /ended: no "Load more" on the last page/)
   assert.equal(lines().length, 16)
   const scrolled = await run('get', await list('/infinite'), '--all', '--out', out)
   assert.match(scrolled.out, /20 records/)
-  assert.match(scrolled.out, /ended: end of list/)
+  assert.match(scrolled.out, /ended: scrolling to the end brought nothing more/)
   assert.equal(lines().length, 21)
   const stuck = await run('get', await list('/stuck'), '--all', '--out', out)
   assert.match(stuck.out, /3 records/)
-  assert.match(stuck.out, /ended: no new items/)
+  // An end is said only when the page shows one: a control that did nothing, or no way to more at all, is not an end.
+  assert.match(stuck.out, /not shown to be complete: "Load more" was pressed and nothing new came/)
+  const numbers = await run('get', await list('/numbers'), '--all', '--out', out)
+  assert.match(numbers.out, /3 records/)
+  assert.match(numbers.out, /not shown to be complete: no next link or control was found, and scrolling brought nothing more/)
+  // A call turns at most get.rounds pages. It stops with what it has, and the same command carries on: in the tab where
+  // it stopped, or, in another tab on the list, from the address it had reached.
   const bound = await run('get', await list('/pg?last=40&p=0'), '--all', '--out', out)
   assert.match(bound.out, new RegExp(`${4 * (6 + 1)} records`))
-  assert.match(bound.out, /ended: bound hit \(get\.rounds 6\)/)
+  assert.match(bound.out, /stopped: 6 pages turned, the most in one call \(get\.rounds\); the same command carries on/)
+  assert.match((await run('get', ref((await run('map')).out, /list of \d+/), '--all', '--out', out)).out, new RegExp(`${4 * (12 + 1)} records`))
+  assert.match((await run('get', await list('/pg?last=40&p=0'), '--all', '--out', out)).out, new RegExp(`${4 * (18 + 1)} records`))
   const plain = await run('get', await list('/pg?last=2&p=0'), '--all')
   assert.match(plain.out, /12 records/)
   assert.match(plain.out, /Item 11\t₹1100/)
+})
+
+test('get --all has a time limit for each page, not one for the whole list', async () => {
+  // Six pages of 1.2 s each take longer than a read may (read.timeoutMs, 5 s here).
+  const list = ref((await run('tab', `${base}/pg?last=5&p=0&ms=1200`)).out, /list of \d+/)
+  const all = await run('get', list, '--all')
+  assert.match(all.out, /24 records/)
+  assert.match(all.out, /ended: no next link on the last page/)
+})
+
+test('get --all keeps what it collected when a page fails, and the same command carries on from there', async () => {
+  const out = join(home, 'kept.tsv')
+  const lines = () => readFileSync(out, 'utf8').trimEnd().split('\n')
+  const list = ref((await run('tab', `${base}/pg?last=4&p=0&cover`)).out, /list of \d+/)
+  const stopped = await run('get', list, '--all', '--out', out)
+  assert.match(stopped.out, /12 records/)
+  assert.match(stopped.out, /stopped: .*covered by.*; the same command carries on/)
+  assert.equal(lines().length, 13)
+  await run('click', 'Close')
+  const carried = await run('get', ref((await run('map')).out, /list of \d+/), '--all', '--out', out)
+  assert.match(carried.out, /20 records/)
+  assert.match(carried.out, /ended: no next link on the last page/)
+  assert.deepEqual(lines().slice(1).map(l => l.split('\t')[0]), Array.from({ length: 20 }, (_, i) => `Item ${i}`))
+  assert.ok(!existsSync(`${out}.unfinished`))
 })
 
 test('controls can be named instead of numbered; new records under an unchanged map are named', async () => {

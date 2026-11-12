@@ -261,8 +261,15 @@ passed 3k.
   `rel=next` (HTML link types), else a link or button named as paging controls are (Next, Load more, Show more, ›);
   with none, the page scrolls to its end, which is how an infinite list asks for more. A record is new when no
   earlier record has the same cells; the list is found again after each step (its ref, else the largest list of its
-  kind, since a new page has new refs). The answer says how it ended: `end of list` (no control, scrolling brought
-  nothing), `no new items` (a control was pressed and nothing came), or `bound hit` (`get.rounds`).
+  kind, since a new page has new refs). The answer says a list `ended` only when the page shows it: the way on that
+  was pressed is no longer there (`no next link on the last page`), or scrolling, which had been bringing records,
+  brings no more. Anything else is `not shown to be complete`, with what was tried: a control that was pressed and
+  brought nothing, or no way on found at all (a list paged only by numbers, a button named in another language).
+  Each page has the time limit a command has (`command.timeoutMs`); the list as a whole has none but `get.rounds`.
+  With `--out` the file is written page by page, and beside it, while the list is unfinished, `<file>.unfinished`
+  holds the address where the collection began and the one it has reached. A call that stops (a page that fails,
+  `get.rounds`, the browser gone) answers `stopped`, with why; the same command, run on either of those pages, keeps
+  the saved records and carries on from the address reached, so no saved page is turned again.
   Records go to `--out` as any `get` does; without it the answer is the usual one page.
 - **Sorting** uses the standard collator with numeric ordering, after removing digit-group separators
   and turning 12-hour times into 24-hour ones. Empty values sort last.
@@ -402,7 +409,7 @@ Keys are added when the phase that uses them lands.
 | `explore.depth` | 2 | Levels of submenus `explore` opens |
 | `explore.max` | 40 | Most menus one `explore` opens |
 | `explore.waitMs` | 1500 | Settle deadline after opening or closing a menu while exploring |
-| `get.rounds` | 50 | `get --all` presses the list's next control (or scrolls) at most this many times; the answer says when this ended it |
+| `get.rounds` | 50 | `get --all` presses the list's next control (or scrolls) at most this many times in one call; it then answers `stopped`, and the same command carries on |
 | `data.rows` | 20 | Lines `find` returns (`get` with no `--limit` returns the records that fit `render.pageChars`) |
 | `data.minRepeats` | 3 | Siblings sharing a signature before they count as records |
 | `data.minParts` | 2 | Block-level parts each of those siblings needs |

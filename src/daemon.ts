@@ -1,7 +1,7 @@
 // The background process that keeps live tabs alive between CLI calls.
 // It owns one headless Chrome, a persistent profile, and a socket the CLI talks to.
 import { createServer } from 'node:http'
-import { chmodSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium, devices, type Browser, type BrowserContext, type CDPSession, type Dialog, type Page, type Request, type Route } from 'playwright-core'
 import { isTracker } from './trackers.js'
@@ -586,7 +586,7 @@ async function changes(tab: Tab, settled = ''): Promise<string> {
 function recordsView(node: Node, origin: string, q: Query & { out?: string }, collected?: { data: Records; ended: string }): string {
   const all = collected?.data ?? records(node, origin, { ...caps(), urls: q.urls })
   const out = query(all, q)
-  const ended = collected ? ` — ended: ${collected.ended}` : ''
+  const ended = collected ? ` — ${collected.ended}` : ''
   if (q.out) return saved(q.out, toTsv(out), `${out.rows.length} records, ${out.columns.length} columns (TSV)${ended}`)
   const asked = out.rows.length
   let size = toTsv({ ...out, rows: [] }).length
@@ -601,40 +601,95 @@ function recordsView(node: Node, origin: string, q: Query & { out?: string }, co
 
 // get --all (DESIGN §4.5): the list's own way to more, pressed until nothing new arrives. A rel=next link (HTML link
 // types) or a control named as paging controls are is pressed; with none, the page scrolls to its end, which is how an
-// infinite list asks for more. A row is new when no earlier row has its cells.
+// infinite list asks for more. A row is new when no earlier row has its text.
 const MORE = /^(?:(?:next(?: page)?|load more|show more|see more|view more|more results)\s*[›»→>]?|[›»→>])$/i
 
-async function recordsAll(tab: Tab, first: Node, origin: string, urls?: boolean) {
+// It says a list ended only when the page shows it: the way on that was pressed is no longer there, or scrolling, which
+// had been bringing rows, brings no more. Anything else is "not shown to be complete", with what was tried.
+// The file is written page by page, and beside it, while the list is unfinished, where the collection began and the
+// address it has reached. A call that stops (a page that fails, get.rounds, the browser gone) has lost nothing, and
+// the same command, run on either of those pages, carries on: the saved rows are kept and no saved page is turned again.
+async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { out?: string }): Promise<string> {
   const rows = new Map<string, string[]>()
   let names: string[] = []
-  const take = (list: Node) => {
-    const r = records(list, origin, { ...caps(), urls })
-    if (r.names.length > names.length) names = r.names
-    for (const row of r.rows) rows.set(row.join('\t'), row)
-  }
-  const done = (ended: string) => {
-    const width = Math.max(...[...rows.values()].map(r => r.length))
-    const columns = Array.from({ length: width }, (_, i) => `c${i + 1}`)
-    return { data: { columns, names: columns.map((_, i) => names[i] ?? ''), rows: [...rows.values()].map(r => columns.map((_, i) => r[i] ?? '')) }, ended }
-  }
-  take(first)
   let list = first
-  for (let round = 0; ; round++) {
-    if (round === policy['get.rounds']) return done(`bound hit (get.rounds ${round})`)
-    const before = rows.size
+  // A row is its text: its refs change when the page re-renders it, and when the browser starts again.
+  const add = (row: string[]) => rows.set(row.join('\t').replace(/\[\d+\] /g, ''), row)
+  const take = () => {
+    const r = records(list, origin, { ...caps(), urls: q.urls })
+    if (r.names.length > names.length) names = r.names
+    r.rows.forEach(add)
+  }
+  const data = (): Records => {
+    const columns = Array.from({ length: Math.max(...[...rows.values()].map(r => r.length)) }, (_, i) => `c${i + 1}`)
+    return { columns, names: columns.map((_, i) => names[i] ?? ''), rows: [...rows.values()].map(r => columns.map((_, i) => r[i] ?? '')) }
+  }
+  // The same list after the page changed: its ref if the page kept it, else the largest list of its kind.
+  const locate = async () => {
+    const same = withRefs((await snapshot(tab)).tree).filter(n => n.role === list.role)
+    return same.find(n => n.ref === list.ref) ?? same.sort((a, b) => records(b, origin, caps()).rows.length - records(a, origin, caps()).rows.length)[0]
+  }
+  const mark = q.out && `${q.out}.unfinished`
+  let from = tab.page.url()
+  if (mark && existsSync(mark) && existsSync(q.out!)) {
+    const [began, reached] = readFileSync(mark, 'utf8').split('\n')
+    if ([began, reached].map(pageOf).includes(pageOf(from))) {
+      const [head, ...saved] = readFileSync(q.out!, 'utf8').trimEnd().split('\n')
+      names = head.split('\t').map(h => h.split(' ').slice(1).join(' '))
+      saved.forEach(l => add(l.split('\t')))
+      if (pageOf(reached) !== pageOf(from)) {
+        await tab.page.goto(reached, COMMIT())
+        await settle(tab)
+        list = await locate() ?? list
+      }
+      from = began
+    }
+  }
+  const keep = () => {
+    if (!q.out) return
+    writeFileSync(q.out, `${toTsv(data())}\n`)
+    writeFileSync(mark!, `${from}\n${tab.page.url()}`)
+  }
+  const finished = (ending: string) => {
+    if (mark) rmSync(mark, { force: true })
+    return recordsView(list, origin, q, { data: data(), ended: ending })
+  }
+  const stopped = (why: string) => (q.out
+    ? `saved ${q.out}: ${rows.size} records so far — stopped: ${why}; the same command carries on`
+    : recordsView(list, origin, q, { data: data(), ended: `stopped: ${why}` }))
+  // One page more: the list's way on is pressed, or the page scrolled, and the list read again. Nothing to return
+  // when the way on that earlier pages had is gone.
+  let pressed = ''
+  const turn = async () => {
     const rel = await tab.page.evaluate(`document.querySelector('a[rel~=next],link[rel~=next]')?.href`).catch(() => undefined)
     const controls = withRefs((await snapshot(tab)).tree).filter(n => (n.role === 'link' || n.role === 'button') && !n.states?.includes('disabled'))
     const more = controls.find(n => rel && n.url === rel) ?? controls.find(n => MORE.test((n.name ?? '').trim()))
+    if (!more && pressed) return undefined
     if (more) await pointerAt(tab, String(more.ref), {})
     else await tab.page.evaluate('document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)')
     await settle(tab)
-    // The same list: its ref if the page kept it, else the largest list of its kind (a new page has new refs).
-    const same = withRefs((await snapshot(tab)).tree).filter(n => n.role === list.role)
-    const found = same.find(n => n.ref === list.ref) ?? same.sort((a, b) => records(b, origin, caps()).rows.length - records(a, origin, caps()).rows.length)[0]
-    if (!found) return done('the list left the page')
-    list = found
-    take(list)
-    if (rows.size === before) return done(more ? 'no new items' : 'end of list')
+    const found = await locate()
+    if (found) { list = found; take() }
+    return { way: !more ? 'scroll' : rel && more.url === rel ? 'next link' : `"${more.name}"`, found: !!found }
+  }
+  take()
+  keep()
+  let scrolled = false
+  for (let round = 0; ; round++) {
+    if (round === policy['get.rounds']) return stopped(`${round} pages turned, the most in one call (get.rounds)`)
+    const before = rows.size
+    // Each page has the limit a command has: a list is as long as it is, and one stuck page must not hold the call.
+    const step = await within(turn(), policy['command.timeoutMs']).catch((err: unknown) => (err instanceof Error ? err.message.split('\n')[0] : String(err)))
+    if (typeof step === 'string') return stopped(step)
+    if (!step) return finished(`ended: no ${pressed} on the last page`)
+    if (!step.found) return finished('not shown to be complete: the list left the page')
+    keep()
+    if (rows.size === before) {
+      return finished(step.way !== 'scroll' ? `not shown to be complete: ${step.way === 'next link' ? 'the next link' : step.way} was pressed and nothing new came`
+        : scrolled ? 'ended: scrolling to the end brought nothing more' : 'not shown to be complete: no next link or control was found, and scrolling brought nothing more')
+    }
+    if (step.way === 'scroll') scrolled = true
+    else pressed = step.way
   }
 }
 
@@ -1004,11 +1059,11 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
   },
   async get(c) {
     const tab = need(c.session)
-    const { tree, origin } = await snapshot(tab)
+    const { tree, origin } = await within(snapshot(tab), policy['read.timeoutMs'])
     const node = findRef(tree, Number(c.ref))
     if (!node) throw new Error(`[${c.ref}] is not on the page — run: browser-layer map`)
     if (!records(node, origin, caps()).rows.length) throw new Error(`[${c.ref}] has no rows; get works on the lists and tables the map shows`)
-    return `${await header(tab)}  — ${recordsView(node, origin, c, c.all ? await recordsAll(tab, node, origin, c.urls) : undefined)}`
+    return `${await header(tab)}  — ${c.all ? await recordsAll(tab, node, origin, c) : recordsView(node, origin, c)}`
   },
   async read(c) {
     const ref = c.ref === undefined ? undefined : Number(c.ref)
@@ -1363,11 +1418,9 @@ function repeated(c: Command, text: string): string {
 // A page whose renderer stopped answering (a script that never returns) would hold every later command
 // behind it; the command fails instead, and other tabs carry on. Reading the page takes seconds at most, so
 // a read gives up sooner than a command that loads a page. Each of a call's steps has its own limit.
-function limited(c: Command): Promise<string> {
-  const limit = policy[READS.has(c.cmd) ? 'read.timeoutMs' : 'command.timeoutMs']
-  return Promise.race([run(c), new Promise<never>((_, fail) => setTimeout(() => fail(new Error(
-    `the page did not answer in ${limit / 1000} s; it may be stuck: browser-layer close it and open it again`)), limit))])
-}
+const within = <T>(work: Promise<T>, limit: number) => Promise.race([work, new Promise<never>((_, fail) => setTimeout(() => fail(new Error(
+  `the page did not answer in ${limit / 1000} s; it may be stuck: browser-layer close it and open it again`)), limit))])
+const limited = (c: Command) => within(run(c), policy[READS.has(c.cmd) ? 'read.timeoutMs' : 'command.timeoutMs'])
 
 // A Unix socket is a file left behind on exit; a Windows named pipe goes away with its server.
 const dropSocket = () => { if (process.platform !== 'win32') rmSync(socketPath(), { force: true }) }
@@ -1474,7 +1527,7 @@ async function main() {
       queues.set(c.session, (queues.get(c.session) ?? Promise.resolve()).then(async () => {
         try {
           await pullCookies()
-          const text = ceiling(repeated(c, await (c.cmd === 'steps' || c.cmd === 'each' ? run(c) : limited(c))), policy)
+          const text = ceiling(repeated(c, await (c.cmd === 'steps' || c.cmd === 'each' || (c.cmd === 'get' && c.all) ? run(c) : limited(c))), policy)
           await syncCookies().catch(() => {})
           res.end(JSON.stringify({ ok: true, text }))
         } catch (err) {

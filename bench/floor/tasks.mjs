@@ -22,7 +22,8 @@ const collect = (kind, more, path = `list/${kind}`) => ({
   id: `A1 collect, ${kind}`,
   tool: async t => more(t, ref(await t.bl('tab', `${t.base}/${path}`), 'list of 20')),
   plain: async t => getAll(t, ref(await t.bl('tab', `${t.base}/${path}`), 'list of 20')),
-  check: everyRecordSaved,
+  // Short of every record, an answer that says the end is not shown has not misled anyone.
+  check: (answer, t) => everyRecordSaved(answer, t) || (/not shown to be complete/.test(answer ?? '') && 'says so'),
 })
 // Pages with addresses: once one answer shows the address of another page, all of them are read in one call.
 const byAddress = kind => async t => {

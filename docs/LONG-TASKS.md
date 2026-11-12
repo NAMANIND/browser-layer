@@ -99,6 +99,21 @@ characters per 60 calls (`tabs` lists them all).
 8. **Session length alone costs nothing.** 600 calls are flat in time and memory. Tabs left open are what grows: about
    110 MB a tab (summed process memory, which counts shared pages more than once) and a longer `tabs` answer.
 
+### After C4 for `get --all` (13 Nov)
+
+| Row | Before | After |
+|---|---|---|
+| A1 plain, `rel=next` and scroll | done | done |
+| A1 plain, numbered pager | wrong: 20 of 500, "end of list" | 20 of 500, says `not shown to be complete` |
+| A1 plain, button not in English | wrong: 20 of 500, "end of list" | 20 of 500, says `not shown to be complete` |
+| A1 plain, list that re-renders | failed at 20 s, nothing saved | done |
+| A1 plain, slow server | failed at 20 s, nothing saved | done |
+| A1 tool, slow server | 5 calls, 40k read | 2 calls, 20k read |
+| A7 browser dies while collecting | 4 calls, 22 s, every page again | 4 calls, 18 s, carries on from the page reached |
+
+No other row moved, beyond 1k more read per task from two more lines in the manual. `npm run measure` unchanged; tests 145 → 148.
+The two rows that say so become `done` with C1 (continuation by `aria-current`, and a control the agent names).
+
 What this changes below: C1's number is the `plain` rows, not the call count; C5 and C6 cannot be shown by a floor (a
 perfect agent never reads twice or looks after an error it did not make) and are judged on recorded runs and in phase 4;
 C7 loses its worry about session length and keeps the tab bound and the restore.
@@ -163,8 +178,10 @@ stopped does not go on acting in the tab. `get --all`, `each` and bulk `open` ap
 how), `not shown to be complete` (what was tried), `stopped` (where, why, and that the same call continues). Re-running
 skips what the file already has. The manual's rule "a list is complete only when you can show it ended" becomes
 something the tool states.
-*Done when.* A7 is 3 calls and repeats no page already saved (4 calls and all 25 pages today); the slow-server and
-re-rendering `plain` rows are done; no `plain` row says a list ended when it did not.
+*Done when.* A7 repeats no page already saved; the slow-server and re-rendering `plain` rows are done; no `plain` row
+says a list ended when it did not.
+*Done for `get --all`, 13 Nov* (floors below). Not done: `each` and bulk `open` still write their file at the end and
+do not carry on. A7 stays at 4 calls: the fourth is opening the page again after the browser died, which is C7's.
 
 ### C5. An answer carries the next decision, inside one budget (L1, L2)
 *Rule.* No answer makes the agent call again for something that answer had room for; and no answer is bigger than its
@@ -217,13 +234,13 @@ Each item is one session in its own worktree from `agent-fixes`, test first, sma
 | Phase | Sessions (parallel within a phase) | Touches | Leaves |
 |---|---|---|---|
 | 0 ✅ | `bench/floor`: the site, checkers, par scripts for A1 to A5 and A7 in three modes, A6 | `bench/floor/` only | The measured table in §2 |
-| 1 | `resume` (C4) · `readback` (C2) · `one-view` (C5) | `daemon.ts` collect code · `data.ts`, `cli.ts` · `daemon.ts` view code | Floors after each |
+| 1 | `resume` (C4; `get --all` ✅) · `readback` (C2) · `one-view` (C5) | `daemon.ts` collect code · `data.ts`, `cli.ts` · `daemon.ts` view code | Floors after each |
 | 2 | `join` (C1) · `columns` (C3) | collect code · `reader.ts`, `data.ts` | Floors after each |
 | 3 | `ledger` (C6) · `survive` (C7) | view code · `daemon.ts` start-up, `client.ts` | Floors after each |
 | 4 | Local agent gate on Haiku (short, long, and the floor tasks as prompts), then one paid run if the gate is clean | none | Gap to floor per task; RESULTS |
 
-Before phase 1, the collect code (`recordsAll`, `each`, the bulk writers) moves out of `daemon.ts` (1,483 lines) into
-`src/collect.ts` with no behaviour change, so `resume`, `join` and `one-view` do not edit the same lines.
+If two sessions are to edit the collect code at once, it first moves out of `daemon.ts` into `src/collect.ts` with no
+behaviour change. Phase 1 has run one item at a time so far, so the move has not been made.
 
 A phase is merged when: its floors dropped as its contract says, no other floor rose, `npm test` and `npm run measure`
 are green, and the size note is written. A contract whose floor does not move is reverted, not kept.
