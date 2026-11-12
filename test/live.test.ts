@@ -169,6 +169,13 @@ const server = createServer((req, res) => {
   // A banner over a control, with buttons that answer it.
   if (req.url === '/banner') return page('banner', `<button onclick="o.textContent = 'reached'">Behind</button><p id="o">not yet</p>
     <div id="b" style="position:fixed;inset:0;background:#fff"><p>We use cookies</p><button onclick="b.remove()">Reject all</button><button onclick="b.remove()">Accept all</button></div>`)
+  // A styled checkbox: the real input is invisible under its own label, which is what a person clicks.
+  if (req.url === '/styled') return page('styled', `<div style="position:relative"><input type="checkbox" id="r" style="position:absolute;left:0;top:0;opacity:0" onchange="o.textContent = 'recalls ' + r.checked">
+    <label for="r" style="position:relative;display:block;height:30px">Recalls</label></div><p id="o">untouched</p>`)
+  // Results the page holds but keeps hidden while it checks the visitor, on a page that never goes quiet.
+  if (req.url === '/hidden-busy') return page('hidden-busy', `<p id="t">0</p>
+    <ol id="r" style="visibility:hidden">${Array.from({ length: 60 }, (_, i) => `<li>Result ${i}: a result long enough to count as content on this page</li>`).join('')}</ol>
+    <script>setInterval(() => t.textContent = Date.now(), 50); setTimeout(() => r.style.visibility = 'visible', 3000)</script>`)
   // A field that rewrites what is typed, and one outside any form, where Enter does nothing.
   if (req.url === '/fields') return page('fields', `<input aria-label="Code" oninput="this.value = this.value.toUpperCase()"><input aria-label="Loose">`)
   // A custom dropdown: a combobox that opens a listbox of options.
@@ -312,7 +319,7 @@ const server = createServer((req, res) => {
 
 const home = mkdtempSync(join(tmpdir(), 'al-'))
 // Short waits so the failure paths (covered, never quiet) are tested in seconds, not the defaults.
-writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'actions.timeoutMs': 1500, 'settle.deadlineMs': 2000, 'wait.timeoutMs': 3000, 'command.timeoutMs': 8000, 'load.domMs': 2000, 'each.concurrency': 3 }))
+writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'actions.timeoutMs': 1500, 'settle.deadlineMs': 2000, 'settle.hiddenMs': 6000, 'wait.timeoutMs': 3000, 'command.timeoutMs': 8000, 'load.domMs': 2000, 'each.concurrency': 3 }))
 const upload = join(home, 'upload-test.txt')
 writeFileSync(upload, 'resume')
 // Deep enough that home/daemon.sock passes the ~104-byte Unix socket path limit.
@@ -804,6 +811,8 @@ test('scroll brings in lazily loaded rows; hover reveals a menu; wait and eval',
   assert.match((await run('hover', ref(menu.out, /button "Products"/))).out, /link "Laptops"/)
   await run('tab', `${base}/later`)
   assert.match((await run('wait', 'ready now')).out, /ready now|no visible change/)
+  // wait matches as find does: letter case and runs of spaces do not matter.
+  assert.equal((await run('wait', 'READY  now')).code, 0)
   assert.match((await run('eval', 'document.title')).out, /^"later"$/m)
   await run('go', `${base}/page/a`)
   await run('go', `${base}/page/b`)
@@ -1214,6 +1223,25 @@ test('a covered control names what covers it and the buttons that answer it', as
   assert.equal(r.code, 1)
   assert.match(r.out, /covered by <\w+> "We use cookies[^"]*"; its controls: "Reject all" · "Accept all" \(click one by name, then this again\)/)
   assert.match((await run('steps', 'click "Reject all"; click Behind')).out, /reached/)
+})
+
+test('a control under its own label is clicked through the label, as a person clicks it', async () => {
+  await run('tab', `${base}/styled`)
+  const r = await run('check', 'Recalls')
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /recalls true/)
+})
+
+test('a page that arrives with its content hidden is waited on past the deadline, until it shows', async () => {
+  const r = await run('tab', `${base}/hidden-busy`)
+  assert.match(r.out, /settled: shown after \d+ ms/)
+  assert.match((await run('read')).out, /Result 59/)
+})
+
+test('find --urls gives each link its address; plain find leaves it out', async () => {
+  await run('tab', `${base}/view`)
+  assert.match((await run('find', 'About us', '--urls')).out, new RegExp(`link "About us" → ${base}/about`))
+  assert.doesNotMatch((await run('find', 'About us')).out, /"About us" →/)
 })
 
 test('typing says when the field holds something else, and when Enter did nothing', async () => {

@@ -47,7 +47,7 @@ Live tabs (headless browser, runs the page's JS):
   each '<read>' <url…>         load pages together, run one read on each, one answer; its tabs close (--out <file>: a line per page)
   map                          regions, fields, actions, lists and links, with refs
   read [ref] [--page N] [--full]   the page or one region; read again: what changed
-  find <text> [--page N]       lines that contain it
+  find <text> [--page N] [--urls]   lines that contain it (--urls: each link with its address)
   get <ref> [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]   a list or table as records (TSV)
   --out <file>                 on open, read, find, get: the whole result to a file
   click · dblclick · rightclick · hover <ref>      check · uncheck <ref>      submit <ref>

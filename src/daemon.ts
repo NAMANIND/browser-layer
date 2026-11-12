@@ -288,6 +288,9 @@ const caused = (tab: Tab) => {
   }).length
 }
 
+// The page holds plenty of text but shows hardly any of it (PAGE_HOOKS). A dialog blocks page scripts, so the read is bounded.
+const holdsBack = async (tab: Tab) => await Promise.race([tab.page.evaluate('window.__alHidden?.() ?? false').catch(() => false), sleep(500).then(() => false)]) === true
+
 // Settled when the site's own requests are done and the shown text has not changed for settle.quietMs;
 // or a dialog is waiting (the page is blocked until it is answered); or the deadline passes. A page with
 // plenty of text but hardly any shown is given settle.revealMs to show it. A document that has not
@@ -307,12 +310,20 @@ async function settle(tab: Tab, deadline = policy['settle.deadlineMs']): Promise
     const text = await Promise.race([tab.page.evaluate('window.__alText?.() ?? 0').catch(() => -2), sleep(500).then(() => -3)])
     if (text !== last || caused(tab) > 0) { last = text; hidden = undefined; quietSince = Date.now() }
     else if (Date.now() - quietSince >= policy['settle.quietMs']) {
-      hidden ??= await Promise.race([tab.page.evaluate('window.__alHidden?.() ?? false').catch(() => false), sleep(500).then(() => false)]) === true
+      hidden ??= await holdsBack(tab)
       if (!hidden || Date.now() - quietSince >= policy['settle.revealMs']) return `idle in ${Date.now() - start} ms`
     }
     await sleep(100)
   }
-  return `deadline ${deadline} ms (the page kept changing)`
+  // A page that arrived holding text it does not show yet (results kept back while the site checks the
+  // visitor) is nothing to read: it is waited on until it shows, settle.hiddenMs at most.
+  if (tab.doc === tab.startDoc || !await holdsBack(tab)) return `deadline ${deadline} ms (the page kept changing)`
+  while (Date.now() - start < policy['settle.hiddenMs']) {
+    if (tab.dialog) return 'dialog'
+    if (!await holdsBack(tab)) return `shown after ${Date.now() - start} ms`
+    await sleep(100)
+  }
+  return `deadline ${policy['settle.hiddenMs']} ms (the page holds text it does not show yet: wait "<text>", or read again later)`
 }
 
 // How settling ended, for an answer that names it only when it was not the usual quiet page.
@@ -989,7 +1000,8 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     const tab = need(c.session)
     const want = (c.text ?? '').toLowerCase()
     if (!want) throw new Error('usage: browser-layer find <text>')
-    const hits = (await snapshot(tab)).text.split('\n').filter(l => l.toLowerCase().includes(want))
+    const { tree, origin, text } = await snapshot(tab)
+    const hits = (c.urls ? renderText(tree, origin, { ...caps(), urls: true }) : text).split('\n').filter(l => l.toLowerCase().includes(want))
     if (!hits.length) return `"${c.text}" is not on the page`
     if (c.out) return saved(c.out, hits.join('\n'), `${hits.length} lines with "${c.text}"`)
     const per = policy['data.rows']
@@ -1089,7 +1101,9 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     const tab = need(c.session)
     if (!c.text) throw new Error('usage: browser-layer wait [--gone] <text>')
     const end = Date.now() + policy['wait.timeoutMs']
-    while (((await snapshot(tab)).text.includes(c.text)) === !!c.gone) {
+    // Matched as find matches: letter case and runs of whitespace do not matter.
+    const plain = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase()
+    while (plain((await snapshot(tab)).text).includes(plain(c.text)) === !!c.gone) {
       if (Date.now() > end) throw new Error(`"${c.text}" ${c.gone ? 'is still on the page' : 'did not appear'} after ${policy['wait.timeoutMs']} ms`)
       await sleep(250)
     }

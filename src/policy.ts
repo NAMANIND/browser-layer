@@ -12,6 +12,7 @@ export const DEFAULTS = {
   'settle.quietMs': 400,
   'settle.deadlineMs': 5000,
   'settle.revealMs': 2500,
+  'settle.hiddenMs': 12000,
   'settle.thirdPartyMs': 1000,
   'settle.arrivalMs': 2000,
   'open.dialogChars': 6000,

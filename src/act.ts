@@ -13,6 +13,8 @@ const BLOCKER = `function (x, y) {
   const top = e
   for (; e; e = e.parentElement || (e.getRootNode() instanceof ShadowRoot ? e.getRootNode().host : null)) if (e === this) return ''
   if (!top) return 'nothing is at its position'
+  // HTML label activation: a click on a control's own label acts on the control, so that label does not cover it.
+  if (top.closest('label')?.control === this) return ''
   const what = top.getAttribute('aria-label') || top.innerText || ''
   // The overlay it belongs to (a dialog, a fixed or sticky banner) and the controls that answer or close
   // it, by name, so the next step can be "click one, then this again" without looking first.
