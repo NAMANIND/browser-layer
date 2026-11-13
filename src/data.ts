@@ -2,12 +2,14 @@ import { control, renderText, type Caps } from './render.js'
 import { cellsOf, COLLECTIONS, isHeaderRow, picturesIn, rowsOf, SEGMENT, SPACE, TABLES, type Node } from './reader.js'
 
 // A collection as records: columns and rows of cell text. Column ids are always c1…cN; a table's
-// header row also gives them names.
+// header row, or the name the page gives a list's field (Node.label), also names them.
 // keys: for a list, each column's field path (what makes it that column), so pages of one list can be lined up.
 export type Records = { columns: string[]; names: string[]; rows: string[][]; keys?: string[] }
 
 // A part made only of punctuation or symbols (a dash between two times) carries no data.
 const mark = /^[\p{P}\p{S}]+$/u
+// Joins a field's path to its term (a <dd>'s <dt>): the same term in two rows is the same column, wherever it comes.
+const TERM = '\u001f'
 
 export function records(collection: Node, origin: string, caps: Caps): Records {
   if (collection.role === 'canvas') return canvasRecords(collection.drawn ?? [])
@@ -65,25 +67,32 @@ function listRecords(list: Node, origin: string, caps: Caps): Records {
   }
   const template = (key: string) => key.split(SEGMENT).map(seg => seg.split(' ').filter((t, i) => i === 0 || (rowsWith.get(t) ?? 0) > 1).join(' ')).join(SEGMENT)
   const keys: string[] = []
+  // A column is named by what the page calls its field, when every row that has it says the same: a name that
+  // changes from row to row (a rating's "4.5 out of 5 stars") is content.
+  const labels = new Map<string, Set<string>>()
   const cells = rows.map(row => {
     const cell = new Map<string, string>()
+    const labelled = new Map<string, string>()
     const seen = new Map<string, number>()
     // The same path twice in one row is two fields: the second becomes path#2.
-    const field = (raw: string) => {
-      const key = template(raw)
-      const n = (seen.get(key) ?? 0) + 1
-      seen.set(key, n)
-      return n === 1 ? key : `${key}#${n}`
+    const field = (n: Node) => {
+      const key = template(n.key!) + (n.term ? `${TERM}${n.term}` : '')
+      const times = (seen.get(key) ?? 0) + 1
+      seen.set(key, times)
+      const own = times === 1 ? key : `${key}#${times}`
+      labelled.set(own, n.term || n.label || '')
+      return own
     }
     const put = (key: string, s: string) => cell.set(key, (cell.get(key) ?? '') + s)
     const visit = (n: Node, key: string) => {
       if (n.text !== undefined) return put(key, n.text)
-      if (n.role === 'image') return caps.urls && put(n.key ? field(n.key) : key, n.url!)
+      if (n.term === '') return
+      if (n.role === 'image') return caps.urls && put(n.key ? field(n) : key, n.url!)
       if (n.ref && !COLLECTIONS.has(n.role ?? '')) {
-        put(n.key ? field(n.key) : key, control(n, origin, caps))
+        put(n.key ? field(n) : key, control(n, origin, caps))
         return picturesIn(n.children ?? []).forEach(p => visit(p, key))
       }
-      const here = n.key ? field(n.key) : key
+      const here = n.key ? field(n) : key
       for (const c of n.children ?? []) visit(c, here)
     }
     for (const c of row.children ?? []) visit(c, '')
@@ -96,12 +105,14 @@ function listRecords(list: Node, origin: string, caps: Caps): Records {
       const t = v.replace(SPACE, ' ').trim()
       if (t && !mark.test(t)) cell.set(k, t)
       else cell.delete(k)
-      if (cell.has(k) && !keys.includes(k)) keys.push(k)
+      if (!cell.has(k)) continue
+      if (!keys.includes(k)) keys.push(k)
+      labels.set(k, (labels.get(k) ?? new Set()).add(labelled.get(k) ?? ''))
     }
     return cell
   })
   const columns = keys.map((_, i) => `c${i + 1}`)
-  return { columns, names: columns.map(() => ''), rows: cells.map(cell => keys.map(k => cell.get(k) ?? '')), keys }
+  return { columns, names: keys.map(k => (labels.get(k)!.size === 1 ? [...labels.get(k)!][0] : '')), rows: cells.map(cell => keys.map(k => cell.get(k) ?? '')), keys }
 }
 
 // Numbers compare as numbers: digit-group separators go ("₹1,18,899"), 12-hour times become

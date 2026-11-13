@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fromTsv, group, toTsv, where, type Records } from '../src/data.js'
+import { fromTsv, group, records, toTsv, where, type Records } from '../src/data.js'
+import { SEGMENT, type Node } from '../src/reader.js'
 
 const data: Records = {
   columns: ['c1', 'c2', 'c3'], names: ['Name', 'Category', 'Price'],
@@ -26,4 +27,22 @@ test('--group counts the rows for each value of a column, the most first', () =>
 test('a records file reads back as the records that were written', () => {
   assert.deepEqual(fromTsv(`${toTsv(data)}\n`), data)
   assert.throws(() => fromTsv('just some text\nmore text\n'), /not a records file/)
+})
+
+// A list of rows built by hand: each field is [element, text, label the page gives it].
+const list = (...rows: [string, string, string?][][]): Node => ({
+  ref: 1, role: 'list', block: true,
+  children: rows.map(fields => ({ row: true, block: true, children: fields.map(([tag, text, label]) => ({ block: true, key: `${SEGMENT}${tag}`, label, children: [{ text }] })) })),
+})
+const caps = { nameChars: 120, labelChars: 40 }
+const named = (l: Node) => records(l, 'https://x.test', caps).names
+
+test('a column takes the name the page gives its field, when every row gives the same', () => {
+  const l = list([['h3', 'Lamp'], ['dd', '5 kg', 'Weight'], ['dd', 'Kerala', 'Origin']], [['h3', 'Desk'], ['dd', '9 kg', 'Weight'], ['dd', 'Goa', 'Origin']])
+  assert.deepEqual(named(l), ['', 'Weight', 'Origin'])
+})
+
+test('a label that differs from row to row is content, and a field some row gives none is not named', () => {
+  assert.deepEqual(named(list([['h3', 'Lamp'], ['span', '4.5', '4.5 out of 5 stars']], [['h3', 'Desk'], ['span', '3', '3 out of 5 stars']])), ['', ''])
+  assert.deepEqual(named(list([['h3', 'Lamp'], ['span', '4.5', 'Rating']], [['h3', 'Desk'], ['span', '3']])), ['', ''])
 })

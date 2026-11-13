@@ -23,6 +23,12 @@ export type Node = {
   // (tags and classes). Rows built from one template share a path for the same field, which is how
   // records line up into columns.
   key?: string
+  // What the page calls the field, from a standard: itemprop (microdata), aria-label or aria-labelledby, a
+  // schema.org JSON-LD property with the field's text as its value. Records name a column by it.
+  label?: string
+  // HTML description lists: a <dd> is the value of the <dt>s before it, which are its term; a <dt> is '' here, a
+  // name and no value. The term is the field's name and identity.
+  term?: string
   // A table cell (HTML table model); header marks a column header cell.
   cell?: boolean
   header?: boolean
@@ -248,6 +254,45 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
   // Content, not formatting: "Airport Mumbai (BOM)" is on screen as "Airport MumbaiBOM 15 km away".
   const content = (s: string) => s.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase()
 
+  // schema.org properties (JSON-LD) by the text they hold: a field whose text is a property's value is that property.
+  // A text two properties hold (a name that is also a title) says nothing.
+  const schema = new Map<string, string | null>()
+  const property = (v: unknown, prop = ''): void => {
+    if (Array.isArray(v)) v.forEach(x => property(x, prop))
+    else if (v && typeof v === 'object') Object.entries(v).forEach(([k, x]) => !k.startsWith('@') && property(x, k))
+    else if (prop && (typeof v === 'string' || typeof v === 'number')) {
+      const text = squash(String(v))
+      schema.set(text, schema.has(text) && schema.get(text) !== prop ? null : prop)
+    }
+  }
+  for (const d of docs) {
+    for (let i = 0; i < d.nodeType.length; i++) {
+      if (str(d.nodeName[i]) !== 'SCRIPT' || d.attr(i, 'type') !== 'application/ld+json') continue
+      try { property(JSON.parse(domText(d, i))) } catch { /* not JSON: it names nothing */ }
+    }
+  }
+  // The name the page gives a field. A control's aria-label is its own name, which is its text, not a column's.
+  function labelOf(d: Doc, i: number, control: boolean, children: Node[]): string | undefined {
+    const di = docs.indexOf(d)
+    const referred = (d.attr(i, 'aria-labelledby') ?? '').split(/\s+/).map(id => byId[di].get(id)).filter((t): t is number => t !== undefined)
+    const named = [d.attr(i, 'itemprop'), !control && d.attr(i, 'aria-label'), !control && referred.map(t => domText(d, t)).join(' ')].map(l => squash(l || '')).find(Boolean)
+    return named ?? (schema.size ? schema.get(squash(textOf(children))) ?? undefined : undefined)
+  }
+
+  // The <dt>s a <dd> is the value of: the run of them before it, however many <dd>s come between (HTML).
+  function termOf(d: Doc, i: number): string | undefined {
+    const tag = str(d.nodeName[i])
+    if (tag === 'DT') return ''
+    if (tag !== 'DD') return undefined
+    const siblings = d.kids[d.doc.nodes.parentIndex[i]].filter(c => d.nodeType[c] === 1)
+    const terms: number[] = []
+    for (const c of siblings.slice(0, siblings.indexOf(i)).reverse()) {
+      if (str(d.nodeName[c]) === 'DT') terms.unshift(c)
+      else if (terms.length) break
+    }
+    return squash(terms.map(c => domText(d, c)).join(' ')) || undefined
+  }
+
   // muted: inside aria-hidden (text shows, controls get no ref). unseen: visibility hidden or opacity 0.
   // path: this node's place inside the nearest row, for lining records up. marked: inside a collection
   // the page marked up itself, where its own rows win over detected ones.
@@ -299,13 +344,13 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
       const value = a!.value?.value
       const name = squash(String(a!.name?.value ?? ''))
       return [{
-        ref: refFor(backendNodeId[i], as(role, name)), role, name, nameShown: content(textOf(children)).includes(content(name)), states, url, block, key,
+        ref: refFor(backendNodeId[i], as(role, name)), role, name, nameShown: content(textOf(children)).includes(content(name)), states, url, block, key, label: labelOf(d, i, true, children),
         reveals: revealsOf(d, i, limits.revealItems), popup,
         value: value === undefined || value === '' ? undefined : String(value),
         children: hasRef(children) ? children : picturesIn(children).length ? picturesIn(children) : undefined,
       }]
     }
-    if (role === 'heading') return [{ role, level: statesOf(a!).level, block: true, children }]
+    if (role === 'heading') return [{ role, level: statesOf(a!).level, block: true, key, label: labelOf(d, i, false, children), children }]
     // Landmarks get refs so the agent can zoom into a region.
     if (LANDMARKS.has(role)) {
       const name = squash(String(a!.name?.value ?? ''))
@@ -314,7 +359,7 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     // Collections get refs so the agent can ask for their records.
     if (COLLECTIONS.has(role)) return [{ ref: refFor(backendNodeId[i], as(role)), role, block: true, children }]
     if (ROWS.has(role)) return [{ row: true, block: true, children }]
-    if (CELLS.has(role)) return [{ cell: true, header: role === 'columnheader', block: true, key, children }]
+    if (CELLS.has(role)) return [{ cell: true, header: role === 'columnheader', block: true, key, label: labelOf(d, i, false, children), children }]
     // An element made clickable by a script, with no role and no controls inside: the page never says it is
     // a button, but it acts as one. It gets a ref, named by its text.
     const plain = !role || role === 'generic' || role === 'none' || role === 'image' || role === 'StaticText'
@@ -338,9 +383,11 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     // A picture is not read out (rule 5), but its address is data that records carry. A data: URL is the
     // picture itself inline, not an address.
     const source = d.sourceOf.get(i)
-    if (source && /^https?:/.test(source) && l !== undefined && !hidden) return [{ role: 'image', url: source, key }]
+    if (source && /^https?:/.test(source) && l !== undefined && !hidden) return [{ role: 'image', url: source, key, label: labelOf(d, i, false, []) }]
     if (!marked && (!role || role === 'generic' || role === 'none') && block && markRecords(d, i, perKid)) return [{ ref: refFor(backendNodeId[i], as('list')), role: 'list', block: true, key, children }]
-    return block ? [{ block: true, key, children }] : children
+    // An inline element the page names (a <span itemprop>) is a field of its own; the rest read into the line.
+    const named = labelOf(d, i, false, children)
+    return block ? [{ block: true, key, label: named, term: termOf(d, i), children }] : named ? [{ key, label: named, children }] : children
   }
 
   // Data-region detection: at least minRepeats element children share a signature (tag and the classes

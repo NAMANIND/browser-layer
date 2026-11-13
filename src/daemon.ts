@@ -638,8 +638,8 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
   const fields: string[] = []
   const take = () => {
     const r = records(list, origin, { ...caps(), urls: q.urls, plain: !!q.out })
-    if (r.names.length > names.length) names = r.names
     const column = (r.keys ?? r.columns).map(k => (fields.includes(k) ? fields.indexOf(k) : fields.push(k) - 1))
+    column.forEach((c, i) => { names[c] ||= r.names[i] })
     for (const row of r.rows) add(Array.from(row.reduce((cells, v, i) => { cells[column[i]] = v; return cells }, Array<string>(fields.length)), v => v ?? ''))
   }
   const data = (): Records => {
