@@ -214,7 +214,9 @@ async function restore() {
 function logCall(c: Command, answer: string) {
   if (c.cmd === 'status') return
   const s = (kept.sessions[c.session] ??= { tabs: [], gone: [], calls: [] })
-  const call = [c.cmd, c.steps?.map(t => t.raw ?? t.cmd).join('; ') ?? c.url ?? c.ref ?? c.file ?? c.text ?? c.id].filter(x => x !== undefined).join(' ')
+  // Text typed (a password the task gave) is not written to disk.
+  const said = (t: Command) => (t.cmd === 'type' ? `type ${t.ref}` : t.raw ?? t.cmd)
+  const call = [c.cmd, c.steps?.map(said).join('; ') ?? c.url ?? c.ref ?? c.file ?? c.text ?? c.id].filter(x => x !== undefined).join(' ')
   s.calls = [...s.calls, `${call.slice(0, policy['status.lineChars'] / 2)} → ${answer.split('\n')[0].slice(0, policy['status.lineChars'])}`].slice(-policy['status.calls'])
   for (const file of [c.out, ...(c.steps ?? []).map(t => t.out)]) if (file && existsSync(file)) noteSaved(c.session, file)
 }
