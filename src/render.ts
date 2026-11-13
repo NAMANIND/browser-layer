@@ -1,3 +1,4 @@
+import { appendFileSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import type { Policy } from './policy.js'
 import { cellsOf, COLLECTIONS, isHeaderRow, isTrigger, LANDMARKS, rowsOf, SPACE, withRefs, type Node } from './reader.js'
 
@@ -292,21 +293,58 @@ export type Bulk = { address: string; status?: number; error?: string; title: st
 const failure = (b: Bulk) => b.error ?? (b.status !== undefined && b.status >= 400 ? `HTTP ${b.status}` : undefined)
 const linesOf = (b: Bulk, max: number) => (b.text ? bounded(b.text, max).split('\n') : [])
 
-export function bulkFile(pages: Bulk[], max: number): string {
-  return pages.map(b => {
-    const mark = b.error ? `error: ${b.error}` : failure(b) ?? (b.status === undefined ? '' : `[${b.status}]`)
-    return [`== ${b.address}${mark ? `  ${mark}` : ''}`, ...linesOf(b, max).map(l => (l.startsWith('== ') ? ` ${l}` : l))].join('\n')
-  }).join('\n') + '\n'
+const bulkPage = (b: Bulk, max: number) => {
+  const mark = b.error ? `error: ${b.error}` : failure(b) ?? (b.status === undefined ? '' : `[${b.status}]`)
+  return [`== ${b.address}${mark ? `  ${mark}` : ''}`, ...linesOf(b, max).map(l => (l.startsWith('== ') ? ` ${l}` : l))].join('\n')
+}
+
+export const bulkFile = (pages: Bulk[], max: number) => `${pages.map(b => bulkPage(b, max)).join('\n')}\n`
+
+// The pages a bulk file holds, as they were written.
+function readBulk(file: string): Bulk[] {
+  const pages: Bulk[] = []
+  const lines: string[][] = []
+  for (const line of readFileSync(file, 'utf8').replace(/\n$/, '').split('\n')) {
+    if (!line.startsWith('== ')) { lines.at(-1)?.push(line.replace(/^ (== )/, '$1')); continue }
+    const [address, mark = ''] = line.slice(3).split(/ {2}(.*)/s)
+    const status = /^\[(\d+)\]$|^HTTP (\d+)$/.exec(mark)
+    pages.push({ address, title: '', text: '', status: status ? Number(status[1] ?? status[2]) : undefined, error: mark.startsWith('error: ') ? mark.slice(7) : undefined })
+    lines.push([])
+  }
+  return pages.map((p, i) => ({ ...p, text: lines[i].join('\n') }))
+}
+
+// A bulk call (each, open) writes its file page by page, so a call cut short leaves the pages it had read, and beside
+// it, while any page is missing or failed, `<file>.unfinished`: the command and the addresses, in order. The same
+// command run again keeps the pages the file holds as read and fetches the rest; any other command replaces the file.
+// The file ends in the order of the addresses, whatever order the pages came in.
+export function bulkRun(file: string, command: string[], max: number) {
+  const mark = `${file}.unfinished`
+  const kept = new Map<string, Bulk>()
+  if (existsSync(file) && existsSync(mark) && readFileSync(mark, 'utf8') === command.join('\n')) {
+    for (const b of readBulk(file)) if (!failure(b)) kept.set(b.address, b)
+  }
+  writeFileSync(file, kept.size ? bulkFile([...kept.values()], max) : '')
+  writeFileSync(mark, command.join('\n'))
+  return {
+    kept,
+    add: (b: Bulk) => appendFileSync(file, `${bulkPage(b, max)}\n`),
+    finish(pages: Bulk[]) {
+      writeFileSync(file, bulkFile(pages, max))
+      if (!pages.some(failure)) rmSync(mark)
+    },
+  }
 }
 
 // Counts, each failure with its reason, one headline per page that read (title or first line, size, the line
 // where it starts in the file), each list cut at its bound with the number left out.
-export function bulkAnswer(name: string, pages: Bulk[], file: string, p: Pick<Policy, 'bulk.pages' | 'bulk.failures' | 'bulk.headlineChars' | 'save.lineChars'>): string {
+export function bulkAnswer(name: string, pages: Bulk[], file: string, p: Pick<Policy, 'bulk.pages' | 'bulk.failures' | 'bulk.headlineChars' | 'save.lineChars'>, kept = 0): string {
   const failed = pages.filter(failure)
   const cut = (s: string) => (s.length > p['bulk.headlineChars'] ? `${s.slice(0, p['bulk.headlineChars'] - 1)}…` : s)
-  const lines = [`${name}: ${pages.length} pages, ${failed.length} failed, saved ${file}`]
+  const lines = [`${name}: ${pages.length} pages, ${failed.length} failed, ${kept ? `${kept} kept from the file, ` : ''}saved ${file}`]
   if (failed.length) lines.push('failed:', ...failed.slice(0, p['bulk.failures']).map(b => `  ${b.address} — ${cut(failure(b)!)}`))
   if (failed.length > p['bulk.failures']) lines.push(`… ${failed.length - p['bulk.failures']} more`)
+  if (failed.length) lines.push('the same command run again fetches only the failed')
   let at = 1
   const heads: string[] = []
   for (const b of pages) {

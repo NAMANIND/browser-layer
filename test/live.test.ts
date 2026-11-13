@@ -1,6 +1,6 @@
 import { execFile, spawn } from 'node:child_process'
 import { createServer, request } from 'node:http'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, before, test } from 'node:test'
@@ -34,6 +34,8 @@ const APP = `<!doctype html><title>Trip</title><body><div id="app"></div><script
 let base = ''
 let booked = ''
 let tooMany = 0
+// How many times each /lag/ page was asked for: what a carried-on run must not repeat.
+const lagHits: Record<string, number> = {}
 const server = createServer((req, res) => {
   if (req.url === '/login') {
     res.setHeader('set-cookie', 'fast=1; Path=/')
@@ -132,6 +134,7 @@ const server = createServer((req, res) => {
     <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 100)</script>`)
   // A list whose records link to a page each.
   if (req.url === '/things') return page('things', `<main><ul>${[1, 2, 3].map(n => `<li><h3><a href="/thing/${n}">Thing ${n}</a></h3><p>₹${n}00</p></li>`).join('')}</ul></main>`)
+  if (req.url === '/things-gone') return page('things', `<main><ul>${[1, 2].map(n => `<li><h3><a href="/thing/${n}">Thing ${n}</a></h3><p>₹${n}00</p></li>`).join('')}<li><h3><a href="http://localhost:1/none">Thing 3</a></h3><p>₹300</p></li></ul></main>`)
   if (req.url?.startsWith('/thing/')) return page(`thing ${req.url.slice(7)}`, `<main><h1>Thing ${req.url.slice(7)}</h1><p>Weight ${req.url.slice(7)} kg</p></main>`)
   if (req.url === '/more') return page('more', `<main><ul id="l"></ul><button id="b">Load more</button></main>
     <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 100)</script>`)
@@ -312,6 +315,7 @@ const server = createServer((req, res) => {
   if (req.url === '/leave') return page('leave', `<input aria-label="Draft"><script>addEventListener('beforeunload', e => { e.preventDefault(); e.returnValue = '' })</script>`)
   if (req.url === '/poll') return void setTimeout(() => res.end('tick'), 1500)
   if (req.url === '/slow') return void setTimeout(() => res.end('slow data'), 800)
+  if (req.url?.startsWith('/lag/')) lagHits[req.url] = (lagHits[req.url] ?? 0) + 1
   if (req.url?.startsWith('/lag/')) return void setTimeout(() => { res.setHeader('content-type', 'text/html'); res.end(`<title>lag</title><p>lagged ${req.url}</p>`) }, 2500)
   if (req.url === '/channel') return page('channel', `<p id="o">ready</p>
     <button onclick="o.textContent = 'clicked'">Quick</button>
@@ -1623,6 +1627,73 @@ test('each runs a bounded number of pages at once, writes the bulk form to --out
   const hits = lines.filter(l => l.includes('lagged /lag/c'))
   assert.equal(hits.length, 1, 'a search returns the line, not the page')
   assert.doesNotMatch((await run('tabs')).out, /\/lag\//)
+})
+
+const headersOf = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter(l => l.startsWith('== ')) : [])
+const readOf = (file: string) => headersOf(file).filter(l => !/  (error: |HTTP \d)/.test(l)).map(l => l.split('  ')[0].slice(3))
+
+test('each --out has the pages already read while the call is still running, and nothing beside it once it ends', async () => {
+  const urls = ['p', 'q', 'r', 's', 't', 'u', 'v'].map(s => `${base}/lag/${s}`)
+  const file = join(home, 'each-live.out')
+  rmSync(file, { force: true })
+  const call = spawn(process.execPath, ['--import', 'tsx', 'src/cli.ts', 'each', '--out', file, 'find lagged', ...urls], { env: { ...process.env, BROWSER_LAYER_HOME: home } })
+  let ended = false
+  call.on('exit', () => (ended = true))
+  for (let i = 0; i < 100 && !readOf(file).length; i++) await new Promise(r => setTimeout(r, 200))
+  assert.ok(!ended, 'the first pages are in the file before the call is over')
+  assert.ok(readOf(file).length >= 1)
+  await new Promise(r => call.on('exit', r))
+  assert.deepEqual(readOf(file), urls)
+  assert.ok(!existsSync(`${file}.unfinished`))
+})
+
+test('each --out cut short by the browser dying keeps the pages read, and the same command fetches only the rest', async () => {
+  const urls = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(s => `${base}/lag/k${s}`)
+  const whole = join(home, 'each-whole.out')
+  await run('each', '--out', whole, 'find lagged', ...urls)
+  const dir = mkdtempSync(join(tmpdir(), 'al-each-'))
+  copyFileSync(join(home, 'policy.json'), join(dir, 'policy.json'))
+  const file = join(dir, 'cut.out')
+  for (const u of urls) delete lagHits[u.slice(base.length)]
+  const call = spawn(process.execPath, ['--import', 'tsx', 'src/cli.ts', 'each', '--out', file, 'find lagged', ...urls], { env: { ...process.env, BROWSER_LAYER_HOME: dir } })
+  for (let i = 0; i < 100 && !readOf(file).length; i++) await new Promise(r => setTimeout(r, 200))
+  await killByArgument(`user-data-dir=${join(dir, 'profile')}`)
+  await new Promise(r => call.on('exit', r))
+  const first = readOf(file)
+  assert.ok(first.length > 0 && first.length < urls.length, `some pages were read: ${first.length}`)
+  assert.ok(existsSync(`${file}.unfinished`))
+  for (const u of urls) delete lagHits[u.slice(base.length)]
+  const again = await runIn(dir, 'each', '--out', file, 'find lagged', ...urls)
+  assert.match(again.out, new RegExp(`^each: 8 pages, 0 failed, ${first.length} kept from the file, saved `))
+  for (const u of first) assert.equal(lagHits[u.slice(base.length)], undefined, `${u} was not fetched again`)
+  assert.equal(readFileSync(file, 'utf8'), readFileSync(whole, 'utf8'))
+  assert.ok(!existsSync(`${file}.unfinished`))
+  await runIn(dir, 'stop')
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('an each --out file is carried on only by the same command: another one replaces it', async () => {
+  const file = join(home, 'each-other.out')
+  const urls = ['x', 'y'].map(s => `${base}/lag/${s}`)
+  await run('each', '--out', file, 'find lagged', ...urls, 'http://localhost:1/none')
+  assert.ok(existsSync(`${file}.unfinished`), 'a page failed: the run is not finished')
+  const retried = await run('each', '--out', file, 'find lagged', ...urls, 'http://localhost:1/none')
+  assert.match(retried.out, /^each: 3 pages, 1 failed, 2 kept from the file, saved /)
+  assert.match(retried.out, /the same command run again fetches only the failed/)
+  const other = await run('each', '--out', file, 'find lagged', urls[0])
+  assert.match(other.out, /^each: 1 pages, 0 failed, saved /)
+  assert.deepEqual(readOf(file), [urls[0]])
+  assert.ok(!existsSync(`${file}.unfinished`))
+})
+
+test('each --from carries on too: the addresses are those of the records, in the same order', async () => {
+  const file = join(home, 'each-from.out')
+  const list = ref((await run('tab', `${base}/things-gone`)).out, /list of 3/)
+  const first = await run('each', 'find Weight', '--from', list, '--out', file)
+  assert.match(first.out, /^each: 3 pages, 1 failed, saved /)
+  const second = await run('each', 'find Weight', '--from', ref((await run('tab', `${base}/things-gone`)).out, /list of 3/), '--out', file)
+  assert.match(second.out, /^each: 3 pages, 1 failed, 2 kept from the file, saved /)
+  assert.match(readFileSync(file, 'utf8'), /thing\/1[\s\S]*Weight 1 kg[\s\S]*thing\/2[\s\S]*Weight 2 kg[\s\S]*localhost:1\/none  error/)
 })
 
 test('an answer repeats the tab line only when the page or the tab changed since the last answer', async () => {
