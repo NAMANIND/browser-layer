@@ -138,6 +138,13 @@ line. Missing: the join between them, and continuation that does not depend on E
    (CLAUDE.md rule 4: it is a locale case).
 *Done when.* Every `plain` A1 row is done (2 of 6 today), or says in its answer that the end is not shown and what to
 name; A2 tool-only is 2 calls and under 30k read (4 and 47k today).
+*Built, 13 Nov:* the next page by `aria-current` in a navigation landmark, after `rel=next`; `--more <ref|name>`;
+`each --from <ref|file>`. Plain A1 rows: 5 of 6 done, and the sixth (a button in German) says the end is not shown
+and how to name the control; with `--more` it is 2 calls and 2,028 characters (24 typed clicks and 4,012 before).
+A2 tool-only: 4 calls, 48k read → 3 calls, 31k (2 is not reachable: open, collect, visit). 157 tests green.
+*Kept, against this plan:* the English word list. Without it a list with a plain "Next" or "Load more" button, which
+is most of them, would need a second call to name the control. It is now the third thing tried, after the two
+standards. Deleting it is a decision about purity against one call on most lists, and is the user's.
 
 ### C2. What the tool saves, the tool reads back (L1, L2)
 *Rule.* Every file the tool writes (`--out`, a result over `answer.maxChars`) can be queried by the tool with the verbs
@@ -258,7 +265,7 @@ Each item is one session in its own worktree from `agent-fixes`, test first, sma
 |---|---|---|---|
 | 0 ✅ | `bench/floor`: the site, checkers, par scripts for A1 to A5 and A7 in three modes, A6 | `bench/floor/` only | The measured table in §2 |
 | 1 | `resume` (C4; `get --all` ✅) · `readback` (C2; records ✅) · `one-view` (C5 ✅, to be judged in phase 4) | `daemon.ts` collect code · `data.ts`, `cli.ts` · `daemon.ts` view code | Floors after each |
-| 2 | `join` (C1) · `columns` (C3) | collect code · `reader.ts`, `data.ts` | Floors after each |
+| 2 | `join` (C1 ✅) · `columns` (C3; across pages ✅) | collect code · `reader.ts`, `data.ts` | Floors after each |
 | 3 | `ledger` (C6) · `survive` (C7) | view code · `daemon.ts` start-up, `client.ts` | Floors after each |
 | 4 | Local agent gate on Haiku (short, long, and the floor tasks as prompts), then one paid run if the gate is clean | none | Gap to floor per task; RESULTS |
 

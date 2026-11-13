@@ -48,13 +48,15 @@ Plain HTTP, no browser:  open <url…>|<ref> [--out f] (pages fetched in paralle
 Live tabs (headless browser, runs the page's JS):
   tab <url…>                   open tabs (several load together; the first is current; an open page is switched to)
   go <url> · back · forward · reload · tabs · use <id> · close [id|--all] · stop
-  each '<read>' <url…>         load pages together, run one read on each, one answer; its tabs close (--out <file>: a line per page)
+  each '<read>' <url…>         load pages together, run one read on each, one answer; its tabs close (--out <file>: a line per page;
+                               --from <ref|file> in place of urls: the pages a list's records link to)
   map                          regions, fields, actions, lists and links, with refs
   read [ref] [--page N] [--full]   the page or one region; read again: what changed
   find <text> [--page N] [--urls]   lines that contain it (--urls: each link with its address)
   get <ref|file> [--where col=v|col~v|col<n|col>n] [--count] [--group col] [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]
                                records (TSV) of a list or table, or of a file get saved: filter and count here, not in a shell
   get <ref> --all --out f      every record of a list: follows its next link, Load more or scroll; says if the end is shown
+                               (--more <ref|name>: the control that gives more, when it finds none)
   --out <file>                 on open, read, find, get: the whole result to a file
   click · dblclick · rightclick · hover <ref>      check · uncheck <ref>      submit <ref>
   type <ref> <text> [--enter] [--keys]   pick <ref> <option>   press <key>   drag <ref> <onto ref>

@@ -1,5 +1,5 @@
 {
- "manual": 5839,
+ "manual": 6042,
  "rows": [
   {
    "task": "A1 collect, rel",
@@ -8,7 +8,7 @@
    "calls": 2,
    "chars": 2035,
    "biggest": 1647,
-   "carried": 20144,
+   "carried": 20753,
    "seconds": 16,
    "note": ""
   },
@@ -19,7 +19,7 @@
    "calls": 2,
    "chars": 2035,
    "biggest": 1647,
-   "carried": 20144,
+   "carried": 20753,
    "seconds": 16,
    "note": ""
   },
@@ -30,7 +30,7 @@
    "calls": 2,
    "chars": 2012,
    "biggest": 1688,
-   "carried": 20063,
+   "carried": 20672,
    "seconds": 17,
    "note": ""
   },
@@ -41,7 +41,7 @@
    "calls": 2,
    "chars": 2012,
    "biggest": 1688,
-   "carried": 20063,
+   "carried": 20672,
    "seconds": 17,
    "note": ""
   },
@@ -49,22 +49,22 @@
    "task": "A1 collect, pager",
    "mode": "tool",
    "ok": true,
-   "calls": 3,
-   "chars": 2153,
-   "biggest": 1469,
-   "carried": 27992,
-   "seconds": 3,
+   "calls": 2,
+   "chars": 2077,
+   "biggest": 1647,
+   "carried": 20841,
+   "seconds": 16,
    "note": ""
   },
   {
    "task": "A1 collect, pager",
    "mode": "plain",
-   "ok": "says so",
+   "ok": true,
    "calls": 2,
-   "chars": 1740,
-   "biggest": 1310,
-   "carried": 19895,
-   "seconds": 2,
+   "chars": 2077,
+   "biggest": 1647,
+   "carried": 20841,
+   "seconds": 16,
    "note": ""
   },
   {
@@ -72,9 +72,9 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 4012,
-   "biggest": 3663,
-   "carried": 22570,
+   "chars": 2028,
+   "biggest": 1679,
+   "carried": 20733,
    "seconds": 17,
    "note": ""
   },
@@ -83,9 +83,9 @@
    "mode": "plain",
    "ok": "says so",
    "calls": 2,
-   "chars": 1659,
-   "biggest": 1310,
-   "carried": 19735,
+   "chars": 1715,
+   "biggest": 1366,
+   "carried": 20400,
    "seconds": 2,
    "note": ""
   },
@@ -96,7 +96,7 @@
    "calls": 2,
    "chars": 4666,
    "biggest": 4319,
-   "carried": 25212,
+   "carried": 25821,
    "seconds": 22,
    "note": ""
   },
@@ -107,7 +107,7 @@
    "calls": 2,
    "chars": 1991,
    "biggest": 1644,
-   "carried": 20069,
+   "carried": 20678,
    "seconds": 22,
    "note": ""
   },
@@ -118,7 +118,7 @@
    "calls": 2,
    "chars": 2040,
    "biggest": 1647,
-   "carried": 20164,
+   "carried": 20773,
    "seconds": 26,
    "note": ""
   },
@@ -129,7 +129,7 @@
    "calls": 2,
    "chars": 2040,
    "biggest": 1647,
-   "carried": 20164,
+   "carried": 20773,
    "seconds": 26,
    "note": ""
   },
@@ -137,22 +137,11 @@
    "task": "A2 enrich 60",
    "mode": "tool",
    "ok": true,
-   "calls": 4,
-   "chars": 8274,
-   "biggest": 6429,
-   "carried": 48197,
-   "seconds": 5,
-   "note": ""
-  },
-  {
-   "task": "A2 enrich 60",
-   "mode": "shell",
-   "ok": true,
    "calls": 3,
    "chars": 3391,
    "biggest": 1624,
-   "carried": 29771,
-   "seconds": 20,
+   "carried": 30529,
+   "seconds": 19,
    "note": ""
   },
   {
@@ -162,7 +151,7 @@
    "calls": 20,
    "chars": 6356,
    "biggest": 331,
-   "carried": 208060,
+   "carried": 212323,
    "seconds": 18,
    "note": ""
   },
@@ -173,7 +162,7 @@
    "calls": 20,
    "chars": 34129,
    "biggest": 1744,
-   "carried": 493116,
+   "carried": 497379,
    "seconds": 18,
    "note": ""
   },
@@ -184,7 +173,7 @@
    "calls": 15,
    "chars": 5471,
    "biggest": 488,
-   "carried": 144961,
+   "carried": 148209,
    "seconds": 17,
    "note": ""
   },
@@ -195,7 +184,7 @@
    "calls": 3,
    "chars": 3120,
    "biggest": 1647,
-   "carried": 29607,
+   "carried": 30419,
    "seconds": 16,
    "note": ""
   },
@@ -206,7 +195,7 @@
    "calls": 3,
    "chars": 2535,
    "biggest": 1647,
-   "carried": 29101,
+   "carried": 29913,
    "seconds": 16,
    "note": ""
   },
@@ -217,7 +206,7 @@
    "calls": 4,
    "chars": 2540,
    "biggest": 1647,
-   "carried": 34239,
+   "carried": 35254,
    "seconds": 17,
    "note": ""
   }

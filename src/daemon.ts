@@ -157,6 +157,8 @@ export type Command = {
   page?: number; files?: string[]; file?: string; dir?: string; gone?: boolean; keys?: boolean; to?: string; full?: boolean; version?: string
   // steps: the commands to run, each with the text it was given as.
   steps?: Command[]; raw?: string
+  // get --all --more: the control that gives more of the list, by ref or name.
+  more?: string
 } & Query
 
 // Commands that only read a page, for the shorter time limit.
@@ -605,9 +607,19 @@ function recordsView(what: string, all: Records, q: Query & { out?: string }, en
   return `${head}${how ? ` (${how})` : ''}\n\n${toTsv(out)}${rest}`
 }
 
-// get --all (DESIGN §4.5): the list's own way to more, pressed until nothing new arrives. A rel=next link (HTML link
-// types) or a control named as paging controls are is pressed; with none, the page scrolls to its end, which is how an
-// infinite list asks for more. A row is new when no earlier row has its text.
+// get --all (DESIGN §4.5): the list's own way to more, pressed until nothing new arrives. The page says which link is
+// the next page in two standard ways, whatever its language: rel=next (HTML link types), and aria-current="page" on
+// the current page's link in a navigation landmark (WAI-ARIA), where the link after it is the next. Failing those, a
+// control named as paging controls are in English is pressed; with none, the page scrolls to its end, which is how an
+// infinite list asks for more. A control only the agent can tell apart is named by it (--more). A row is new when no
+// earlier row has its text.
+const NEXT_PAGE = `(() => {
+  const marked = document.querySelector('a[rel~=next],link[rel~=next]')
+  if (marked) return marked.href
+  const current = document.querySelector('nav [aria-current="page"],[role=navigation] [aria-current="page"]')
+  return current && [...current.closest('nav,[role=navigation]').querySelectorAll('a[href]')]
+    .find(a => current.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING && !current.contains(a))?.href
+})()`
 const MORE = /^(?:(?:next(?: page)?|load more|show more|see more|view more|more results)\s*[›»→>]?|[›»→>])$/i
 
 // It says a list ended only when the page shows it: the way on that was pressed is no longer there, or scrolling, which
@@ -615,7 +627,7 @@ const MORE = /^(?:(?:next(?: page)?|load more|show more|see more|view more|more 
 // The file is written page by page, and beside it, while the list is unfinished, where the collection began, the
 // address it has reached and its columns' fields. A call that stops (a page that fails, get.rounds, the browser gone) has lost nothing, and
 // the same command, run on either of those pages, carries on: the saved rows are kept and no saved page is turned again.
-async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { out?: string }): Promise<string> {
+async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { out?: string; more?: string }): Promise<string> {
   const rows = new Map<string, string[]>()
   let names: string[] = []
   let list = first
@@ -672,16 +684,20 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
   // when the way on that earlier pages had is gone.
   let pressed = ''
   const turn = async () => {
-    const rel = await tab.page.evaluate(`document.querySelector('a[rel~=next],link[rel~=next]')?.href`).catch(() => undefined)
+    const rel = await tab.page.evaluate(NEXT_PAGE).catch(() => undefined)
     const controls = withRefs((await snapshot(tab)).tree).filter(n => (n.role === 'link' || n.role === 'button') && !n.states?.includes('disabled'))
-    const more = controls.find(n => rel && n.url === rel) ?? controls.find(n => MORE.test((n.name ?? '').trim()))
+    // The control the agent named is the way on, and nothing else is tried: by ref, else the best match of its name.
+    const want = q.more?.trim().toLowerCase() ?? ''
+    const more = q.more ? controls.find(n => String(n.ref) === q.more) ?? controls.filter(n => fit(n.name, want) < 3).sort((a, b) => fit(a.name, want) - fit(b.name, want))[0]
+      : controls.find(n => rel && n.url === rel) ?? controls.find(n => MORE.test((n.name ?? '').trim()))
     if (!more && pressed) return undefined
+    if (!more && q.more) throw new Error(`nothing is named "${q.more}" — run: browser-layer map`)
     if (more) await pointerAt(tab, String(more.ref), {})
     else await tab.page.evaluate('document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)')
     await settle(tab)
     const found = await locate()
     if (found) { list = found; take() }
-    return { way: !more ? 'scroll' : rel && more.url === rel ? 'next link' : `"${more.name}"`, found: !!found }
+    return { way: !more ? 'scroll' : !q.more && rel && more.url === rel ? 'next link' : `"${more.name}"`, found: !!found }
   }
   take()
   keep()
@@ -697,7 +713,7 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
     keep()
     if (rows.size === before) {
       return finished(step.way !== 'scroll' ? `not shown to be complete: ${step.way === 'next link' ? 'the next link' : step.way} was pressed and nothing new came`
-        : scrolled ? 'ended: scrolling to the end brought nothing more' : 'not shown to be complete: no next link or control was found, and scrolling brought nothing more')
+        : scrolled ? 'ended: scrolling to the end brought nothing more' : 'not shown to be complete: no next link or control was found, and scrolling brought nothing more; if a control gives more, name it: --more <ref or name>')
     }
     if (step.way === 'scroll') scrolled = true
     else pressed = step.way
@@ -937,6 +953,26 @@ const fit = (name: string | undefined, want: string) => {
 }
 const ACTIONS = new Set(['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload', 'check', 'uncheck', 'submit', 'drag'])
 
+// each --from: the pages are those of records, one each (a record's first address): a list on the page, whose
+// records link to their pages, or a file get --urls saved. --limit and --cols choose the records and the column.
+async function addresses(c: Command): Promise<string[]> {
+  let all: Records
+  let what = c.file ?? ''
+  if (c.file) {
+    if (!existsSync(c.file)) throw new Error(`no such file: ${c.file}`)
+    all = fromTsv(readFileSync(c.file, 'utf8'))
+  } else {
+    const { tree, origin } = await snapshot(need(c.session))
+    const node = findRef(tree, Number(c.ref))
+    if (!node) throw new Error(`[${c.ref}] is not on the page — run: browser-layer map`)
+    all = records(node, origin, { ...caps(), urls: true })
+    what = `[${node.ref}] ${node.role}`
+  }
+  const found = query(all, { limit: c.limit, cols: c.cols }).rows.flatMap(r => r.join('\t').match(/https?:\/\/[^\s]+/) ?? [])
+  if (!found.length) throw new Error(`no addresses in ${what}: each goes to the page each record links to (a file needs get --urls)`)
+  return [...new Set(found)]
+}
+
 // What a command can act on: a box is checked (WAI-ARIA: it has a checked state), a field is typed into. Among
 // controls that share a name, the command means those; a click can act on any of them, so it asks which.
 const checkable = (n: Node) => !!n.states?.some(s => s === 'checked' || s === 'unchecked' || s === 'mixed')
@@ -1027,10 +1063,10 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
   // (render.ts), the same as `open <url…> --out`.
   async each(c) {
     const [read] = c.steps ?? []
-    if (!read || !c.pages?.length) throw new Error("usage: browser-layer each '<read command>' <url…>")
+    if (!read || !(c.pages?.length || c.ref || c.file)) throw new Error("usage: browser-layer each '<read command>' <url…> | --from <ref|file>")
     if (!READS.has(read.cmd) && read.cmd !== 'eval') throw new Error(`each only reads: ${[...READS, 'eval'].join(', ')}`)
     const was = current.get(c.session)
-    const pages = c.pages
+    const pages = c.pages?.length ? c.pages : await addresses(c)
     const failed = (err: unknown) => `error: ${err instanceof Error ? err.message.split('\n')[0] : err}`
     const results: { head: string; page: Bulk }[] = []
     const entry = (address: string, title: string, text: string): Bulk =>

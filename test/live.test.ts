@@ -119,7 +119,20 @@ const server = createServer((req, res) => {
     return void setTimeout(() => page('pg', `<main><ul>${Array.from({ length: 4 }, (_, i) => `<li><h3>Item ${p * 4 + i}</h3>${mark(i)}<p>₹${p * 4 + i}00</p></li>`).join('')}</ul>${p < last ? `<a rel="next" href="/pg?last=${last}&p=${p + 1}${ms ? `&ms=${ms}` : ''}${q.has('cover') ? '&cover' : ''}${q.has('mark') ? '&mark' : ''}">Older</a>` : ''}</main>${cover}`), ms)
   }
   // A list paged only by numbered links: nothing marks one of them as the next page.
-  if (req.url === '/numbers') return page('numbers', `<main><ul><li><h3>Item 0</h3><p>₹0</p></li><li><h3>Item 1</h3><p>₹100</p></li><li><h3>Item 2</h3><p>₹200</p></li></ul><nav aria-label="Pagination"><a aria-current="page" href="/numbers">1</a> <a href="/numbers?p=2">2</a></nav></main>`)
+  if (req.url?.startsWith('/numbers')) {
+    // Three pages; the current one is marked as ARIA marks it, and no link is marked as the next.
+    const p = Number(new URL(req.url, 'http://x').searchParams.get('p') ?? 1)
+    return page('numbers', `<main><ul>${[0, 1, 2].map(i => `<li><h3>Item ${(p - 1) * 3 + i}</h3><p>₹${(p - 1) * 3 + i}00</p></li>`).join('')}</ul>
+      <nav aria-label="Pagination">${[1, 2, 3].map(n => `<a ${n === p ? 'aria-current="page" ' : ''}href="/numbers?p=${n}">${n}</a>`).join(' ')}</nav></main>`)
+  }
+  // Numbered links with nothing that says which page is the current one or the next.
+  if (req.url === '/unmarked') return page('unmarked', `<main><ul><li><h3>Item 0</h3><p>₹0</p></li><li><h3>Item 1</h3><p>₹100</p></li><li><h3>Item 2</h3><p>₹200</p></li></ul><p><a href="/unmarked?p=1">1</a> <a href="/unmarked?p=2">2</a></p></main>`)
+  // "Load more" in German: its name is no help, only its place in the page.
+  if (req.url === '/mehr') return page('mehr', `<main><ul id="l"></ul><button id="b">Mehr laden</button></main>
+    <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 100)</script>`)
+  // A list whose records link to a page each.
+  if (req.url === '/things') return page('things', `<main><ul>${[1, 2, 3].map(n => `<li><h3><a href="/thing/${n}">Thing ${n}</a></h3><p>₹${n}00</p></li>`).join('')}</ul></main>`)
+  if (req.url?.startsWith('/thing/')) return page(`thing ${req.url.slice(7)}`, `<main><h1>Thing ${req.url.slice(7)}</h1><p>Weight ${req.url.slice(7)} kg</p></main>`)
   if (req.url === '/more') return page('more', `<main><ul id="l"></ul><button id="b">Load more</button></main>
     <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 100)</script>`)
   if (req.url === '/infinite') return page('infinite', `<main><ul id="l"></ul><div id="end">end</div></main>
@@ -588,9 +601,18 @@ test('get --all follows the list to its end: a rel=next link, Load more, a scrol
   assert.match(stuck.out, /3 records/)
   // An end is said only when the page shows one: a control that did nothing, or no way to more at all, is not an end.
   assert.match(stuck.out, /not shown to be complete: "Load more" was pressed and nothing new came/)
+  const unmarked = await run('get', await list('/unmarked'), '--all', '--out', out)
+  assert.match(unmarked.out, /3 records/)
+  assert.match(unmarked.out, /not shown to be complete: no next link or control was found, and scrolling brought nothing more; if a control gives more, name it: --more <ref or name>/)
+  // A pager says which page is the current one (aria-current): the link after it is the next page, in any language.
   const numbers = await run('get', await list('/numbers'), '--all', '--out', out)
-  assert.match(numbers.out, /3 records/)
-  assert.match(numbers.out, /not shown to be complete: no next link or control was found, and scrolling brought nothing more/)
+  assert.match(numbers.out, /9 records/)
+  assert.match(numbers.out, /ended: no next link on the last page/)
+  // A control only the agent can tell is the way to more is named by it.
+  assert.match((await run('get', await list('/mehr'), '--all', '--out', out)).out, /5 records.*not shown to be complete/)
+  const named = await run('get', ref((await run('map')).out, /list of \d+/), '--all', '--more', 'Mehr laden', '--out', out)
+  assert.match(named.out, /15 records/)
+  assert.match(named.out, /ended: no "Mehr laden" on the last page/)
   // A call turns at most get.rounds pages. It stops with what it has, and the same command carries on: in the tab where
   // it stopped, or, in another tab on the list, from the address it had reached.
   const bound = await run('get', await list('/pg?last=40&p=0'), '--all', '--out', out)
@@ -610,6 +632,21 @@ test('a field is in the same column on every page of get --all, wherever an opti
   assert.equal(rows.length, 12)
   assert.deepEqual(rows.map(r => r[1]), Array.from({ length: 12 }, (_, i) => `₹${i}00`))
   assert.deepEqual(rows.filter(r => r[2]).map(r => r[0]), ['Item 4', 'Item 8'])
+})
+
+test('each takes its addresses from records: a list on the page, or a file get saved', async () => {
+  const list = ref((await run('tab', `${base}/things`)).out, /list of 3/)
+  const fromList = await run('each', 'find Weight', '--from', list)
+  for (const n of [1, 2, 3]) assert.match(fromList.out, new RegExp(`thing/${n}[\\s\\S]*Weight ${n} kg`))
+  const file = join(home, 'things.tsv')
+  await run('get', list, '--urls', '--out', file)
+  const fromFile = await run('each', 'find Weight', '--from', file, '--limit', '2')
+  assert.match(fromFile.out, /Weight 1 kg[\s\S]*Weight 2 kg/)
+  assert.doesNotMatch(fromFile.out, /Weight 3 kg/)
+  // The list is still the current tab's: the pages each opened are closed again.
+  assert.match((await run('tabs')).out, /^\* \d+ +\S+\/things /m)
+  await run('tab', `${base}/numbers`)
+  assert.match((await run('each', 'find Weight', '--from', ref((await run('map')).out, /list of 3/))).out, /no addresses in \[\d+\] list/)
 })
 
 test('get reads a saved records file back: --where, --count, --group and --sort, inside steps too', async () => {

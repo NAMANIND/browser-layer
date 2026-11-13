@@ -47,13 +47,15 @@ Plain HTTP, no browser:  open <url…>|<ref> [--out f] (pages fetched in paralle
 Live tabs (headless browser, runs the page's JS):
   tab <url…>                   open tabs (several load together; the first is current; an open page is switched to)
   go <url> · back · forward · reload · tabs · use <id> · close [id|--all] · stop
-  each '<read>' <url…>         load pages together, run one read on each, one answer; its tabs close (--out <file>: a line per page)
+  each '<read>' <url…>         load pages together, run one read on each, one answer; its tabs close (--out <file>: a line per page;
+                               --from <ref|file> in place of urls: the pages a list's records link to)
   map                          regions, fields, actions, lists and links, with refs
   read [ref] [--page N] [--full]   the page or one region; read again: what changed
   find <text> [--page N] [--urls]   lines that contain it (--urls: each link with its address)
   get <ref|file> [--where col=v|col~v|col<n|col>n] [--count] [--group col] [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]
                                records (TSV) of a list or table, or of a file get saved: filter and count here, not in a shell
   get <ref> --all --out f      every record of a list: follows its next link, Load more or scroll; says if the end is shown
+                               (--more <ref|name>: the control that gives more, when it finds none)
   --out <file>                 on open, read, find, get: the whole result to a file
   click · dblclick · rightclick · hover <ref>      check · uncheck <ref>      submit <ref>
   type <ref> <text> [--enter] [--keys]   pick <ref> <option>   press <key>   drag <ref> <onto ref>
@@ -261,6 +263,8 @@ function parse(words: string[]) {
   const page = count('--page')
   const limit = count('--limit')
   const sort = take('--sort')
+  const more = take('--more')
+  const from = take('--from')
   const group = take('--group')
   const where: string[] = []
   for (let w = take('--where'); w !== undefined; w = take('--where')) where.push(w)
@@ -273,14 +277,14 @@ function parse(words: string[]) {
   const attach = take('--attach')
   const has = (flag: string) => argv.includes(flag)
   const [cmd, target, ...rest] = argv.filter(a => !FLAGS.has(a))
-  return { cmd, target, rest, page, limit, sort, cols, group, where: where.length ? where : undefined, file, session, profile, attach, has }
+  return { cmd, target, rest, page, limit, sort, cols, group, more, from, where: where.length ? where : undefined, file, session, profile, attach, has }
 }
 
 type Parsed = ReturnType<typeof parse>
 
 // A live-tab command from its parsed words.
-function liveCommand({ cmd, target, rest, page, limit, sort, cols, group, where, file, has }: Parsed): Command {
-  const c: Command = { cmd, session, page, limit, sort, cols, group, where, count: has('--count'), desc: has('--desc'), urls: has('--urls'), out: file, gone: has('--gone'), keys: has('--keys'), enter: has('--enter'), all: has('--all') }
+function liveCommand({ cmd, target, rest, page, limit, sort, cols, group, more, where, file, has }: Parsed): Command {
+  const c: Command = { cmd, session, page, limit, sort, cols, group, more, where, count: has('--count'), desc: has('--desc'), urls: has('--urls'), out: file, gone: has('--gone'), keys: has('--keys'), enter: has('--enter'), all: has('--all') }
   // The browser belongs to every session in it: a named session leaving closes its own tabs, not the others' page.
   if (cmd === 'stop' && session !== 'default') [c.cmd, c.all] = ['close', true]
   if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: browser-layer ${cmd} <url>`)
@@ -456,8 +460,11 @@ async function main() {
     const [text, ...urls] = [target, ...rest]
     const [{ raw, words }] = script(text ?? '')
     const p = parse(words ?? [])
-    if (!text || !urls.length || !LIVE.has(p.cmd) || p.cmd === 'stop' || p.session !== undefined || p.profile !== undefined) fail(`usage: browser-layer each '<read command>' <url…>`)
-    const reply = await live({ cmd: 'each', session, pages: urls, steps: [{ ...liveCommand(p), raw }], out: parsed.file })
+    const { from } = parsed
+    if (!text || !(urls.length || from) || !LIVE.has(p.cmd) || p.cmd === 'stop' || p.session !== undefined || p.profile !== undefined) fail(`usage: browser-layer each '<read command>' <url…> | --from <ref|file>`)
+    // --from: a number is a list on the page, anything else a file get saved; its records' addresses are the pages.
+    const source = from === undefined ? {} : /^\d+$/.test(from) ? { ref: from } : { file: resolve(from) }
+    const reply = await live({ cmd: 'each', session, pages: urls, steps: [{ ...liveCommand(p), raw }], out: parsed.file, limit: parsed.limit, cols: parsed.cols, ...source })
     if (!reply.ok) fail(`error: ${reply.error}`)
     return console.log(reply.text)
   }

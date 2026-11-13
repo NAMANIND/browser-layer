@@ -13,7 +13,6 @@ const ref = (out, what) => {
 const skus = text => new Set(text.match(/SKU-\d+/g))
 const everyRecordSaved = (_, t) => skus(t.saved()).size === ITEMS.length
 const pagesOf = (t, kind, n = PAGES) => Array.from({ length: n }, (_, i) => `${t.base}/list/${kind}?page=${i + 1}`)
-const times = (n, text) => Array(n).fill(text).join('; ')
 
 // A1: every record of a list of 500, saved. One task per way a list gives more. `plain` is the one command the manual
 // names for the job, with nothing an expert would add: what an agent that trusts the manual gets.
@@ -25,18 +24,11 @@ const collect = (kind, more, path = `list/${kind}`) => ({
   // Short of every record, an answer that says the end is not shown has not misled anyone.
   check: (answer, t) => everyRecordSaved(answer, t) || (/not shown to be complete/.test(answer ?? '') && 'says so'),
 })
-// Pages with addresses: once one answer shows the address of another page, all of them are read in one call.
-const byAddress = kind => async t => {
-  await t.bl('find', kind === 'pager' ? 'link "2"' : 'Next', '--urls')
-  await t.bl('each', 'read', ...pagesOf(t, kind), '--out', t.out('all.txt'))
-}
-
 // A2: three fields from the own page of each of the first 60 records.
 const enriched = (_, t) => {
   const blocks = t.saved().split(/^== /m)
   return ITEMS.slice(0, 60).every(it => blocks.some(b => b.startsWith(`${t.base}/item/${it.sku}`) && [it.weight, it.origin, it.warranty].every(v => b.includes(v))))
 }
-const itemAddresses = text => [...new Set(text.match(/http\S+\/item\/SKU-\d+/g))]
 
 // A5: three questions over the 500 records. The arithmetic stands for the agent's own, done on what it was answered.
 const reduced = rows => ({
@@ -56,8 +48,9 @@ const fill = {
 export const TASKS = [
   collect('rel', getAll),
   collect('scroll', getAll),
-  collect('pager', byAddress('pager')),
-  collect('button', (t, list) => t.bl('steps', `${times(PAGES - 1, 'click "Mehr laden"')}; get ${list} --out ${t.out('all.tsv')}`)),
+  collect('pager', getAll),
+  // No standard marks this button as the way to more, and its name is not English: the agent, who can read it, names it.
+  collect('button', (t, list) => t.bl('get', list, '--all', '--more', 'Mehr laden', '--out', t.out('all.tsv'))),
   collect('rerender', (t, list) => t.bl('steps', Array.from({ length: PAGES }, (_, i) => `get ${list} --out ${t.out(`page${i + 1}.tsv`)}`).join('; click Next; '))),
   // The same list from a server that takes 400 ms a page: get --all is tried first, as on any list, and when it fails
   // the error's own advice is followed (close the tab), then the pages are read by address.
@@ -69,16 +62,10 @@ export const TASKS = [
   }, 'slow/list/rel'),
   {
     id: 'A2 enrich 60',
+    // The list is saved with its records' addresses, and each goes to the first 60 of them.
     tool: async t => {
-      await t.bl('tab', `${t.base}/list/rel`)
-      await t.bl('find', 'Next', '--urls')
-      const lines = await t.bl('each', 'find SKU- --urls', ...pagesOf(t, 'rel', 3))
-      await t.bl('each', 'read', ...itemAddresses(lines), '--out', t.out('items.txt'))
-    },
-    shell: async t => {
-      const list = ref(await t.bl('tab', `${t.base}/list/rel`), 'list of 20')
-      await t.bl('get', list, '--all', '--urls', '--out', t.out('all.tsv'))
-      await t.sh(`browser-layer each read $(sed -n 2,61p ${t.out('all.tsv')} | grep -o 'http[^[:space:]]*/item/SKU-[0-9]*' | sort -u) --out ${t.out('items.txt')}`)
+      await t.bl('get', ref(await t.bl('tab', `${t.base}/list/rel`), 'list of 20'), '--all', '--urls', '--out', t.out('all.tsv'))
+      await t.bl('each', 'read', '--from', t.out('all.tsv'), '--limit', '60', '--out', t.out('items.txt'))
     },
     check: enriched,
   },

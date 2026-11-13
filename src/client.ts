@@ -90,8 +90,9 @@ function startDaemon(): number | undefined {
 
 export async function live(c: Command): Promise<Reply> {
   // Each of a call's steps (each page of an `each`) has the daemon's own time limit, so the call waits for all of them.
-  // A list being collected has that limit per page and the daemon's bound on pages, so the call has no limit of its own.
-  const wait = c.cmd === 'get' && c.all ? 0 : 90000 * Math.max(1, c.cmd === 'each' ? c.pages?.length ?? 1 : c.steps?.length ?? 1)
+  // A list being collected has that limit per page and the daemon's bound on pages, so the call has no limit of its own;
+  // nor has an `each` whose pages the daemon finds (--from).
+  const wait = (c.cmd === 'get' && c.all) || (c.cmd === 'each' && !c.pages?.length) ? 0 : 90000 * Math.max(1, c.cmd === 'each' ? c.pages!.length : c.steps?.length ?? 1)
   try {
     const reply = await send({ ...c, version: VERSION }, wait)
     // A daemon from another version stopped instead of answering; this version's starts below.
