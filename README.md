@@ -75,6 +75,13 @@ npm install -g browser-layer
 browser-layer browser        # which browser it will drive
 ```
 
+If the shell says `browser-layer: command not found`, npm's global folder is not on your `PATH`. Add it
+(to `~/.zshrc` or `~/.bashrc`; on Windows, add the folder `npm prefix -g` prints to the user `Path`):
+
+```bash
+export PATH="$(npm prefix -g)/bin:$PATH"
+```
+
 browser-layer drives a browser you already have: Google Chrome, then Microsoft Edge, then Chromium,
 whichever it finds first (every Windows machine has Edge). To pick one, set `BROWSER_LAYER_BROWSER` to
 its executable. On a machine with none, such as a server or a container, download Chromium once:
