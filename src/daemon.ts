@@ -765,8 +765,9 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
     await settle(tab)
     // A press can take effect late: a navigation a busy machine has not begun, rows a timer adds. Before a press is
     // said to have brought nothing, the page is watched for a change, settle.deadlineMs at most.
-    for (const end = Date.now() + policy['settle.deadlineMs']; more && tab.doc === was[0] && await shown() === was[1] && Date.now() < end;) await sleep(100)
-    if (more) await settle(tab)
+    let late = false
+    for (const end = Date.now() + policy['settle.deadlineMs']; more && tab.doc === was[0] && await shown() === was[1] && Date.now() < end; late = true) await sleep(100)
+    if (late) await settle(tab)
     const found = await locate()
     if (found) { list = found; take() }
     return { way: !more ? 'scroll' : !q.more && rel && more.url === rel ? 'next link' : `"${more.name}"`, found: !!found }
