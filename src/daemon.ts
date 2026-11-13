@@ -934,14 +934,21 @@ const fit = (name: string | undefined, want: string) => {
 }
 const ACTIONS = new Set(['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload', 'check', 'uncheck', 'submit', 'drag'])
 
-async function refNamed(tab: Tab, target: string | undefined): Promise<string | undefined> {
+// What a command can act on: a box is checked (WAI-ARIA: it has a checked state), a field is typed into. Among
+// controls that share a name, the command means those; a click can act on any of them, so it asks which.
+const checkable = (n: Node) => !!n.states?.some(s => s === 'checked' || s === 'unchecked' || s === 'mixed')
+const TYPED = new Set(['textbox', 'searchbox', 'combobox', 'spinbutton', 'slider', 'date', 'datetime', 'time', 'color'])
+const TAKES: Record<string, (n: Node) => boolean> = { check: checkable, uncheck: checkable, type: n => TYPED.has(n.role ?? '') }
+
+async function refNamed(tab: Tab, target: string | undefined, cmd: string): Promise<string | undefined> {
   if (!target || tab.refs.byRef.has(Number(target))) return target
   const want = target.trim().toLowerCase()
   const number = /^\d+$/.test(want)
   const hits = withRefs((await snapshot(tab)).tree).filter(n => isItem(n) && fit(n.name, want) < (number ? 1 : 3))
   if (number && !hits.length) return target
   const best = hits.filter(n => fit(n.name, want) === Math.min(...hits.map(h => fit(h.name, want))))
-  if (best.length === 1) return String(best[0].ref)
+  const meant = best.length > 1 && TAKES[cmd] ? best.filter(TAKES[cmd]) : best
+  if (meant.length === 1) return String(meant[0].ref)
   if (!best.length) throw new Error(`nothing is named "${target}" — run: browser-layer map`)
   throw new Error(`${best.length} controls are named "${target}"; use a ref: ${best.slice(0, policy['render.mapFew']).map(n => `[${n.ref}] ${n.role} "${n.name}"`).join(' · ')}`)
 }
@@ -1406,8 +1413,8 @@ async function run(c: Command): Promise<string> {
   beginCommand(c.session)
   if (ACTIONS.has(c.cmd)) {
     const tab = need(c.session)
-    c.ref = await refNamed(tab, c.ref)
-    c.to = await refNamed(tab, c.to)
+    c.ref = await refNamed(tab, c.ref, c.cmd)
+    c.to = await refNamed(tab, c.to, c.cmd)
   }
   if (!Object.hasOwn(COMMANDS, c.cmd)) throw new Error(`unknown command ${c.cmd}`)
   return COMMANDS[c.cmd](c)

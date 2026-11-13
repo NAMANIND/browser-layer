@@ -202,6 +202,9 @@ const server = createServer((req, res) => {
   if (req.url === '/draws-late') return page('draws-late', `<script>setTimeout(() => { document.body.innerHTML = '<p>Drawn at last</p>' }, 6000)</script>`)
   if (req.url === '/draws-soon') return page('draws-soon', `<script>setTimeout(() => { document.body.innerHTML = '<p>Drawn soon</p>' }, 1500)</script>`)
   // A banner over a control, with buttons that answer it.
+  // A box and a field that each share their name with a link elsewhere on the page.
+  if (req.url === '/shared') return page('shared', `<label><input type="checkbox" onchange="o.textContent = 'terms ' + this.checked"> Terms</label>
+    <label>Email <input oninput="o.textContent = 'email ' + this.value"></label><p id="o">none</p><footer><a href="/t">Terms</a> <a href="/e">Email</a></footer>`)
   if (req.url === '/banner') return page('banner', `<button onclick="o.textContent = 'reached'">Behind</button><p id="o">not yet</p>
     <div id="b" style="position:fixed;inset:0;background:#fff"><p>We use cookies</p><button onclick="b.remove()">Reject all</button><button onclick="b.remove()">Accept all</button></div>`)
   // A styled checkbox: the real input is invisible under its own label, which is what a person clicks.
@@ -1356,6 +1359,14 @@ test('a covered control names what covers it and the buttons that answer it', as
   assert.equal(r.code, 1)
   assert.match(r.out, /covered by <\w+> "We use cookies[^"]*"; its controls: "Reject all" · "Accept all" \(click one by name, then this again\)/)
   assert.match((await run('steps', 'click "Reject all"; click Behind')).out, /reached/)
+})
+
+test('a name two controls share means the one the command can act on: a box to check, a field to type in', async () => {
+  await run('tab', `${base}/shared`)
+  assert.match((await run('check', 'Terms')).out, /terms true/)
+  assert.match((await run('type', 'Email', 'a@b.test')).out, /email a@b\.test/)
+  // A click can act on either, so it still asks which.
+  assert.match((await run('click', 'Terms')).out, /2 controls are named "Terms"; use a ref/)
 })
 
 test('a control under its own label is clicked through the label, as a person clicks it', async () => {
