@@ -12,6 +12,7 @@ const ref = (out, what) => {
 }
 const skus = text => new Set(text.match(/SKU-\d+/g))
 const everyRecordSaved = (_, t) => skus(t.saved()).size === ITEMS.length
+const SLOW_ITEMS = ITEMS.slice(0, 60).map(it => `/slow/item/${it.sku}`)
 const pagesOf = (t, kind, n = PAGES) => Array.from({ length: n }, (_, i) => `${t.base}/list/${kind}?page=${i + 1}`)
 
 // A1: every record of a list of 500, saved. One task per way a list gives more. `plain` is the one command the manual
@@ -155,5 +156,19 @@ export const TASKS = [
       if (!/500 records/.test(out)) await getAll(t, await open())
     },
     check: everyRecordSaved,
+  },
+  // A7 again over many pages: the browser dies part way through `each` over the 60 item pages (400 ms each). The agent
+  // runs the same command again when the answer is not all 60 pages read. What it costs to end with every page, and how many
+  // pages were fetched twice to get there.
+  {
+    id: 'A7 recover: browser dies during each',
+    tool: async t => {
+      state.fetched = {}
+      t.killBrowserIn(3000)
+      const call = () => t.bl('each', 'read', ...SLOW_ITEMS.map(p => t.base + p), '--out', t.out('items.txt'))
+      if (!/^each: 60 pages, 0 failed/.test(await call())) await call()
+    },
+    check: (_, t) => !/^== .*  (error|HTTP)/m.test(t.saved()) && SLOW_ITEMS.every(p => t.saved().includes(`== ${t.base}${p}\n`)),
+    note: () => `${SLOW_ITEMS.filter(p => state.fetched[p] > 1).length} pages fetched twice`,
   },
 ]
