@@ -6,10 +6,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 2035,
+   "chars": 2076,
    "biggest": 1647,
-   "carried": 20753,
-   "seconds": 16,
+   "carried": 20835,
+   "seconds": 26,
    "note": ""
   },
   {
@@ -17,10 +17,10 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 2035,
+   "chars": 2076,
    "biggest": 1647,
-   "carried": 20753,
-   "seconds": 16,
+   "carried": 20835,
+   "seconds": 26,
    "note": ""
   },
   {
@@ -28,9 +28,9 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 2012,
+   "chars": 2053,
    "biggest": 1688,
-   "carried": 20672,
+   "carried": 20754,
    "seconds": 17,
    "note": ""
   },
@@ -39,9 +39,9 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 2012,
+   "chars": 2053,
    "biggest": 1688,
-   "carried": 20672,
+   "carried": 20754,
    "seconds": 17,
    "note": ""
   },
@@ -50,10 +50,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 2077,
+   "chars": 2118,
    "biggest": 1647,
-   "carried": 20841,
-   "seconds": 16,
+   "carried": 20923,
+   "seconds": 26,
    "note": ""
   },
   {
@@ -61,10 +61,10 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 2077,
+   "chars": 2118,
    "biggest": 1647,
-   "carried": 20841,
-   "seconds": 16,
+   "carried": 20923,
+   "seconds": 26,
    "note": ""
   },
   {
@@ -72,10 +72,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 2028,
+   "chars": 2069,
    "biggest": 1679,
-   "carried": 20733,
-   "seconds": 17,
+   "carried": 20815,
+   "seconds": 28,
    "note": ""
   },
   {
@@ -83,9 +83,9 @@
    "mode": "plain",
    "ok": "says so",
    "calls": 2,
-   "chars": 1715,
-   "biggest": 1366,
-   "carried": 20400,
+   "chars": 1740,
+   "biggest": 1350,
+   "carried": 20466,
    "seconds": 2,
    "note": ""
   },
@@ -94,9 +94,9 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 4666,
+   "chars": 4707,
    "biggest": 4319,
-   "carried": 25821,
+   "carried": 25903,
    "seconds": 22,
    "note": ""
   },
@@ -105,10 +105,10 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 1991,
+   "chars": 2032,
    "biggest": 1644,
-   "carried": 20678,
-   "seconds": 22,
+   "carried": 20760,
+   "seconds": 31,
    "note": ""
   },
   {
@@ -116,10 +116,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 2040,
+   "chars": 2081,
    "biggest": 1647,
-   "carried": 20773,
-   "seconds": 26,
+   "carried": 20855,
+   "seconds": 36,
    "note": ""
   },
   {
@@ -127,10 +127,10 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 2040,
+   "chars": 2081,
    "biggest": 1647,
-   "carried": 20773,
-   "seconds": 26,
+   "carried": 20855,
+   "seconds": 36,
    "note": ""
   },
   {
@@ -138,10 +138,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 3,
-   "chars": 3391,
+   "chars": 3432,
    "biggest": 1624,
-   "carried": 30529,
-   "seconds": 19,
+   "carried": 30652,
+   "seconds": 29,
    "note": ""
   },
   {
@@ -160,21 +160,21 @@
    "mode": "plain",
    "ok": true,
    "calls": 20,
-   "chars": 34129,
-   "biggest": 1744,
-   "carried": 497379,
+   "chars": 33961,
+   "biggest": 1785,
+   "carried": 496109,
    "seconds": 18,
    "note": ""
   },
   {
    "task": "A4 transact 12 steps",
    "mode": "tool",
-   "ok": true,
-   "calls": 15,
-   "chars": 5471,
-   "biggest": 488,
-   "carried": 148209,
-   "seconds": 17,
+   "ok": false,
+   "calls": 41,
+   "chars": 6460,
+   "biggest": 358,
+   "carried": 431849,
+   "seconds": 4,
    "note": ""
   },
   {
@@ -182,10 +182,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 3,
-   "chars": 3120,
+   "chars": 3161,
    "biggest": 1647,
-   "carried": 30419,
-   "seconds": 16,
+   "carried": 30542,
+   "seconds": 26,
    "note": ""
   },
   {
@@ -193,10 +193,10 @@
    "mode": "shell",
    "ok": true,
    "calls": 3,
-   "chars": 2535,
+   "chars": 2576,
    "biggest": 1647,
-   "carried": 29913,
-   "seconds": 16,
+   "carried": 30036,
+   "seconds": 26,
    "note": ""
   },
   {
@@ -204,10 +204,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 4,
-   "chars": 2540,
+   "chars": 2622,
    "biggest": 1647,
-   "carried": 35254,
-   "seconds": 17,
+   "carried": 35500,
+   "seconds": 28,
    "note": ""
   }
  ]

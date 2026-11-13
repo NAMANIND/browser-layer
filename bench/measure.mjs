@@ -5,7 +5,7 @@
 import { chromium } from 'playwright-core'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { newRefs, readTree } from '../dist/reader.js'
-import { renderMap, renderText } from '../dist/render.js'
+import { renderArrival, renderMap, renderText } from '../dist/render.js'
 import { loadPolicy } from '../dist/policy.js'
 import { findBrowser } from '../dist/browser.js'
 import { deterministic } from './deterministic.mjs'
@@ -54,7 +54,7 @@ for (const { name, url, facts = [] } of pages) {
     body = renderText(tree, origin, caps)
     times.push(performance.now() - t)
     map = renderMap(tree, origin, caps, DEFAULTS['render.mapFew'])
-    arrival = renderMap(tree, origin, caps, DEFAULTS['render.mapFew'], undefined, { chars: DEFAULTS['answer.headChars'], given: new Map() })
+    arrival = renderArrival(tree, origin, caps, DEFAULTS['render.mapFew'], DEFAULTS['answer.headChars'])
   }
   await ctx.close()
   times.sort((a, b) => a - b)

@@ -54,7 +54,7 @@ headings and fields, walk a list item by item, and act. It rests on standards ev
 
 | Move | What the agent gets | Command |
 |---|---|---|
-| **Map** | The page as regions, each with its fields (and values), options, actions, headings, collections (record count and first item, or a table's columns) and links; named when few, counted when many. Opening a page answers with the map, and with its main landmark (the page's primary content, WAI-ARIA) as text when that is no longer than `answer.headChars`, each list of records in it as its one line: a summary of a short article or form tells an agent nothing it can act on. | `tab`, `go`, `map` |
+| **Map** | The page as regions, each with its fields (and values), options, actions, headings, collections (record count and first item, or a table's columns) and links; named when few, counted when many. A page arrives as its text when that is no longer than `answer.headChars`, each list of records as its one line: a summary of a small page tells an agent nothing it can act on, and it reads the page in its next call. A longer page arrives as the map, with its main landmark (the page's primary content, WAI-ARIA) as text when that fits. | `tab`, `go`, `map` |
 | **Zoom** | One region, collection or control in full text. | `read <ref>` |
 | **Whole page** | Everything, paged. Read again, only what changed since the last read (`--full`: all of it, for the same page). | `read` |
 | **Act** | Fill, pick, click by ref; the answer is what changed (§4.4). | `type`, `pick`, `click`, `press` |

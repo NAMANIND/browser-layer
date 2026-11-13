@@ -111,7 +111,7 @@ export const TASKS = [
         // A name two controls share is an error that lists them with refs: the one of the kind the command acts on is used.
         const shared = /controls are named/.test(answer)
         if (shared) for (const [, n, label] of answer.matchAll(/\[(\d+)\] checkbox "([^"]+)"/g)) fill[label] = () => `check ${n}`
-        const shown = shared ? last : Object.keys(fill).filter(label => new RegExp(`"${label}"`).test(out) || (label === 'Plan' && /radio "Pro"/.test(out)))
+        const shown = shared ? last : Object.keys(fill).filter(label => new RegExp(`(textbox|combobox|date|spinbutton|checkbox) "${label}"`).test(out) || (label === 'Plan' && /radio "Pro"/.test(out)))
         const button = /"Create account"/.test(out) ? 'Create account' : 'Continue'
         last = shown
         out = await t.bl('steps', [...shown.filter(l => values[l] !== true || !new RegExp(`"${l}"\\s+checked`).test(out)).map(l => fill[l](values[l])), `click "${button}"`].join('; '))

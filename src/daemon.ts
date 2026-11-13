@@ -8,7 +8,7 @@ import { isTracker } from './trackers.js'
 import { findBrowser } from './browser.js'
 import { ceiling, home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, humanCheck, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
-import { bounded, bulkAnswer, bulkFile, diffLines, findRef, goneLines, itemsLine, paginate, renderMap, renderText, type Bulk } from './render.js'
+import { bounded, bulkAnswer, bulkFile, diffLines, findRef, goneLines, itemsLine, paginate, renderArrival, renderMap, renderText, type Bulk } from './render.js'
 import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
 import { fromTsv, group, query, records, toTsv, where, type Query, type Records } from './data.js'
 import { pidPath, ping, socketPath, VERSION } from './client.js'
@@ -412,12 +412,12 @@ async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>, se
     ;({ tree, origin, text } = await snapshot(tab))
   }
   remember(tab, text)
+  // A page that arrives comes whole when it is small, and with its main content when that is short (render.ts); a
+  // map the agent asked for is the map.
   const now = new Map<number, string>()
-  // A page that arrives comes with its main content when that is short (render.ts); a map the agent asked for is the map.
-  const given = new Map<number, string>()
-  const map = renderMap(tree, origin, caps(), policy['render.mapFew'], { before: whole ? new Map() : tab.seen.map, now }, whole ? undefined : { chars: policy['answer.headChars'], given })
+  const map = whole ? renderMap(tree, origin, caps(), policy['render.mapFew'], { before: new Map(), now })
+    : renderArrival(tree, origin, caps(), policy['render.mapFew'], policy['answer.headChars'], tab.seen)
   for (const [ref, whole] of now) tab.seen.map.set(ref, whole)
-  for (const [ref, text] of given) tab.seen.text.set(ref, text)
   if (!map.trim()) note = [note, 'no content yet: the page may still be loading; read again'].filter(Boolean).join('; ')
   return `${await header(tab)}${note ? `  — ${note}` : ''}${settled ? `  — settled: ${settled}` : ''}\n${await blocked(tab, tree)}\n${map}`
 }
@@ -980,8 +980,9 @@ async function addresses(c: Command): Promise<string[]> {
   return [...new Set(found)]
 }
 
-// What a command can act on: a box is checked (WAI-ARIA: it has a checked state), a field is typed into. Among
-// controls that share a name, the command means those; a click can act on any of them, so it asks which.
+// What a command can act on: a box is checked (WAI-ARIA: it has a checked state), a field is typed into. Where a
+// control of that kind matches the name, the command means one of those, whatever else is named so; a click can act
+// on anything, so among equals it asks which.
 const checkable = (n: Node) => !!n.states?.some(s => s === 'checked' || s === 'unchecked' || s === 'mixed')
 const TYPED = new Set(['textbox', 'searchbox', 'combobox', 'spinbutton', 'slider', 'date', 'datetime', 'time', 'color'])
 const TAKES: Record<string, (n: Node) => boolean> = { check: checkable, uncheck: checkable, type: n => TYPED.has(n.role ?? '') }
@@ -990,11 +991,11 @@ async function refNamed(tab: Tab, target: string | undefined, cmd: string): Prom
   if (!target || tab.refs.byRef.has(Number(target))) return target
   const want = target.trim().toLowerCase()
   const number = /^\d+$/.test(want)
-  const hits = withRefs((await snapshot(tab)).tree).filter(n => isItem(n) && fit(n.name, want) < (number ? 1 : 3))
+  const named = withRefs((await snapshot(tab)).tree).filter(n => isItem(n) && fit(n.name, want) < (number ? 1 : 3))
+  const hits = TAKES[cmd] && named.some(TAKES[cmd]) ? named.filter(TAKES[cmd]) : named
   if (number && !hits.length) return target
   const best = hits.filter(n => fit(n.name, want) === Math.min(...hits.map(h => fit(h.name, want))))
-  const meant = best.length > 1 && TAKES[cmd] ? best.filter(TAKES[cmd]) : best
-  if (meant.length === 1) return String(meant[0].ref)
+  if (best.length === 1) return String(best[0].ref)
   if (!best.length) throw new Error(`nothing is named "${target}" — run: browser-layer map`)
   throw new Error(`${best.length} controls are named "${target}"; use a ref: ${best.slice(0, policy['render.mapFew']).map(n => `[${n.ref}] ${n.role} "${n.name}"`).join(' · ')}`)
 }

@@ -226,7 +226,8 @@ const server = createServer((req, res) => {
   if (req.url === '/replaced') return page('replaced', `<button id="a">Old offer</button><script>setTimeout(() => { a.outerHTML = '<button>New offer</button><p>Prices updated</p>' }, 1500)</script>`)
   // A box and a field that each share their name with a link elsewhere on the page.
   if (req.url === '/shared') return page('shared', `<label><input type="checkbox" onchange="o.textContent = 'terms ' + this.checked"> Terms</label>
-    <label>Email <input oninput="o.textContent = 'email ' + this.value"></label><p id="o">none</p><footer><a href="/t">Terms</a> <a href="/e">Email</a></footer>`)
+    <label><input type="checkbox" onchange="o.textContent = 'offers ' + this.checked"> Send me offers</label>
+    <label>Email <input oninput="o.textContent = 'email ' + this.value"></label><p id="o">none</p><footer><a href="/t">Terms</a> <a href="/e">Email</a> <a href="/o">Offers</a></footer>`)
   if (req.url === '/banner') return page('banner', `<button onclick="o.textContent = 'reached'">Behind</button><p id="o">not yet</p>
     <div id="b" style="position:fixed;inset:0;background:#fff"><p>We use cookies</p><button onclick="b.remove()">Reject all</button><button onclick="b.remove()">Accept all</button></div>`)
   // A styled checkbox: the real input is invisible under its own label, which is what a person clicks.
@@ -399,8 +400,9 @@ const run = (...args: string[]) => runIn(home, ...args)
 const killByArgument = (arg: string) => new Promise(r => (process.platform === 'win32'
   ? execFile('powershell', ['-NoProfile', '-Command', `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${arg.replace(/'/g, "''")}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`], r)
   : execFile('pkill', ['-f', arg], r)))
-// Opening answers with the map; these tests check page content, so they read the whole page next.
-const openRead = async (url: string) => { await run('tab', url); return run('read') }
+// These tests check page content. A page arrives whole or as a map, and a read folds what the arrival gave, so the
+// page is read, then asked for in full again, which is always all of it.
+const openRead = async (url: string) => { await run('tab', url); await run('read'); return run('read', '--full') }
 
 const ref = (out: string, what: RegExp) => {
   const m = out.match(new RegExp(`\\[(\\d+)\\] ${what.source}`))
@@ -828,7 +830,7 @@ test('reading never changes the page', async () => {
   assert.match(r.out, /\[\d+\] link "a link"/)
 })
 
-test('actions answer with what changed; a new page answers with its map', async () => {
+test('actions answer with what changed; a new page answers as an opened page does', async () => {
   const full = await openRead(`${base}/delta`)
   assert.match(full.out, /story 5/)
   const more = await run('click', ref(full.out, /button "More"/))
@@ -838,7 +840,8 @@ test('actions answer with what changed; a new page answers with its map', async 
   assert.match((await run('read', '--full')).out, /story 5[\s\S]*loaded more/)
   const next = await run('click', ref(full.out, /link "next page"/))
   assert.match(next.out, /^tab \d+ .*\/page\/next/)
-  assert.match(next.out, /outside any region/)
+  // A page this small arrives whole.
+  assert.match(next.out, /^page next$/m)
   assert.doesNotMatch(next.out, /opens a region/)
 })
 
@@ -1095,17 +1098,16 @@ test('a region already shown, unchanged, is one line on the next page; read --fu
   await run('stop')
   const first = (await run('tab', `${base}/results/1`)).out
   const banner = ref(first, /banner/)
-  assert.match(first, /links: .*"Deals"/)
+  assert.match(first, /link "Deals"[\s\S]*Free delivery/)
   const second = (await run('click', 'Next')).out
   assert.match(second, new RegExp(`\\[${banner}\\] banner — shown before, unchanged`))
   assert.doesNotMatch(second, /"Deals"/)
-  assert.match((await run('read')).out, /Free delivery/)
-  // The page's short main content came with its arrival, so reading the page does not send it again.
-  assert.match((await run('click', 'Next')).out, /Page 3/)
-  const third = (await run('read')).out
-  assert.match(third, new RegExp(`\\[${banner}\\] banner — shown before, unchanged`))
-  assert.match(third, /\[\d+\] main — shown before, unchanged/)
-  assert.doesNotMatch(third, /Free delivery/)
+  assert.match(second, /Page 2/)
+  // What an arrival gave, a read of the page does not send again.
+  const read = (await run('read')).out
+  assert.match(read, new RegExp(`\\[${banner}\\] banner — shown before, unchanged`))
+  assert.match(read, /\[\d+\] main — shown before, unchanged/)
+  assert.doesNotMatch(read, /Free delivery/)
   assert.match((await run('read', '--full')).out, /Free delivery/)
   assert.match((await run('read', banner)).out, /Free delivery/)
 })
@@ -1113,7 +1115,6 @@ test('a region already shown, unchanged, is one line on the next page; read --fu
 test('read --full on a page of a site already read folds its unchanged regions; the same page read again with --full shows all', async () => {
   await run('stop')
   const banner = ref((await run('tab', `${base}/results/1`)).out, /banner/)
-  assert.match((await run('read')).out, /Free delivery/)
   assert.match((await run('click', 'Next')).out, /Page 2/)
   const second = (await run('read', '--full')).out
   assert.match(second, new RegExp(`\\[${banner}\\] banner — shown before, unchanged`))
@@ -1404,7 +1405,7 @@ test('a page with nothing drawn yet says it may still be loading; a page with on
   // One that draws a moment after it went quiet is read again here, not by the agent in another call.
   const soon = await run('tab', `${base}/draws-soon`)
   assert.doesNotMatch(soon.out, /no content yet/)
-  assert.match(soon.out, /text: 10 chars/)
+  assert.match(soon.out, /^Drawn soon$/m)
   assert.doesNotMatch((await run('tab', `${base}/form2`)).out, /still be loading/)
 })
 
@@ -1433,8 +1434,8 @@ test('a covered control names what covers it and the buttons that answer it', as
 test('a page arrives with its main content when that is short, and with a summary of it when it is long', async () => {
   const short = await run('tab', `${base}/article`)
   assert.match(short.out, /\[\d+\] main\n#+ Field notes\n[\s\S]*The survey found 1,284 nests\.\n\[\d+\] link "Next entry"/)
-  // The rest of the page is still its map.
-  assert.match(short.out, /\[\d+\] navigation "Site"\n  links: /)
+  // A page this small arrives whole: its menu too is given as it reads.
+  assert.match(short.out, /\[\d+\] navigation "Site"\n\[\d+\] link "Home" \[\d+\] link "About"/)
   // What the agent was given is not sent again when it reads the page; the map, when it asks for it, is the map.
   assert.match((await run('read')).out, /\[\d+\] main — shown before, unchanged/)
   assert.match((await run('map')).out, /\[\d+\] main\n  headings: Field notes\n  links: \[\d+\] link "Next entry"/)
@@ -1459,6 +1460,8 @@ test('a name two controls share means the one the command can act on: a box to c
   await run('tab', `${base}/shared`)
   assert.match((await run('check', 'Terms')).out, /terms true/)
   assert.match((await run('type', 'Email', 'a@b.test')).out, /email a@b\.test/)
+  // A box whose name only contains the word is still what check means, not the link named exactly that.
+  assert.match((await run('check', 'Offers')).out, /offers true/)
   // A click can act on either, so it still asks which.
   assert.match((await run('click', 'Terms')).out, /2 controls are named "Terms"; use a ref/)
 })

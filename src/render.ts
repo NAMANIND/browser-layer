@@ -6,7 +6,8 @@ import { cellsOf, COLLECTIONS, isHeaderRow, isTrigger, LANDMARKS, rowsOf, SPACE,
 const SEP = '\u0001'
 
 // urls (get --urls): links give their full address and pictures theirs; otherwise both are left out.
-// brief: a collection of records is its one line, as in the map (its size and first record); get reads the records.
+// brief: a collection of records, and a canvas, is its one line, as in the map (its size and first record); get reads
+// the records.
 export type Caps = { nameChars: number; labelChars: number; urls?: boolean; brief?: boolean }
 // The full text of each region the agent has already been shown (before), by ref; a region shown again
 // exactly as it was answers in one line. now collects this answer's regions, for the caller to keep.
@@ -76,6 +77,7 @@ export function renderText(root: Node, origin: string, caps: Caps, seen?: Seen):
       flush()
       return
     }
+    if (caps.brief && n.role === 'canvas') { flush(); lines.push(canvasLine(n, origin, { ...caps, brief: false })); return }
     const brief = caps.brief && n.ref && !inRow ? recordsLine(n, origin, { ...caps, brief: false }) : undefined
     if (brief) {
       flush()
@@ -124,6 +126,10 @@ export function findRef(n: Node, ref: number): Node | undefined {
 }
 
 const FIELDS = new Set(['textbox', 'searchbox', 'combobox', 'checkbox', 'radio', 'switch', 'slider', 'spinbutton', 'listbox'])
+
+// A canvas with drawn text in one line: how many lines, and the first.
+const canvasLine = (n: Node, origin: string, caps: Caps) =>
+  `[${n.ref}] canvas: ${(n.children ?? []).length} lines — ${clipTo(renderText({ block: true, children: (n.children ?? []).slice(0, 1) }, origin, caps), caps.nameChars)}${(n.children ?? []).length > 1 ? ' …' : ''}`
 
 // A collection of records in one line: how many, and its first record that shows something, or a table's column
 // names (its header row is its schema, counted out of the records). Nothing for a collection without records.
@@ -179,11 +185,7 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number, s
         const line = itemsLine(n, origin, caps, few)
         if (line) { lists.push(line); return }
       }
-      if (n.role === 'canvas') {
-        const lines = n.children ?? []
-        lists.push(`[${n.ref}] canvas: ${lines.length} lines — ${clipTo(renderText({ block: true, children: lines.slice(0, 1) }, origin, caps), caps.nameChars)}${lines.length > 1 ? ' …' : ''}`)
-        return
-      }
+      if (n.role === 'canvas') return void lists.push(canvasLine(n, origin, caps))
       if (n.ref && !COLLECTIONS.has(n.role ?? '')) (FIELDS.has(n.role ?? '') ? fields : n.role === 'option' ? options : n.role === 'link' ? links : actions).push(n)
       for (const c of n.children ?? []) walk(c)
     }
@@ -342,4 +344,23 @@ export function xmlLines(xml: string): string {
     }
   }
   return lines.length ? `${lines.join('\n')}\n` : ''
+}
+
+// What a page arrives with (DESIGN §1a). A page no longer than `chars` as text, each list of records as its one
+// line, arrives as that text: a summary of a small page tells an agent nothing it can act on, and it reads the page in
+// its next call. A longer page arrives as its map, with its main landmark as text when that fits. shown: the regions
+// the agent was given before, as text and in a map; one of them unchanged is a line, and what is given now is added.
+export function renderArrival(root: Node, origin: string, caps: Caps, few: number, chars: number, shown = { text: new Map<number, string>(), map: new Map<number, string>() }): string {
+  const now = new Map<number, string>()
+  const page = renderText(root, origin, { ...caps, brief: true }, { before: shown.text, now })
+  if (page.length <= chars) {
+    for (const [ref, text] of now) { shown.text.set(ref, text); shown.map.set(ref, text) }
+    const closed = withRefs(root).filter(isTrigger).length
+    return closed ? `${page}\nclosed menus and pop-ups: ${closed} (explore lists them)` : page
+  }
+  const mapped = new Map<number, string>(), given = new Map<number, string>()
+  const map = renderMap(root, origin, caps, few, { before: shown.map, now: mapped }, { chars, given })
+  for (const [ref, text] of mapped) shown.map.set(ref, text)
+  for (const [ref, text] of given) shown.text.set(ref, text)
+  return map
 }
