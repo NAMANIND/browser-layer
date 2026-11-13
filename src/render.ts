@@ -8,7 +8,8 @@ const SEP = '\u0001'
 // urls (get --urls): links give their full address and pictures theirs; otherwise both are left out.
 // brief: a collection of records, and a canvas, is its one line, as in the map (its size and first record); get reads
 // the records.
-export type Caps = { nameChars: number; labelChars: number; urls?: boolean; brief?: boolean }
+// plain: a control is its text (and its address, with urls), for a file: a ref means nothing once the page is gone.
+export type Caps = { nameChars: number; labelChars: number; urls?: boolean; brief?: boolean; plain?: boolean }
 // The full text of each region the agent has already been shown (before), by ref; a region shown again
 // exactly as it was answers in one line. now collects this answer's regions, for the caller to keep.
 export type Seen = { before: Map<number, string>; now: Map<number, string> }
@@ -36,6 +37,7 @@ export function control(n: Node, origin: string, caps: Caps): string {
   }
   // A label only assistive tech hears usually repeats what the row shows; it gets less room.
   const name = n.name && clip(n.name, n.nameShown ? caps.nameChars : caps.labelChars)
+  if (caps.plain) return ` ${name || (n.value === undefined ? '' : clip(n.value))}${dest} `
   const reveals = n.reveals?.length ? `  reveals: ${n.reveals.map(r => clip(r, caps.labelChars)).join(' · ')}` : ''
   return ` [${n.ref}] ${n.role}${name ? ` "${name}"` : ''}${bits.length ? `  ${bits.join(' ')}` : ''}${reveals}${dest} `
 }

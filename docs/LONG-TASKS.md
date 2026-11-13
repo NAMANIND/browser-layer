@@ -178,9 +178,53 @@ columns in the last run); cells carry refs (`[4670] link "…"`), which mean not
    site: columns per record field and share of blank cells. Candidate rules are tried against that number; none is
    adopted on one site's evidence.
 *Done, 13 Nov, for columns across pages:* a field is the same column on every page of one `get --all`; A5's scripts
-lost their workaround. Names, refs in files and the blank-cell rule are not started.
-*Done when.* A5's `--sort` on the price column is right with no workaround in the script; on the corpus and floor
-lists blank cells are under 15% (Amazon is 52% today).
+lost their workaround.
+*Done, 13 Nov, for refs and names:* a file written with `--out` holds text and, with `--urls`, addresses (`Volvo V50 →
+https://…`, not `[4670] link "Volvo V50"`); answers to the agent keep refs. A list's columns take names from the
+standards above, only when every row that has the field gives the same name (a rating's "4.5 out of 5 stars" differs
+per row and is content). A `<dt>` is the identity of its `<dd>`'s column and no cell of its own. `get --all` keeps each
+name with its field (names had been taken by page position, which a page with a new part first put on the wrong
+column). Tests 157 → 162. Floor (`npm run floor`): every row done as before, same calls; A5 tool 3,120 → 3,031 characters
+answered, 30,419 → 30,370 read (its script reads names from plain cells); the first answer of the other `get --all` rows
+moves by +40 or −26 characters (rows without refs are shorter, so a different number of them fills `answer.headChars`),
+read +0.2% at most. The manual did not change. A floor list still shows the pages-differ cause of finding 3 in a small
+form: when one page has a single row with the Sale badge, its class is dropped from the path (a class only one row has is
+that row's identity), so those three of 500 rows put it in a sixth column. Nothing in this change moved it.
+*Not done: the blank-cell rule. Measured, and no general rule holds.* `npm run measure` now prints, for each corpus
+list of 3 rows and 3 columns or more, rows x columns, the share of blank cells, and the same for the columns that at
+least half the rows fill (the template):
+
+| List | Rows x columns | Blank | Template columns | Blank in them |
+|---|---|---|---|---|
+| Amazon, product cards | 16 x 22 | 52% | 11 | 11% |
+| Amazon, filter sidebar | 46 x 14 | 63% | 5 | 18% |
+| Google Flights | 57 x 17 | 30% | 11 | 3% |
+| GitHub, sidebar (releases, contributors, languages) | 4 x 20 | 56% | 12 | 44% |
+| Hacker News (a table) | 92 x 3 | 57% | 1 | 35% |
+| Floor site, 20 cards | 20 x 5 | 15 to 16% | 5 | 15 to 16% |
+
+Where the blanks come from: not from the columns a template has (Amazon's cards are 11% blank in the 11 columns most
+cards fill, Flights 3%) but from rows that are not records of the template: three Amazon rows are carousels and
+promotions whose fields each make a column (eleven columns filled in one or two rows), Flights has two such rows, and
+GitHub's sidebar has a row with fourteen contributor links (`a`, `a#2` … `a#14`). Hacker News alternates a story row and a
+details row, which is the page's own table. The floor site's blanks are one honest absence: an optional Sale badge that one card in five has,
+which no column rule can fill.
+Rules tried on the records of every corpus list and the floor (as saved-file cells, which come out a column narrower
+than the printed ones: Amazon's cards are 54% there), by simulation on the dumped records and, for the first, in the code: (1) a class counts as part of a field's path only when at least a quarter, half, three quarters of the rows
+carry it (now: more than one row): Flights 30% → 26, 21, 21%, nothing else moves; (2) a path used twice in a row is one
+multi-valued field: GitHub 20 → 7 columns, but the blank share rises on Flights and the sidebar (fewer cells, the same blanks) and
+two fields of one row that share a path (a subtitle and a line, both `div.line`) become one cell; (3) a field only one
+row has goes to one catch-all column: Amazon cards 54% → 24%, but two different one-row badges become one column
+and which badge it was is lost, and the decision depends on the rows of one page, so the pages of one `get --all` could
+fold the same field differently; (4) one column for fields with the same tag path and different classes that never
+share a row: Flights 30% → 21% (price and lowest price, two emission labels join, which is right), Amazon 54% → 50%,
+but a title row and a price row of a mixed list would join, and it too depends on one page's rows. None brings the
+corpus under 15%, none changes the floor (16% is the Sale badge), and (3) and (4) lose which field a value was or
+differ between pages. The rule is not a column rule: it is which rows are records of the list at all, and a structural
+way to say so (rows sharing less than half the template's fields are another kind of row) is not tried here. The code
+is left as it was.
+*Done when.* A5's `--sort` on the price column is right with no workaround in the script (done); on the corpus and floor
+lists blank cells are under 15%: **not met**, Amazon is 52% and Flights 30% today, for the reason above.
 
 ### C4. Work is never lost, and "complete" is only said when shown (L3)
 *Rule.* A call that covers many pages writes as it goes. If it stops (an error, a bound, the browser gone) it answers with

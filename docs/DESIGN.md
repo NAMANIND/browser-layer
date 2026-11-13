@@ -252,7 +252,15 @@ passed 3k.
   content such as a bullet or a rank), each with its element path from the row (tags and classes). Rows
   built from one template share a path for the same field, so a field's path is its column, and an
   optional part (a badge) gets its own column instead of shifting the others. Columns whose every value
-  is punctuation only are dropped. Columns are `c1…cN`; no names are invented.
+  is punctuation only are dropped. Columns are `c1…cN`. A column has a name only when the page gives its field
+  one, in a standard way, and every row that has the field gives the same: the `<dt>` of a `<dd>` (HTML; the term
+  is the field's identity too, so a row with no Weight does not move Origin, and a `<dt>` is no cell of its own),
+  `itemprop` (microdata), the `aria-label` or `aria-labelledby` of a field that is not a control (a control's is its
+  own name, its text), or the schema.org JSON-LD property whose value is the field's text. A name that changes
+  from row to row (a rating's "4.5 out of 5 stars") is content and names nothing. No name is invented.
+- **Files hold text:** with `--out`, a control is its text (a link its name, a field its value), and, with
+  `--urls`, its address: a ref means nothing once the page is gone. What `get` prints for the agent keeps refs,
+  since the agent acts on them.
 - **Addresses on request:** `get --urls` gives each link's full URL and each picture's address (its
   current source; inline `data:` pictures have none), each once per record, since stores link a card's
   picture, title and price to one page. Without it, and in reading and the map, both are left out: a

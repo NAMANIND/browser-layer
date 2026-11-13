@@ -136,6 +136,22 @@ const server = createServer((req, res) => {
   // A list whose records link to a page each.
   if (req.url === '/things') return page('things', `<main><ul>${[1, 2, 3].map(n => `<li><h3><a href="/thing/${n}">Thing ${n}</a></h3><p>₹${n}00</p></li>`).join('')}</ul></main>`)
   if (req.url?.startsWith('/thing/')) return page(`thing ${req.url.slice(7)}`, `<main><h1>Thing ${req.url.slice(7)}</h1><p>Weight ${req.url.slice(7)} kg</p></main>`)
+  // Lists whose fields are named the ways HTML and schema.org name them: a <dt> for its <dd>, itemprop, aria-label,
+  // and a JSON-LD property; the last has a rating whose label says its own value, which names nothing.
+  // From page 1, rows have an extra part first, so the named fields are not in the same place.
+  if (req.url?.startsWith('/named')) {
+    const p = Number(new URL(req.url, 'http://x').searchParams.get('p') ?? 0)
+    const items = [['Lamp', '5 kg', 'Kerala', 'Brass'], ['Desk', '9 kg', 'Goa', 'Teak']].map(([n, w, o, m]) => [n + p, w, o, m])
+    const cards = [['Kettle', '3 L', 'Assam'], ['Pan', '2 L', 'Delhi']]
+    const extra = p ? '<p class="tag">New</p>' : ''
+    return page('named', `<main>
+      <ul>${items.map(([n, w, o]) => `<li><h3>${n}</h3>${extra}<dl><dt>Weight</dt><dd>${w}</dd><dt>Origin</dt><dd>${o}</dd></dl></li>`).join('')}</ul>
+      <ul>${items.map(([n, w, o]) => `<li><h3 itemprop="name">${n}</h3><div>${extra}<span itemprop="weight">${w}</span><span itemprop="origin">${o}</span></div></li>`).join('')}</ul>
+      <ul>${items.map(([n, w, o], i) => `<li><h3>${n}</h3><p aria-label="Weight">${w}</p><p aria-label="${4 + i} out of 5 stars">${o}</p></li>`).join('')}</ul>
+      <ul>${cards.map(([n, v, o]) => `<li><h3>${n}</h3><p>${v}</p><p>${o}</p></li>`).join('')}</ul>
+      <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: cards.map(([name, size, countryOfOrigin]) => ({ '@type': 'Product', name, size, countryOfOrigin })) })}</script>
+      ${p < 1 ? '<a rel="next" href="/named?p=1">Older</a>' : ''}</main>`)
+  }
   if (req.url === '/more') return page('more', `<main><ul id="l"></ul><button id="b">Load more</button></main>
     <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 100)</script>`)
   if (req.url === '/infinite') return page('infinite', `<main><ul id="l"></ul><div id="end">end</div></main>
@@ -642,6 +658,24 @@ test('a field is in the same column on every page of get --all, wherever an opti
   assert.deepEqual(rows.filter(r => r[2]).map(r => r[0]), ['Item 4', 'Item 8'])
 })
 
+test('a list\'s columns are named by what the page calls them: <dt>, itemprop, aria-label, schema.org; a name that changes from row to row is none', async () => {
+  const lists = (await run('tab', `${base}/named`)).out.match(/\[(\d+)\] list of 2/g)!.map(m => m.match(/\d+/)![0])
+  assert.equal(lists.length, 4)
+  const header = async (list: string, ...flags: string[]) => (await run('get', list, ...flags)).out.split('\n').find(l => /^c1\b/.test(l))
+  assert.equal(await header(lists[0]), 'c1\tc2 Weight\tc3 Origin')
+  assert.equal(await header(lists[1]), 'c1 name\tc2 weight\tc3 origin')
+  assert.equal(await header(lists[2]), 'c1\tc2 Weight\tc3')
+  assert.equal(await header(lists[3]), 'c1 name\tc2 size\tc3 countryOfOrigin')
+  assert.match((await run('get', lists[0], '--sort', 'Weight', '--desc', '--cols', 'c1')).out, /^c1\nDesk0\nLamp0$/m)
+})
+
+test('get --all keeps a column\'s name with its field when a later page puts a new part before it', async () => {
+  const out = join(home, 'named.tsv')
+  const lists = (await run('tab', `${base}/named`)).out.match(/\[(\d+)\] list of 2/g)!.map(m => m.match(/\d+/)![0])
+  await run('get', lists[0], '--all', '--out', out)
+  assert.equal(readFileSync(out, 'utf8').split('\n')[0], 'c1\tc2 Weight\tc3 Origin\tc4')
+})
+
 test('each takes its addresses from records: a list on the page, or a file get saved', async () => {
   const list = ref((await run('tab', `${base}/things`)).out, /list of 3/)
   const fromList = await run('each', 'find Weight', '--from', list)
@@ -776,6 +810,23 @@ test('get --urls gives each record its links and pictures, each address once; pl
   assert.equal(readFileSync(file, 'utf8').trim().split('\n').length, 4)
   assert.doesNotMatch(rows[2], /data:|\/img\//)
   assert.doesNotMatch((await run('read')).out, /img\/1\.jpg|\/p\/1/)
+})
+
+test('a saved records file holds text, and addresses with --urls, and no refs; answers about the page keep them', async () => {
+  const list = (await run('tab', `${base}/products`)).out.match(/\[(\d+)\] list of 3/)![1]
+  assert.match((await run('get', list)).out, /\[\d+\] link "Desk"/)
+  const dir = mkdtempSync(join(tmpdir(), 'out-'))
+  await run('get', list, '--out', join(dir, 'plain.tsv'))
+  assert.doesNotMatch(readFileSync(join(dir, 'plain.tsv'), 'utf8'), /\[\d+\]|https?:/)
+  assert.match(readFileSync(join(dir, 'plain.tsv'), 'utf8'), /^Lamp\t.*\n/m)
+  await run('get', list, '--urls', '--out', join(dir, 'urls.tsv'))
+  const withUrls = readFileSync(join(dir, 'urls.tsv'), 'utf8')
+  assert.doesNotMatch(withUrls, /\[\d+\]/)
+  assert.match(withUrls, new RegExp(`^Lamp → ${base}/p/1\t`, 'm'))
+  await run('get', list, '--all', '--out', join(dir, 'all.tsv'))
+  assert.doesNotMatch(readFileSync(join(dir, 'all.tsv'), 'utf8'), /\[\d+\]/)
+  // The saved file is read back, and each goes to the addresses in it.
+  assert.match((await run('get', join(dir, 'urls.tsv'), '--where', 'c5=₹7200')).out, /Desk → /)
 })
 
 test('images are not loaded until the agent allows them for a site', async () => {
