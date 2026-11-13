@@ -218,7 +218,7 @@ test('open --out writes a header line and the page lines per address, and answer
   assert.match(out.out, new RegExp(`failed:\\n  ${urls[3]} — HTTP 404\\n  ${urls[4]} — fetch failed \\(`))
   assert.match(out.out, new RegExp(`${urls[0]}  "Doc 1" · 31 lines, \\d+ chars · line 1\\n`))
   assert.match(out.out, new RegExp(`${urls[1]}  "Doc 2" · 31 lines, \\d+ chars · line 33\\n… 2 more\\n`))
-  assert.match(out.out, /rg -n '\^== '/)
+  assert.match(out.out, /find "== http" --in /)
   assert.ok(out.out.length < 900, `the answer stays small (${out.out.length})`)
   const lines = readFileSync(file, 'utf8').split('\n')
   const headers = lines.map((l, i) => [i + 1, l] as const).filter(([, l]) => l.startsWith('== '))

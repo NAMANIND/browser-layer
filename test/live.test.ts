@@ -729,6 +729,17 @@ test('get reads a saved records file back: --where, --count, --group and --sort,
   assert.match((await run('get', ref((await run('tab', `${base}/pg?last=2&p=1`)).out, /list of \d+/), '--where', 'c2>600', '--count')).out, /1 of 4 records match c2>600/)
 })
 
+test('find --in and read --lines read a saved text file back, inside steps too, with no page open', async () => {
+  const file = join(home, 'pages.txt')
+  writeFileSync(file, ['== https://a.test/1  200', 'Application: New', 'Stormwater permit', '== https://a.test/2  200', 'Sewage plant', 'Industrial stormwater PAG-03'].join('\n'))
+  const found = await run('find', 'sewage|pag-03', '--in', file)
+  assert.match(found.out, /2 lines with "sewage\|pag-03" in .*pages\.txt\n5: Sewage plant  @ https:\/\/a\.test\/2\n6: Industrial stormwater PAG-03  @ https:\/\/a\.test\/2/)
+  assert.match((await run('read', file, '--lines', '2-3')).out, /pages\.txt lines 2–3 of 6\n2: Application: New\n3: Stormwater permit/)
+  assert.match((await run('steps', `find stormwater --in ${file}; read ${file} --lines 5-6`)).out, /2 lines with "stormwater"[\s\S]*lines 5–6 of 6/)
+  assert.match((await run('find', 'x', '--in', join(home, 'nothing.txt'))).out, /no such file/)
+  assert.match((await run('read', file)).out, /--lines <from>-<to>/)
+})
+
 test('a page an action goes to is waited for as an opened page is, however slow its server', async () => {
   // Every page of this list takes 6 s to answer, far longer than settle waits after an action (2 s here).
   const first = await run('tab', `${base}/pg?last=1&p=0&ms=6000`)
@@ -1714,7 +1725,7 @@ test('each runs a bounded number of pages at once, writes the bulk form to --out
   assert.ok(took > 2.5 * 2500, `only three pages load at a time, so seven take several waves (${took} ms)`)
   assert.match(out.out, new RegExp(`^each: 8 pages, 1 failed, saved ${file}\\nfailed:\\n  http://localhost:1/none — `))
   assert.match(out.out, new RegExp(`${urls[2]}  "lag" · \\d+ lines, \\d+ chars · line \\d+\\n`))
-  assert.match(out.out, /rg -n '\^== '/)
+  assert.match(out.out, /find "== http" --in /)
   const lines = readFileSync(file, 'utf8').trim().split('\n')
   const headers = lines.filter(l => l.startsWith('== '))
   assert.deepEqual(headers.map(l => l.split('  ')[0]), urls.map(u => `== ${u}`))

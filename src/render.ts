@@ -289,6 +289,42 @@ function wrap(line: string, max: number): string {
   return [...out, rest].join('\n')
 }
 
+// find <text> --in <file>: the lines of a saved file holding any of the |-separated texts, numbered, each with the page
+// it is under when the file is a bulk save (its "== <address>" header lines).
+export function searchLines(file: string, text: string, content: string, page: number, p: Pick<Policy, 'data.rows' | 'file.lineChars'>): string {
+  const any = text.toLowerCase().split('|').map(a => a.trim()).filter(Boolean)
+  let address = ''
+  const hits: string[] = []
+  content.split('\n').forEach((l, i) => {
+    if (l.startsWith('== ')) address = l.slice(3).split(/\s\s/)[0]
+    if (!any.some(a => l.toLowerCase().includes(a))) return
+    hits.push(`${i + 1}: ${l.length > p['file.lineChars'] ? `${l.slice(0, p['file.lineChars'] - 1)}…` : l}${address && !l.startsWith('== ') ? `  @ ${address}` : ''}`)
+  })
+  if (!hits.length) return `"${text}" is not in ${file}`
+  const per = p['data.rows']
+  const from = (page - 1) * per
+  if (from >= hits.length) throw new Error(`page ${page} does not exist; the matches fill ${Math.ceil(hits.length / per)}`)
+  const shown = hits.slice(from, from + per)
+  const more = hits.length > per ? `, showing ${from + 1}–${from + shown.length}${from + per < hits.length ? ` (find ${text} --in ${file} --page ${page + 1} for more)` : ''}` : ''
+  return `${hits.length} lines with "${text}" in ${file}${more}\n${shown.join('\n')}`
+}
+
+// read <file> --lines a-b: numbered lines of a saved file, as many as one answer holds (answer.fileChars).
+export function sliceLines(file: string, content: string, from: number, to: number, p: Pick<Policy, 'answer.fileChars' | 'file.lineChars'>): string {
+  const lines = content.replace(/\n$/, '').split('\n')
+  if (from < 1 || to < from) throw new Error('--lines takes <from>-<to>, line numbers from 1')
+  if (from > lines.length) throw new Error(`${file} has ${lines.length} lines`)
+  const shown: string[] = []
+  let chars = 0
+  for (let n = from; n <= Math.min(to, lines.length) && chars < p['answer.fileChars']; n++) {
+    const l = lines[n - 1]
+    shown.push(`${n}: ${l.length > p['file.lineChars'] ? `${l.slice(0, p['file.lineChars'] - 1)}…` : l}`)
+    chars += shown[shown.length - 1].length + 1
+  }
+  const last = from + shown.length - 1
+  return `${file} lines ${from}–${last} of ${lines.length}\n${shown.join('\n')}${last < Math.min(to, lines.length) ? `\n… more: read ${file} --lines ${last + 1}-${to}` : ''}`
+}
+
 // What a bulk call (each, open) leaves in its --out file and says in its answer. The file is plain lines for
 // grep, sed and head: a header line `== <address>  <status>` per page, then the page's own lines. A page line
 // that begins with `== ` gets a leading space so `rg -n '^== '` finds pages and only pages.
@@ -358,7 +394,7 @@ export function bulkAnswer(name: string, pages: Bulk[], file: string, p: Pick<Po
   }
   lines.push(...heads.slice(0, p['bulk.pages']))
   if (heads.length > p['bulk.pages']) lines.push(`… ${heads.length - p['bulk.pages']} more`)
-  lines.push(`find a page: rg -n '^== ' ${file}; read part: sed -n 20,60p ${file}`)
+  lines.push(`find a page: find "== http" --in ${file}; read part: read ${file} --lines 20-60`)
   return lines.join('\n')
 }
 

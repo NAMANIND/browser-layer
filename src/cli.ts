@@ -24,7 +24,7 @@ Start here
   steps '<cmd>; <cmd>; ...'   everything you already know in one call (actions answer in one line, reads and the last
                        step in full); the first error stops the rest
   read <ref> · find <text> · get <ref>   go deeper only where you need to
-  --out <file>         a big result goes to a file, not to your context; then grep, jq or sed -n
+  --out <file>         a big result goes to a file; read it back: find <text> --in <file> · read <file> --lines a-b · get <file>
   Many pages, one call, never a shell loop: open --out f <url…> (static HTML, XML sitemaps, feeds), each --out f '<read>' <url…>
                        (JavaScript pages); f has a "== <url>" line per page, then its lines
   Answers to act on:   "covered by …; its controls: …" a pop-up is over it: steps 'click "Reject all"; click 31'.
@@ -52,13 +52,14 @@ Live tabs (headless browser, runs the page's JS):
   each '<read>' <url…>         load pages together, run one read on each, one answer; its tabs close (--out <file>: a line per page;
                                --from <ref|file> in place of urls: the pages a list's records link to)
   map                          regions, fields, actions, lists and links, with refs
-  read [ref] [--page N] [--full]   the page or one region; read again: what changed
-  find <text> [--page N] [--urls]   lines that contain it (--urls: each link with its address)
+  read [ref] [--page N] [--full]   the page or one region; read again: what changed; <file> --lines a-b: a saved file
+  find <text> [--page N] [--urls] [--in <file>]   lines with it, a|b for either (--urls: links with addresses)
   get <ref|file> [--where col=v|col~v|col<n|col>n] [--count] [--group col] [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]
                                records (TSV) of a list or table, or of a file get saved: filter and count here, not in a shell
+                               (--where v1|v2: either; < > on numbers or dates, 2026-06-01 or 6/1/2026)
   get <ref> --all --out f      every record of a list: follows its next link, Load more or scroll; says if the end is shown
                                (--more <ref|name>: the control that gives more, when it finds none)
-  --out <file>                 on open, read, find, get: the whole result to a file
+  --out <file>                 on open, read, find, get: the result to a file
   click · dblclick · rightclick · hover <ref>      check · uncheck <ref>      submit <ref>
   type <ref> <text> [--enter] [--keys]   pick <ref> <option>   press <key>   drag <ref> <onto ref>
   scroll [ref] [down|up|top|bottom]   upload <ref> <file...>   wait [--gone] <text>
@@ -67,7 +68,7 @@ Live tabs (headless browser, runs the page's JS):
   menu "A > B > C"             open a hover menu path in one call (instead of hover and click one by one)
   eval <js>                    run JavaScript in the page; the result as JSON; its fetch() carries the site's cookies:
                                eval "await (await fetch('/api/x?page=2')).json()"
-  net [--all] · net show <#> · net save <#> <file>   the page's requests and their bodies: the data usually comes from an API
+  net [--all] · net show <#> · net save <#> <file>   the page's requests and bodies; data often comes from an API
   cookies [domain] · cookies clear [domain] · storage local|session [clear]
   allow <perm>[,perm] [lat,lon]   grant to the current site; allow images, then reload, for a page whose content is pictures
                                (a scanned book, a map) or that asks you to turn off an ad blocker
@@ -270,6 +271,8 @@ function parse(words: string[]) {
   const more = take('--more')
   const from = take('--from')
   const group = take('--group')
+  const inFile = take('--in')
+  const lines = take('--lines')
   const where: string[] = []
   for (let w = take('--where'); w !== undefined; w = take('--where')) where.push(w)
   const cols = take('--cols')?.split(',').map(c => c.trim())
@@ -281,13 +284,13 @@ function parse(words: string[]) {
   const attach = take('--attach')
   const has = (flag: string) => argv.includes(flag)
   const [cmd, target, ...rest] = argv.filter(a => !FLAGS.has(a))
-  return { cmd, target, rest, page, limit, sort, cols, group, more, from, where: where.length ? where : undefined, file, session, profile, attach, has }
+  return { cmd, target, rest, page, limit, sort, cols, group, more, from, inFile, lines, where: where.length ? where : undefined, file, session, profile, attach, has }
 }
 
 type Parsed = ReturnType<typeof parse>
 
 // A live-tab command from its parsed words.
-function liveCommand({ cmd, target, rest, page, limit, sort, cols, group, more, where, file, has }: Parsed): Command {
+function liveCommand({ cmd, target, rest, page, limit, sort, cols, group, more, where, file, inFile, lines, has }: Parsed): Command {
   const c: Command = { cmd, session, page, limit, sort, cols, group, more, where, count: has('--count'), desc: has('--desc'), urls: has('--urls'), out: file, gone: has('--gone'), keys: has('--keys'), enter: has('--enter'), all: has('--all') }
   // The browser belongs to every session in it: a named session leaving closes its own tabs, not the others' page.
   if (cmd === 'stop' && session !== 'default') [c.cmd, c.all] = ['close', true]
@@ -301,7 +304,7 @@ function liveCommand({ cmd, target, rest, page, limit, sort, cols, group, more, 
   }
   if (['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload', 'check', 'uncheck', 'submit', 'drag'].includes(cmd)) c.ref = target ?? fail(`usage: browser-layer ${cmd} <ref>`)
   if (cmd === 'drag') c.to = rest[0] ?? fail('usage: browser-layer drag <ref> <onto ref>')
-  if (cmd === 'find') c.text = [target, ...rest].filter(Boolean).join(' ')
+  if (cmd === 'find') [c.text, c.file] = [[target, ...rest].filter(Boolean).join(' '), inFile && resolve(inFile)]
   if (cmd === 'cookies') [c.dir, c.url] = target === 'clear' ? ['clear', rest[0]] : [undefined, target]
   if (cmd === 'storage') [c.dir, c.text] = [target, rest[0]]
   // The daemon runs elsewhere, so files are resolved against the agent's working directory here.
@@ -318,7 +321,11 @@ function liveCommand({ cmd, target, rest, page, limit, sort, cols, group, more, 
   if (cmd === 'explore' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: browser-layer explore [ref]')
   if (cmd === 'menu') c.text = [target, ...rest].filter(Boolean).join(' ')
   if (cmd === 'read') c.full = has('--full')
-  if (cmd === 'read' && target) c.ref = /^\d+$/.test(target) ? target : fail('usage: browser-layer read [ref] [--page N]')
+  // A number is a ref on the page; anything else is a text file the tool saved, read by lines.
+  if (cmd === 'read' && target && !/^\d+$/.test(target)) {
+    const range = lines?.match(/^(\d+)-(\d+)$/) ?? fail('usage: browser-layer read <file> --lines <from>-<to>')
+    ;[c.file, c.lines] = [resolve(target), [Number(range[1]), Number(range[2])]]
+  } else if (cmd === 'read' && target) c.ref = target
   // A number is a list on the page; anything else is a file get saved, resolved here as --out is.
   if (cmd === 'get') [c.ref, c.file] = /^\d+$/.test(target ?? fail('usage: browser-layer get <ref|file> [--where col=v] [--count] [--group col] [--sort col] [--desc] [--limit N] [--cols a,b] [--urls] [--all]')) ? [target, undefined] : [undefined, resolve(target)]
   if (cmd === 'type' || cmd === 'pick') c.text = rest.join(' ')

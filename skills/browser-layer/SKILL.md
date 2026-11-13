@@ -24,7 +24,7 @@ Start here
   steps '<cmd>; <cmd>; ...'   everything you already know in one call (actions answer in one line, reads and the last
                        step in full); the first error stops the rest
   read <ref> · find <text> · get <ref>   go deeper only where you need to
-  --out <file>         a big result goes to a file, not to your context; then grep, jq or sed -n
+  --out <file>         a big result goes to a file; read it back: find <text> --in <file> · read <file> --lines a-b · get <file>
   Many pages, one call, never a shell loop: open --out f <url…> (static HTML, XML sitemaps, feeds), each --out f '<read>' <url…>
                        (JavaScript pages); f has a "== <url>" line per page, then its lines
   Answers to act on:   "covered by …; its controls: …" a pop-up is over it: steps 'click "Reject all"; click 31'.
@@ -52,13 +52,14 @@ Live tabs (headless browser, runs the page's JS):
   each '<read>' <url…>         load pages together, run one read on each, one answer; its tabs close (--out <file>: a line per page;
                                --from <ref|file> in place of urls: the pages a list's records link to)
   map                          regions, fields, actions, lists and links, with refs
-  read [ref] [--page N] [--full]   the page or one region; read again: what changed
-  find <text> [--page N] [--urls]   lines that contain it (--urls: each link with its address)
+  read [ref] [--page N] [--full]   the page or one region; read again: what changed; <file> --lines a-b: a saved file
+  find <text> [--page N] [--urls] [--in <file>]   lines with it, a|b for either (--urls: links with addresses)
   get <ref|file> [--where col=v|col~v|col<n|col>n] [--count] [--group col] [--sort col] [--desc] [--limit N] [--cols a,b] [--urls]
                                records (TSV) of a list or table, or of a file get saved: filter and count here, not in a shell
+                               (--where v1|v2: either; < > on numbers or dates, 2026-06-01 or 6/1/2026)
   get <ref> --all --out f      every record of a list: follows its next link, Load more or scroll; says if the end is shown
                                (--more <ref|name>: the control that gives more, when it finds none)
-  --out <file>                 on open, read, find, get: the whole result to a file
+  --out <file>                 on open, read, find, get: the result to a file
   click · dblclick · rightclick · hover <ref>      check · uncheck <ref>      submit <ref>
   type <ref> <text> [--enter] [--keys]   pick <ref> <option>   press <key>   drag <ref> <onto ref>
   scroll [ref] [down|up|top|bottom]   upload <ref> <file...>   wait [--gone] <text>
@@ -67,7 +68,7 @@ Live tabs (headless browser, runs the page's JS):
   menu "A > B > C"             open a hover menu path in one call (instead of hover and click one by one)
   eval <js>                    run JavaScript in the page; the result as JSON; its fetch() carries the site's cookies:
                                eval "await (await fetch('/api/x?page=2')).json()"
-  net [--all] · net show <#> · net save <#> <file>   the page's requests and their bodies: the data usually comes from an API
+  net [--all] · net show <#> · net save <#> <file>   the page's requests and bodies; data often comes from an API
   cookies [domain] · cookies clear [domain] · storage local|session [clear]
   allow <perm>[,perm] [lat,lon]   grant to the current site; allow images, then reload, for a page whose content is pictures
                                (a scanned book, a map) or that asks you to turn off an ad blocker

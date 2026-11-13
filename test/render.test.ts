@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DEFAULTS } from '../src/policy.js'
-import { bounded, bulkAnswer, bulkFile, diffLines, goneLines, renderMap, renderText } from '../src/render.js'
+import { bounded, bulkAnswer, bulkFile, diffLines, goneLines, renderMap, renderText, searchLines, sliceLines } from '../src/render.js'
 import type { Node } from '../src/reader.js'
 
 test('only the lines that changed are reported', () => {
@@ -84,4 +84,25 @@ test('a list whose first row shows nothing is sampled by the first row that does
   const row = (t: string): Node => ({ row: true, block: true, children: t ? [{ text: t }] : [] })
   const tree: Node = { block: true, children: [{ ref: 5, role: 'list', block: true, children: [row(''), row('First result'), row('Second')] }] }
   assert.match(renderMap(tree, 'https://x.test', { nameChars: 120, labelChars: 40 }, 8), /\[5\] list of 3: First result …/)
+})
+
+const saved = ['== https://a.test/1  200', 'Application Type: New', 'Stormwater permit for Dover', '== https://a.test/2  200', 'Sewage plant', 'Industrial stormwater, PAG-03']
+test('find --in lists the numbered lines of a saved file that hold any of the texts, and the page each is under', () => {
+  const answer = searchLines('f.txt', 'sewage|pag-03', saved.join('\n'), 1, DEFAULTS)
+  assert.equal(answer, '2 lines with "sewage|pag-03" in f.txt\n5: Sewage plant  @ https://a.test/2\n6: Industrial stormwater, PAG-03  @ https://a.test/2')
+  assert.equal(searchLines('f.txt', 'absent', saved.join('\n'), 1, DEFAULTS), '"absent" is not in f.txt')
+  const many = Array.from({ length: 45 }, (_, i) => `row ${i}`).join('\n')
+  assert.match(searchLines('m.txt', 'row', many, 1, DEFAULTS), /45 lines with "row" in m.txt, showing 1–20 \(find row --in m.txt --page 2 for more\)/)
+  assert.throws(() => searchLines('m.txt', 'row', many, 4, DEFAULTS), /page 4 does not exist; the matches fill 3/)
+})
+
+test('read <file> --lines gives numbered lines, as many as one answer holds, and says where the next ones start', () => {
+  const text = Array.from({ length: 1000 }, (_, i) => `line ${i + 1} ${'x'.repeat(40)}`).join('\n')
+  assert.equal(sliceLines('f.txt', 'a\nb\nc\nd', 2, 3, DEFAULTS), 'f.txt lines 2–3 of 4\n2: b\n3: c')
+  const long = sliceLines('f.txt', text, 10, 900, DEFAULTS)
+  assert.match(long, /^f\.txt lines 10–1\d\d of 1000\n10: line 10 /)
+  assert.match(long, /\n… more: read f\.txt --lines 1\d\d-900$/)
+  assert.ok(long.length <= DEFAULTS['answer.fileChars'] + 200)
+  assert.throws(() => sliceLines('f.txt', 'a\nb', 5, 9, DEFAULTS), /f\.txt has 2 lines/)
+  assert.throws(() => sliceLines('f.txt', 'a\nb', 3, 1, DEFAULTS), /--lines takes <from>-<to>/)
 })

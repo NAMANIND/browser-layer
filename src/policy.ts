@@ -38,6 +38,7 @@ export const DEFAULTS = {
   'render.mapFew': 8,
   'get.rounds': 50,
   'data.rows': 20,
+  'file.lineChars': 240,
   'data.minRepeats': 3,
   'data.minParts': 2,
   'blocked.controls': 30,

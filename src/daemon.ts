@@ -8,7 +8,7 @@ import { isTracker } from './trackers.js'
 import { findBrowser } from './browser.js'
 import { ceiling, home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, humanCheck, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
-import { bounded, bulkAnswer, bulkRun, diffLines, findRef, goneLines, itemsLine, paginate, renderArrival, renderMap, renderText, type Bulk } from './render.js'
+import { bounded, bulkAnswer, bulkRun, diffLines, findRef, goneLines, itemsLine, paginate, renderArrival, renderMap, renderText, searchLines, sliceLines, type Bulk } from './render.js'
 import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
 import { fromTsv, group, query, records, toTsv, where, type Query, type Records } from './data.js'
 import { pidPath, ping, socketPath, VERSION } from './client.js'
@@ -160,6 +160,8 @@ export type Command = {
   steps?: Command[]; raw?: string
   // get --all --more: the control that gives more of the list, by ref or name.
   more?: string
+  // read <file>: the first and last line to show.
+  lines?: [number, number]
 } & Query
 
 // Commands that only read a page, for the shorter time limit.
@@ -1037,6 +1039,12 @@ const fit = (name: string | undefined, want: string) => {
 }
 const ACTIONS = new Set(['click', 'dblclick', 'rightclick', 'hover', 'type', 'pick', 'upload', 'check', 'uncheck', 'submit', 'drag'])
 
+// A file the tool saved, for the verbs that read one back with no page.
+const savedText = (file: string) => {
+  if (!existsSync(file)) throw new Error(`no such file: ${file}`)
+  return readFileSync(file, 'utf8')
+}
+
 // each --from: the pages are those of records, one each (a record's first address): a list on the page, whose
 // records link to their pages, or a file get --urls saved. --limit and --cols choose the records and the column.
 async function addresses(c: Command): Promise<string[]> {
@@ -1217,6 +1225,7 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     return `${await header(tab)}  — ${c.all ? await recordsAll(tab, node, origin, c) : recordsView(`[${node.ref}] ${node.role}`, records(node, origin, { ...caps(), urls: c.urls, plain: !!c.out }), c)}`
   },
   async read(c) {
+    if (c.file) return sliceLines(c.file, savedText(c.file), c.lines![0], c.lines![1], policy)
     const ref = c.ref === undefined ? undefined : Number(c.ref)
     if (!c.out && (ref !== undefined || c.page)) return view(need(c.session), c.page ?? 1, undefined, ref)
     if (!c.out) return reread(need(c.session), !!c.full)
@@ -1262,9 +1271,10 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     return answer(tab)
   },
   async find(c) {
+    if (!c.text) throw new Error('usage: browser-layer find <text> [--in <file>]')
+    if (c.file) return searchLines(c.file, c.text, savedText(c.file), c.page ?? 1, policy)
     const tab = need(c.session)
-    const want = (c.text ?? '').toLowerCase()
-    if (!want) throw new Error('usage: browser-layer find <text>')
+    const want = c.text.toLowerCase()
     const { tree, origin, text } = await snapshot(tab)
     const hits = (c.urls ? renderText(tree, origin, { ...caps(), urls: true }) : text).split('\n').filter(l => l.toLowerCase().includes(want))
     if (!hits.length) return `"${c.text}" is not on the page`
