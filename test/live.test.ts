@@ -757,6 +757,23 @@ test('get --urls gives each record its links and pictures, each address once; pl
   assert.doesNotMatch((await run('read')).out, /img\/1\.jpg|\/p\/1/)
 })
 
+test('a saved records file holds text, and addresses with --urls, and no refs; answers about the page keep them', async () => {
+  const list = (await run('tab', `${base}/products`)).out.match(/\[(\d+)\] list of 3/)![1]
+  assert.match((await run('get', list)).out, /\[\d+\] link "Desk"/)
+  const dir = mkdtempSync(join(tmpdir(), 'out-'))
+  await run('get', list, '--out', join(dir, 'plain.tsv'))
+  assert.doesNotMatch(readFileSync(join(dir, 'plain.tsv'), 'utf8'), /\[\d+\]|https?:/)
+  assert.match(readFileSync(join(dir, 'plain.tsv'), 'utf8'), /^Lamp\t.*\n/m)
+  await run('get', list, '--urls', '--out', join(dir, 'urls.tsv'))
+  const withUrls = readFileSync(join(dir, 'urls.tsv'), 'utf8')
+  assert.doesNotMatch(withUrls, /\[\d+\]/)
+  assert.match(withUrls, new RegExp(`^Lamp → ${base}/p/1\t`, 'm'))
+  await run('get', list, '--all', '--out', join(dir, 'all.tsv'))
+  assert.doesNotMatch(readFileSync(join(dir, 'all.tsv'), 'utf8'), /\[\d+\]/)
+  // The saved file is read back, and each goes to the addresses in it.
+  assert.match((await run('get', join(dir, 'urls.tsv'), '--where', 'c5=₹7200')).out, /Desk → /)
+})
+
 test('images are not loaded until the agent allows them for a site', async () => {
   await run('tab', `${base}/pictured`)
   assert.match((await run('read')).out, /image missing/)

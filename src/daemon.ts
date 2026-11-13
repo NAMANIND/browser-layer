@@ -637,7 +637,7 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
   // row has an optional part would otherwise put every field after it one column over.
   const fields: string[] = []
   const take = () => {
-    const r = records(list, origin, { ...caps(), urls: q.urls })
+    const r = records(list, origin, { ...caps(), urls: q.urls, plain: !!q.out })
     if (r.names.length > names.length) names = r.names
     const column = (r.keys ?? r.columns).map(k => (fields.includes(k) ? fields.indexOf(k) : fields.push(k) - 1))
     for (const row of r.rows) add(Array.from(row.reduce((cells, v, i) => { cells[column[i]] = v; return cells }, Array<string>(fields.length)), v => v ?? ''))
@@ -1122,7 +1122,7 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     const node = findRef(tree, Number(c.ref))
     if (!node) throw new Error(`[${c.ref}] is not on the page — run: browser-layer map`)
     if (!records(node, origin, caps()).rows.length) throw new Error(`[${c.ref}] has no rows; get works on the lists and tables the map shows`)
-    return `${await header(tab)}  — ${c.all ? await recordsAll(tab, node, origin, c) : recordsView(`[${node.ref}] ${node.role}`, records(node, origin, { ...caps(), urls: c.urls }), c)}`
+    return `${await header(tab)}  — ${c.all ? await recordsAll(tab, node, origin, c) : recordsView(`[${node.ref}] ${node.role}`, records(node, origin, { ...caps(), urls: c.urls, plain: !!c.out }), c)}`
   },
   async read(c) {
     const ref = c.ref === undefined ? undefined : Number(c.ref)

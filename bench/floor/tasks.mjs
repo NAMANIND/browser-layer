@@ -130,7 +130,7 @@ export const TASKS = [
       return {
         cheapGarden: Number(out.match(/(\d+) of 500 records/)[1]),
         perCategory: Object.fromEntries(CATEGORIES.map(c => [c, Number(out.match(new RegExp(`^${c}\\t(\\d+)$`, 'm'))[1])])),
-        top10: [...out.matchAll(/link "([^"]+)"/g)].map(m => m[1]),
+        top10: out.slice(out.lastIndexOf('\nc1\n') + 4).split('\n').slice(0, 10),
       }
     },
     shell: async t => {
@@ -140,7 +140,7 @@ export const TASKS = [
       return {
         cheapGarden: Number(out.match(/cheapGarden (\d+)/)[1]),
         perCategory: Object.fromEntries(CATEGORIES.map(c => [c, Number(out.match(new RegExp(`cat ${c} (\\d+)`))[1])])),
-        top10: [...out.matchAll(/link "([^"]+)"/g)].map(m => m[1]),
+        top10: [...out.matchAll(/^[\d.]+\t(.+)$/gm)].map(m => m[1]),
       }
     },
     check: reducedRight,
