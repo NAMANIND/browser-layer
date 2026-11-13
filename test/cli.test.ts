@@ -1,6 +1,6 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, before, test } from 'node:test'
@@ -12,6 +12,8 @@ let base = ''
 let posted: URLSearchParams | null = null
 let inFlight = 0
 let mostInFlight = 0
+// How many times each /late/ page was asked for: what a run that carries on must not repeat.
+const late: Record<string, number> = {}
 
 const server = createServer((req, res) => {
   const url = new URL(req.url!, base)
@@ -82,6 +84,10 @@ line2</textarea>
   if (url.pathname.startsWith('/lag/')) {
     mostInFlight = Math.max(mostInFlight, ++inFlight)
     return void setTimeout(() => { inFlight--; res.setHeader('content-type', 'text/html'); res.end(`<title>lag</title><p>lagged ${url.pathname}</p>`) }, 300)
+  }
+  if (url.pathname.startsWith('/late/')) {
+    late[url.pathname] = (late[url.pathname] ?? 0) + 1
+    return void setTimeout(() => { res.setHeader('content-type', 'text/html'); res.end(`<title>Late ${url.pathname.slice(6)}</title><p>late ${url.pathname.slice(6)}</p>`) }, 300)
   }
   if (url.pathname.startsWith('/big/')) {
     res.setHeader('content-type', 'text/html')
@@ -225,6 +231,41 @@ test('open --out writes a header line and the page lines per address, and answer
   assert.deepEqual(hits, ['46:needle here'], 'a search returns the line, not the page')
   assert.ok(lines.slice(0, 3).join('\n').length < 200, 'head -3 is three lines')
   assert.ok(lines.includes(' == not a header'))
+})
+
+test('open --out is written as pages arrive; killed part way, the same command fetches only the rest and ends with the whole file', async () => {
+  writeFileSync(join(env.BROWSER_LAYER_HOME, 'policy.json'), JSON.stringify({ 'open.concurrency': 2 }))
+  const urls = Array.from({ length: 10 }, (_, k) => `${base}/late/${k}`)
+  const whole = join(env.BROWSER_LAYER_HOME, 'open-whole.out')
+  await run('open', '--out', whole, ...urls)
+  const file = join(env.BROWSER_LAYER_HOME, 'open-cut.out')
+  const heads = () => (existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter(l => l.startsWith('== ')) : [])
+  for (const k of Object.keys(late)) delete late[k]
+  const call = spawn(process.execPath, ['--import', 'tsx', 'src/cli.ts', 'open', '--out', file, ...urls], { env })
+  for (let i = 0; i < 100 && heads().length < 3; i++) await new Promise(r => setTimeout(r, 100))
+  call.kill('SIGKILL')
+  await new Promise(r => call.on('exit', r))
+  const kept = heads().length
+  assert.ok(kept >= 3 && kept < urls.length, `the pages arrived so far are in the file (${kept})`)
+  assert.ok(existsSync(`${file}.unfinished`))
+  for (const k of Object.keys(late)) delete late[k]
+  const again = await run('open', '--out', file, ...urls)
+  assert.match(again.out, new RegExp(`^open: 10 pages, 0 failed, ${kept} kept from the file, saved `))
+  assert.deepEqual(Object.keys(late).sort(), urls.slice(kept).map(u => u.slice(base.length)).sort(), 'only the pages the file lacked were fetched')
+  assert.equal(readFileSync(file, 'utf8'), readFileSync(whole, 'utf8'))
+  assert.ok(!existsSync(`${file}.unfinished`))
+  const other = await run('open', '--out', file, ...urls.slice(0, 2))
+  assert.match(other.out, /^open: 2 pages, 0 failed, saved /)
+})
+
+test('open --out keeps a failed page marked unfinished, and the same command fetches only that one again', async () => {
+  const file = join(env.BROWSER_LAYER_HOME, 'open-failed.out')
+  const urls = [`${base}/doc/1`, `${base}/gone`, `${base}/doc/2`]
+  const first = await run('open', '--out', file, ...urls)
+  assert.match(first.out, /^open: 3 pages, 1 failed, saved /)
+  assert.match(first.out, /the same command run again fetches only the failed/)
+  assert.ok(existsSync(`${file}.unfinished`))
+  assert.match((await run('open', '--out', file, ...urls)).out, /^open: 3 pages, 1 failed, 2 kept from the file, saved /)
 })
 
 test('open with several addresses and no --out over answer.maxChars is a head and a file with every page', async () => {
