@@ -542,3 +542,7 @@ it comes from and the arithmetic." (+99 characters in help and skill, with a tes
 0.0002..0.0022), wall 89.9 s vs 84.5 s (tie), steps 11.3 vs 9.7 (tie), input tokens 250k vs 210k (tie). NO-GO on cost, so the line
 and its test are reverted. These tasks have no derived-value rubric, so the gate cannot show the benefit, only the cost; a
 held-out task that grades derivations would be the test of a retry.
+
+Long tasks, state on 13 Nov: six of the seven contracts are built on `agent-fixes` (LONG-TASKS §5 has the floor before and
+after and both agent gates). The floor improved on every row it was aimed at; the agent gate leans our way (steps -13.5%,
+tokens -12% on valid runs) with every interval including zero.

@@ -274,8 +274,10 @@ passed 3k.
   earlier record has the same cells; the list is found again after each step (its ref, else the largest list of its
   kind, since a new page has new refs). The answer says a list `ended` only when the page shows it: the way on that
   was pressed is no longer there (`no next link on the last page`), or scrolling, which had been bringing records,
-  brings no more. Anything else is `not shown to be complete`, with what was tried: a control that was pressed and
-  brought nothing, or no way on found at all (a list paged only by numbers, a button named in another language).
+  brings no more. A control that was pressed and brought nothing is `not shown to be complete`; before that is
+  said the page is watched for a change, `settle.deadlineMs` at most, since a press can take effect late (a navigation
+  a busy machine has not begun, rows a timer adds). A list with no way on at all is `all this page shows`, with how to
+  name a control that gives more: most lists are one page, and the answer must not make an agent doubt one.
   Each page has the time limit a command has (`command.timeoutMs`); the list as a whole has none but `get.rounds`.
   With `--out` the file is written page by page, and beside it, while the list is unfinished, `<file>.unfinished`
   holds the address where the collection began and the one it has reached. A call that stops (a page that fails,

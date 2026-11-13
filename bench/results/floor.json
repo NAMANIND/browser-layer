@@ -1,15 +1,15 @@
 {
- "manual": 6042,
+ "manual": 6163,
  "rows": [
   {
    "task": "A1 collect, rel",
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 2076,
-   "biggest": 1647,
-   "carried": 20835,
-   "seconds": 26,
+   "chars": 2116,
+   "biggest": 1687,
+   "carried": 21238,
+   "seconds": 16,
    "note": ""
   },
   {
@@ -17,10 +17,10 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 2076,
-   "biggest": 1647,
-   "carried": 20835,
-   "seconds": 26,
+   "chars": 2116,
+   "biggest": 1687,
+   "carried": 21238,
+   "seconds": 16,
    "note": ""
   },
   {
@@ -28,10 +28,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 2053,
-   "biggest": 1688,
-   "carried": 20754,
-   "seconds": 17,
+   "chars": 2027,
+   "biggest": 1662,
+   "carried": 21091,
+   "seconds": 16,
    "note": ""
   },
   {
@@ -39,10 +39,10 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 2053,
-   "biggest": 1688,
-   "carried": 20754,
-   "seconds": 17,
+   "chars": 2027,
+   "biggest": 1662,
+   "carried": 21091,
+   "seconds": 16,
    "note": ""
   },
   {
@@ -50,10 +50,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 2118,
-   "biggest": 1647,
-   "carried": 20923,
-   "seconds": 26,
+   "chars": 2158,
+   "biggest": 1687,
+   "carried": 21326,
+   "seconds": 16,
    "note": ""
   },
   {
@@ -61,10 +61,10 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 2118,
-   "biggest": 1647,
-   "carried": 20923,
-   "seconds": 26,
+   "chars": 2158,
+   "biggest": 1687,
+   "carried": 21326,
+   "seconds": 16,
    "note": ""
   },
   {
@@ -72,10 +72,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 2069,
-   "biggest": 1679,
-   "carried": 20815,
-   "seconds": 28,
+   "chars": 2043,
+   "biggest": 1653,
+   "carried": 21152,
+   "seconds": 17,
    "note": ""
   },
   {
@@ -83,9 +83,9 @@
    "mode": "plain",
    "ok": "says so",
    "calls": 2,
-   "chars": 1740,
-   "biggest": 1350,
-   "carried": 20466,
+   "chars": 1502,
+   "biggest": 1112,
+   "carried": 20591,
    "seconds": 2,
    "note": ""
   },
@@ -94,9 +94,9 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 4707,
-   "biggest": 4319,
-   "carried": 25903,
+   "chars": 4694,
+   "biggest": 4306,
+   "carried": 26253,
    "seconds": 22,
    "note": ""
   },
@@ -105,10 +105,10 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 2032,
-   "biggest": 1644,
-   "carried": 20760,
-   "seconds": 31,
+   "chars": 2072,
+   "biggest": 1684,
+   "carried": 21163,
+   "seconds": 22,
    "note": ""
   },
   {
@@ -116,10 +116,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 2,
-   "chars": 2081,
-   "biggest": 1647,
-   "carried": 20855,
-   "seconds": 36,
+   "chars": 2121,
+   "biggest": 1687,
+   "carried": 21258,
+   "seconds": 26,
    "note": ""
   },
   {
@@ -127,10 +127,10 @@
    "mode": "plain",
    "ok": true,
    "calls": 2,
-   "chars": 2081,
-   "biggest": 1647,
-   "carried": 20855,
-   "seconds": 36,
+   "chars": 2121,
+   "biggest": 1687,
+   "carried": 21258,
+   "seconds": 25,
    "note": ""
   },
   {
@@ -138,10 +138,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 3,
-   "chars": 3432,
-   "biggest": 1624,
-   "carried": 30652,
-   "seconds": 29,
+   "chars": 3427,
+   "biggest": 1619,
+   "carried": 31126,
+   "seconds": 19,
    "note": ""
   },
   {
@@ -151,8 +151,8 @@
    "calls": 20,
    "chars": 6356,
    "biggest": 331,
-   "carried": 212323,
-   "seconds": 18,
+   "carried": 214864,
+   "seconds": 17,
    "note": ""
   },
   {
@@ -162,19 +162,19 @@
    "calls": 20,
    "chars": 33961,
    "biggest": 1785,
-   "carried": 496109,
-   "seconds": 18,
+   "carried": 498650,
+   "seconds": 17,
    "note": ""
   },
   {
    "task": "A4 transact 12 steps",
    "mode": "tool",
-   "ok": false,
-   "calls": 41,
-   "chars": 6460,
-   "biggest": 358,
-   "carried": 431849,
-   "seconds": 4,
+   "ok": true,
+   "calls": 15,
+   "chars": 5512,
+   "biggest": 488,
+   "carried": 150760,
+   "seconds": 16,
    "note": ""
   },
   {
@@ -182,10 +182,10 @@
    "mode": "tool",
    "ok": true,
    "calls": 3,
-   "chars": 3161,
-   "biggest": 1647,
-   "carried": 30542,
-   "seconds": 26,
+   "chars": 3072,
+   "biggest": 1687,
+   "carried": 30977,
+   "seconds": 16,
    "note": ""
   },
   {
@@ -193,10 +193,43 @@
    "mode": "shell",
    "ok": true,
    "calls": 3,
-   "chars": 2576,
-   "biggest": 1647,
-   "carried": 30036,
-   "seconds": 26,
+   "chars": 2487,
+   "biggest": 1687,
+   "carried": 30471,
+   "seconds": 16,
+   "note": ""
+  },
+  {
+   "task": "A8 agent forgets: status",
+   "mode": "tool",
+   "ok": true,
+   "calls": 1,
+   "chars": 734,
+   "biggest": 734,
+   "carried": 13080,
+   "seconds": 16,
+   "note": ""
+  },
+  {
+   "task": "A8 agent forgets: tabs and map",
+   "mode": "tool",
+   "ok": "tabs known, file not found",
+   "calls": 2,
+   "chars": 734,
+   "biggest": 423,
+   "carried": 19587,
+   "seconds": 16,
+   "note": ""
+  },
+  {
+   "task": "A9 browser dies with 3 tabs open: a fact from each",
+   "mode": "tool",
+   "ok": true,
+   "calls": 1,
+   "chars": 2633,
+   "biggest": 2633,
+   "carried": 15018,
+   "seconds": 3,
    "note": ""
   },
   {
@@ -204,11 +237,22 @@
    "mode": "tool",
    "ok": true,
    "calls": 4,
-   "chars": 2622,
-   "biggest": 1647,
-   "carried": 35500,
-   "seconds": 28,
+   "chars": 2701,
+   "biggest": 1687,
+   "carried": 36223,
+   "seconds": 17,
    "note": ""
+  },
+  {
+   "task": "A7 recover: browser dies during each",
+   "mode": "tool",
+   "ok": true,
+   "calls": 2,
+   "chars": 2098,
+   "biggest": 2077,
+   "carried": 28663,
+   "seconds": 8,
+   "note": "10 pages fetched twice"
   }
  ]
 }

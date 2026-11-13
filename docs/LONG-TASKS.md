@@ -333,6 +333,12 @@ a run of them is one line saying how many. `--full` stays as the explicit way to
 removed in the same change.
 *Done when.* Replaying the recorded reads through the new code, repeated characters fall from 25% to under 5%; then the
 local agent gate shows no more look-back calls than before (a ledger that hides what the agent needs shows up there).
+*Not built, 13 Nov, and why.* The repeated quarter had one main source: a page opened, then read. C5 took that away at
+the cause (the page arrives with its content, and a read does not send again what the arrival gave). What is left is
+`read --full` by habit, which asks for everything on purpose: a ledger that honoured `--full` would change nothing for
+85% of reads, and one that did not would hide what the agent asked for. Replacing three working memories with one, for
+a gain no measurement shows, is not what this plan's own rule allows. It comes back only if agent runs show repeated
+characters still above a few percent with `--full` not in the call.
 
 ### C7. Call 600 costs what call 6 costs, and a session survives (L3) ✅
 *Rule.* Time per call, memory and what an answer carries do not grow with the length of the session. A browser that
@@ -362,9 +368,9 @@ Each item is one session in its own worktree from `agent-fixes`, test first, sma
 | Phase | Sessions (parallel within a phase) | Touches | Leaves |
 |---|---|---|---|
 | 0 ✅ | `bench/floor`: the site, checkers, par scripts for A1 to A5 and A7 in three modes, A6 | `bench/floor/` only | The measured table in §2 |
-| 1 | `resume` (C4; `get --all` ✅) · `readback` (C2; records ✅) · `one-view` (C5 ✅, to be judged in phase 4) | `daemon.ts` collect code · `data.ts`, `cli.ts` · `daemon.ts` view code | Floors after each |
-| 2 | `join` (C1 ✅) · `columns` (C3; across pages ✅) | collect code · `reader.ts`, `data.ts` | Floors after each |
-| 3 | `ledger` (C6) · `survive` (C7 ✅) | view code · `daemon.ts` start-up, `client.ts` | Floors after each |
+| 1 | `resume` (C4 ✅) · `readback` (C2; records ✅) · `one-view` (C5 ✅) | `daemon.ts` collect code · `data.ts`, `cli.ts` · `daemon.ts` view code | Floors after each |
+| 2 | `join` (C1 ✅) · `columns` (C3 ✅ but the blank-cell rule: none found) | collect code · `reader.ts`, `data.ts` | Floors after each |
+| 3 | `ledger` (C6: not built, see C6) · `survive` (C7 ✅) | view code · `daemon.ts` start-up, `client.ts` | Floors after each |
 | 4 | Local agent gate on Haiku (short, long, and the floor tasks as prompts), then one paid run if the gate is clean | none | Gap to floor per task; RESULTS |
 
 If two sessions are to edit the collect code at once, it first moves out of `daemon.ts` into `src/collect.ts` with no
@@ -373,7 +379,47 @@ behaviour change. Phase 1 has run one item at a time so far, so the move has not
 A phase is merged when: its floors dropped as its contract says, no other floor rose, `npm test` and `npm run measure`
 are green, and the size note is written. A contract whose floor does not move is reverted, not kept.
 
-## 5. What this plan does not claim
+## 5. Where it stands (13 Nov 2026, `agent-fixes` after the merges)
+
+Built: C1, C2 (records), C3 (but the blank-cell rule), C4, C5, C7. Not built: C6 (see C6), `find --in` for text files,
+one view rule in place of the five. 173 tests green; `npm run measure` exits 0 with read times as before.
+
+**The floor, first measurement against now** (`bench/results/floor.json`):
+
+| Row | Phase 0 | Now |
+|---|---|---|
+| Plain `get --all` over six list shapes | 2 done, 2 wrong, 2 failed | 5 done, 1 says the page shows no more |
+| A1 slow server, expert | 5 calls, 40k read | 2 calls, 21k |
+| A1 button not in English, expert | 2 calls, 4,041 characters (24 typed clicks) | 2 calls, 2,043 (`--more`) |
+| A2 enrich 60, tool-only | 4 calls, 47k read | 3 calls, 31k |
+| A3 research 20, plain path | 40 calls, 1,009k read | 20 calls, 499k |
+| A3 research 20, expert | 20 calls, 203k | 20 calls, 215k (the manual) |
+| A4 form of 12 steps | 16 calls, 153k | 15 calls, 151k |
+| A5 reduce 500, tool-only | 4 calls, 24,130 characters, 77k read | 3 calls, 3,072, 31k |
+| A7 browser dies while collecting | 4 calls, every page again, 22 s | 4 calls, carries on, 17 s |
+| A7 browser dies during `each` over 60 pages | all 60 again | 2 calls, 10 pages fetched again |
+| A8 agent with a blank context | 2 calls, saved file not found | 1 call (`status`) |
+
+The manual went from 5,591 to 6,210 characters (+11%), which every call re-reads: it is why the expert A3 row rose.
+
+**Agents (bench/local, Haiku, 13 tasks, 3 runs an arm, against the build before the contracts).**
+First gate, on C4, C2, C5 (main landmark only) and C1: every metric a tie, steps +5%, input tokens +10%, one run scoring 0.5
+through the model's own miscount. Its transcripts showed two defects, fixed since: a press whose effect came late was
+answered "nothing new" with 10 of 100 records; a list of one page answered "not shown to be complete" and was doubted.
+They also showed the arrival rule missing every page without a main landmark (a form arrived as "fields: 11" and was
+read in the next call), which is why a small page now arrives whole.
+Second gate, on the merged build: 13 of 78 runs were lost in both arms to the model API answering 403 (not the tool).
+On the valid runs: steps 7.97 against 9.22 (-13.5%), input tokens -12%, wall time -29%, cost -4%, score 0.994 against
+0.992; better on 7 or 8 of 13 tasks; every 95% interval includes zero. This harness cannot show a step difference under
+about 20% (PLAN), so the honest reading is: it leans the right way and is not shown. The form task went from 4.7 steps to
+2.0 and the poetry task from 15.3 to 7.0.
+
+Open, in order of what the evidence asks for: a second clean gate (the first was run during other work, the second lost
+runs); pages whose scripts hold `DOMContentLoaded` for 10 s (seen on the-internet.herokuapp.com: each open waited the
+whole `load.domMs`); `each --from` a plain file of addresses (an agent built one and passed it as one argument);
+the blank-cell rule for lists (C3: none found); the English word list for Next and Load more (kept, see C1).
+
+## 6. What this plan does not claim
 
 - The floors are measured on one generated site. It has no ads, no overlays and no slow scripts; real pages cost more
   than these numbers, never less.
