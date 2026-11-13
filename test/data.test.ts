@@ -20,6 +20,16 @@ test('--where keeps rows by a column: equal and contains whatever the case, < an
   assert.throws(() => where(data, ['cheap']), /--where takes <column><op><value>/)
 })
 
+test('--where takes any of several values with |, and compares dates as dates', () => {
+  assert.deepEqual(names(where(data, ['c2=garden|tools'])), ['Lamp', 'Rake', 'Drill', 'Chair'])
+  assert.deepEqual(names(where(data, ['Name~lam|dri'])), ['Lamp', 'Drill'])
+  const dated: Records = { columns: ['c1', 'c2'], names: ['Name', 'Received'], rows: [['A', '06/16/2026'], ['B', '6/2/2026'], ['C', '2026-05-30'], ['D', '10/01/2025'], ['E', 'n/a']] }
+  // ISO 8601 and month/day/year are read as dates: 10/01/2025 is before 6/2/2026, which a number compare would get wrong.
+  assert.deepEqual(names(where(dated, ['Received>06/01/2026'])), ['A', 'B'])
+  assert.deepEqual(names(where(dated, ['Received<2026-06-01'])), ['C', 'D'])
+  assert.deepEqual(names(where(dated, ['Received>2026-06-01', 'Received<06/16/2026'])), ['B'])
+})
+
 test('--group counts the rows for each value of a column, the most first', () => {
   assert.deepEqual(group(data, 'Category'), { columns: ['c2', 'count'], names: ['Category', ''], rows: [['Garden', '3'], ['Tools', '1']] })
 })

@@ -131,20 +131,28 @@ function index(data: Records, c: string) {
   return i
 }
 
-// --where <column><op><value>, every condition holding: = is the whole cell and ~ a part of it, whatever the case;
-// < and > compare the number in the cell with the number given, separators removed as sorting removes them
-// ("$1,250.00" is over 1000). A cell with no number is neither under nor over.
+// --where <column><op><value>, every condition holding: = is the whole cell and ~ a part of it, whatever the case; a |
+// in the value gives alternatives, any of which will do. < and > compare dates when the value is one (ISO 8601, or
+// month/day/year) and the cell is one too; otherwise the number in the cell with the number given, separators removed
+// as sorting removes them ("$1,250.00" is over 1000). A cell with no number or date is neither under nor over.
 const numberIn = (v: string) => { const m = sortKey(v).match(/-?\d+(?:\.\d+)?/); return m ? Number(m[0]) : undefined }
+const dateIn = (v: string) => {
+  const m = v.trim().match(/^(\d{4})-(\d\d)-(\d\d)\b|^(\d{1,2})\/(\d{1,2})\/(\d{4})\b/)
+  return m ? (m[1] ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : Date.UTC(+m[6], +m[4] - 1, +m[5])) : undefined
+}
 export function where(data: Records, conditions: string[]): Records {
   const holds = conditions.map(c => {
     const m = c.match(/^(.+?)\s*(=|~|<|>)\s*(.*)$/)
-    if (!m) throw new Error(`--where takes <column><op><value>, the op one of = (is) ~ (contains) < > (numbers), not "${c}"`)
-    const [i, op, want, than] = [index(data, m[1].trim()), m[2], m[3].trim().toLowerCase(), numberIn(m[3])]
-    if ((op === '<' || op === '>') && than === undefined) throw new Error(`--where ${op} compares numbers, and "${m[3]}" has none`)
-    return (row: string[]) => {
-      const cell = (row[i] ?? '').trim().toLowerCase(), n = numberIn(cell)
-      return op === '=' ? cell === want : op === '~' ? cell.includes(want) : n !== undefined && (op === '<' ? n < than! : n > than!)
+    if (!m) throw new Error(`--where takes <column><op><value>, the op one of = (is) ~ (contains) < > (numbers, dates), not "${c}"`)
+    const [i, op, value] = [index(data, m[1].trim()), m[2], m[3].trim()]
+    if (op === '=' || op === '~') {
+      const any = value.toLowerCase().split('|').map(a => a.trim())
+      return (row: string[]) => { const cell = (row[i] ?? '').trim().toLowerCase(); return any.some(a => (op === '=' ? cell === a : cell.includes(a))) }
     }
+    const [date, number] = [dateIn(value), numberIn(value)]
+    if (date === undefined && number === undefined) throw new Error(`--where ${op} compares numbers or dates, and "${value}" has none`)
+    const [read, than] = date !== undefined ? [dateIn, date] : [numberIn, number!]
+    return (row: string[]) => { const n = read(row[i] ?? ''); return n !== undefined && (op === '<' ? n < than : n > than) }
   })
   return { ...data, rows: data.rows.filter(row => holds.every(h => h(row))) }
 }
