@@ -9,7 +9,7 @@
    "chars": 2035,
    "biggest": 1647,
    "carried": 20753,
-   "seconds": 16,
+   "seconds": 15,
    "note": ""
   },
   {
@@ -20,7 +20,7 @@
    "chars": 2035,
    "biggest": 1647,
    "carried": 20753,
-   "seconds": 16,
+   "seconds": 15,
    "note": ""
   },
   {
@@ -64,7 +64,7 @@
    "chars": 2077,
    "biggest": 1647,
    "carried": 20841,
-   "seconds": 16,
+   "seconds": 17,
    "note": ""
   },
   {
@@ -75,7 +75,7 @@
    "chars": 2028,
    "biggest": 1679,
    "carried": 20733,
-   "seconds": 17,
+   "seconds": 18,
    "note": ""
   },
   {
@@ -119,7 +119,7 @@
    "chars": 2040,
    "biggest": 1647,
    "carried": 20773,
-   "seconds": 26,
+   "seconds": 25,
    "note": ""
   },
   {
@@ -130,7 +130,7 @@
    "chars": 2040,
    "biggest": 1647,
    "carried": 20773,
-   "seconds": 26,
+   "seconds": 25,
    "note": ""
   },
   {
@@ -152,7 +152,7 @@
    "chars": 6356,
    "biggest": 331,
    "carried": 212323,
-   "seconds": 18,
+   "seconds": 17,
    "note": ""
   },
   {
@@ -163,7 +163,7 @@
    "chars": 34129,
    "biggest": 1744,
    "carried": 497379,
-   "seconds": 18,
+   "seconds": 17,
    "note": ""
   },
   {
@@ -174,7 +174,7 @@
    "chars": 5471,
    "biggest": 488,
    "carried": 148209,
-   "seconds": 17,
+   "seconds": 16,
    "note": ""
   },
   {
@@ -185,7 +185,7 @@
    "chars": 3120,
    "biggest": 1647,
    "carried": 30419,
-   "seconds": 16,
+   "seconds": 15,
    "note": ""
   },
   {
@@ -209,6 +209,17 @@
    "carried": 35254,
    "seconds": 17,
    "note": ""
+  },
+  {
+   "task": "A7 recover: browser dies during each",
+   "mode": "tool",
+   "ok": true,
+   "calls": 2,
+   "chars": 2098,
+   "biggest": 2077,
+   "carried": 28300,
+   "seconds": 8,
+   "note": "10 pages fetched twice"
   }
  ]
 }
