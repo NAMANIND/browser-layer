@@ -202,6 +202,10 @@ const server = createServer((req, res) => {
   if (req.url === '/draws-late') return page('draws-late', `<script>setTimeout(() => { document.body.innerHTML = '<p>Drawn at last</p>' }, 6000)</script>`)
   if (req.url === '/draws-soon') return page('draws-soon', `<script>setTimeout(() => { document.body.innerHTML = '<p>Drawn soon</p>' }, 1500)</script>`)
   // A banner over a control, with buttons that answer it.
+  // A page of a site: its menu, its main content (short, or with ?long over what one answer's head holds), its footer.
+  if (req.url?.startsWith('/article')) return page('article', `<nav aria-label="Site"><a href="/">Home</a> <a href="/about">About</a></nav>
+    <main><h1>Field notes</h1><p>${'The reed beds were quiet at first light. '.repeat(req.url.includes('long') ? 150 : 12)}</p><p>The survey found 1,284 nests.</p><a href="/next">Next entry</a></main>
+    <footer><a href="/terms">Terms</a></footer>`)
   // A page that replaces a control a moment after it loaded, as an app that re-renders does.
   if (req.url === '/replaced') return page('replaced', `<button id="a">Old offer</button><script>setTimeout(() => { a.outerHTML = '<button>New offer</button><p>Prices updated</p>' }, 1500)</script>`)
   // A box and a field that each share their name with a link elsewhere on the page.
@@ -527,8 +531,9 @@ test('the live view: one line per row, aria-hidden text without refs, hidden lab
   assert.ok(label && label[1].length === DEFAULTS['render.labelChars'] && label[1].endsWith('…'), out)
 })
 
-test('a page opens as a map of regions; read <ref> opens one region', async () => {
-  const map = await run('tab', `${base}/regions`)
+test('the map is the page as regions; read <ref> opens one region', async () => {
+  await run('tab', `${base}/regions`)
+  const map = await run('map')
   assert.match(map.out, /^\[\d+\] navigation "Main"\n  links: \[\d+\] link "Home" · \[\d+\] link "About"$/m)
   assert.match(map.out, /^\[\d+\] search\n  fields: \[\d+\] searchbox "Search flights"\n  actions: \[\d+\] button "Go"$/m)
   assert.match(map.out, /^\[\d+\] main\n  headings: Results\n  \[\d+\] list of 12: • Flight 0 · ₹100 …$/m)
@@ -539,7 +544,8 @@ test('a page opens as a map of regions; read <ref> opens one region', async () =
 })
 
 test('get turns a list or table into records that line up, sort as numbers, and limit', async () => {
-  const map = await run('tab', `${base}/data`)
+  await run('tab', `${base}/data`)
+  const map = await run('map')
   const list = ref(map.out, /list of 4/)
   const table = ref(map.out, /table of 2: columns Name · Size/)
   const all = await run('get', list)
@@ -748,8 +754,9 @@ test('screenshot saves a PNG of the tab: the visible part, the whole page, or on
 })
 
 test('repeated cards without list markup are records; repeated paragraphs are not', async () => {
+  // The page arrives with its main content, and the cards in it as the one line a list of records is.
   const map = await run('tab', `${base}/cards`)
-  assert.match(map.out, /\[\d+\] list of 4: /)
+  assert.match(map.out, /\[\d+\] main\n\[\d+\] list of 4: /)
   assert.doesNotMatch(map.out, /list of 5/)
   const cheap = await run('get', ref(map.out, /list of 4/), '--sort', 'c2', '--limit', '2')
   assert.match(cheap.out, /^c1\tc2\nAcer Aspire\t₹32,990\nDell 14\t₹41,500$/m)
@@ -1037,10 +1044,11 @@ test('a region already shown, unchanged, is one line on the next page; read --fu
   assert.match(second, new RegExp(`\\[${banner}\\] banner — shown before, unchanged`))
   assert.doesNotMatch(second, /"Deals"/)
   assert.match((await run('read')).out, /Free delivery/)
-  await run('click', 'Next')
+  // The page's short main content came with its arrival, so reading the page does not send it again.
+  assert.match((await run('click', 'Next')).out, /Page 3/)
   const third = (await run('read')).out
   assert.match(third, new RegExp(`\\[${banner}\\] banner — shown before, unchanged`))
-  assert.match(third, /Page 3/)
+  assert.match(third, /\[\d+\] main — shown before, unchanged/)
   assert.doesNotMatch(third, /Free delivery/)
   assert.match((await run('read', '--full')).out, /Free delivery/)
   assert.match((await run('read', banner)).out, /Free delivery/)
@@ -1050,10 +1058,10 @@ test('read --full on a page of a site already read folds its unchanged regions; 
   await run('stop')
   const banner = ref((await run('tab', `${base}/results/1`)).out, /banner/)
   assert.match((await run('read')).out, /Free delivery/)
-  await run('click', 'Next')
+  assert.match((await run('click', 'Next')).out, /Page 2/)
   const second = (await run('read', '--full')).out
   assert.match(second, new RegExp(`\\[${banner}\\] banner — shown before, unchanged`))
-  assert.match(second, /Page 2/)
+  assert.match(second, /\[\d+\] main — shown before, unchanged/)
   assert.doesNotMatch(second, /Free delivery/)
   assert.match((await run('read', '--full')).out, /Free delivery/)
 })
@@ -1292,7 +1300,10 @@ test('open answers JSON compactly, says what it cut, and writes it all with --ou
 test('a static page reads the same over plain HTTP and in a live tab: same roles and names', async () => {
   const controls = (out: string) => [...out.matchAll(/\[\d+\] ([a-z]+)(?: "([^"]*)")?/g)].map(m => `${m[1]} ${m[2] ?? ''}`).sort()
   const fast = controls((await run('open', `${base}/parity`)).out)
-  const live = controls((await openRead(`${base}/parity`)).out)
+  // The whole page as text: an arrival answer and a read share the page between them, a saved read is all of it.
+  await run('tab', `${base}/parity`)
+  await run('read', '--out', join(home, 'parity.txt'))
+  const live = controls(readFileSync(join(home, 'parity.txt'), 'utf8'))
   assert.ok(fast.length >= 12, fast.join('\n'))
   assert.deepEqual(fast, live)
 })
@@ -1361,6 +1372,19 @@ test('a covered control names what covers it and the buttons that answer it', as
   assert.equal(r.code, 1)
   assert.match(r.out, /covered by <\w+> "We use cookies[^"]*"; its controls: "Reject all" · "Accept all" \(click one by name, then this again\)/)
   assert.match((await run('steps', 'click "Reject all"; click Behind')).out, /reached/)
+})
+
+test('a page arrives with its main content when that is short, and with a summary of it when it is long', async () => {
+  const short = await run('tab', `${base}/article`)
+  assert.match(short.out, /\[\d+\] main\n#+ Field notes\n[\s\S]*The survey found 1,284 nests\.\n\[\d+\] link "Next entry"/)
+  // The rest of the page is still its map.
+  assert.match(short.out, /\[\d+\] navigation "Site"\n  links: /)
+  // What the agent was given is not sent again when it reads the page; the map, when it asks for it, is the map.
+  assert.match((await run('read')).out, /\[\d+\] main — shown before, unchanged/)
+  assert.match((await run('map')).out, /\[\d+\] main\n  headings: Field notes\n  links: \[\d+\] link "Next entry"/)
+  const long = await run('tab', `${base}/article?long`)
+  assert.match(long.out, /\[\d+\] main\n  headings: Field notes\n  links: \[\d+\] link "Next entry"\n  text: \d+ chars/)
+  assert.doesNotMatch(long.out, /1,284 nests/)
 })
 
 test('an action that fails answers with what changed on the page, so the agent need not look', async () => {

@@ -17,6 +17,7 @@ const HELP = `browser-layer — websites as text and verbs for agents. <ref> is 
 
 Start here
   tab <url>            opens a page; the answer is its map: regions, fields, actions, lists and links, each with a ref
+                       (a short main region comes whole, so there is nothing more to read in it)
   click 31 · click "Next" · type 15 Mumbai --enter · pick 22 "Economy" · check 40
                        every action answers with what changed: that answer is the new state, read nothing after it
   steps '<cmd>; <cmd>; ...'   everything you already know in one call (actions answer in one line, reads and the last

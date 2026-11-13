@@ -54,7 +54,7 @@ headings and fields, walk a list item by item, and act. It rests on standards ev
 
 | Move | What the agent gets | Command |
 |---|---|---|
-| **Map** | The page as regions, each with its fields (and values), options, actions, headings, collections (record count and first item, or a table's columns) and links; named when few, counted when many. Opening a page answers with the map. | `tab`, `go`, `map` |
+| **Map** | The page as regions, each with its fields (and values), options, actions, headings, collections (record count and first item, or a table's columns) and links; named when few, counted when many. Opening a page answers with the map, and with its main landmark (the page's primary content, WAI-ARIA) as text when that is no longer than `answer.headChars`, each list of records in it as its one line: a summary of a short article or form tells an agent nothing it can act on. | `tab`, `go`, `map` |
 | **Zoom** | One region, collection or control in full text. | `read <ref>` |
 | **Whole page** | Everything, paged. Read again, only what changed since the last read (`--full`: all of it, for the same page). | `read` |
 | **Act** | Fill, pick, click by ref; the answer is what changed (§4.4). | `type`, `pick`, `click`, `press` |
@@ -302,7 +302,9 @@ read, so for such apps their own export (found with `explore`, run with `menu`) 
 
 An action's target is a ref, or a control's accessible name: an exact match wins over a prefix, a
 prefix over a contained match (case-insensitive). Several equally good matches are an error that lists
-them with refs, since guessing would act on the wrong control.
+them with refs, since guessing would act on the wrong control; unless only one of them is something the command can act
+on: `check` and `uncheck` mean a control with a checked state, `type` a field. An action that fails answers with its
+error and the lines that changed on the page since the agent's last view, when any did, as a failed step of `steps` does.
 
 ### 5.1 Actionability
 

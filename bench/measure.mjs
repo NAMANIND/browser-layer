@@ -47,16 +47,18 @@ for (const { name, url, facts = [] } of pages) {
   const caps = { nameChars: DEFAULTS['render.nameChars'], labelChars: DEFAULTS['render.labelChars'] }
   let body = ''
   let map = ''
+  let arrival = ''
   for (let i = 0; i < RUNS; i++) {
     const t = performance.now()
     const tree = await readTree(cdp, refs, { minRepeats: DEFAULTS['data.minRepeats'], minParts: DEFAULTS['data.minParts'], revealItems: DEFAULTS['render.mapFew'] })
     body = renderText(tree, origin, caps)
     times.push(performance.now() - t)
     map = renderMap(tree, origin, caps, DEFAULTS['render.mapFew'])
+    arrival = renderMap(tree, origin, caps, DEFAULTS['render.mapFew'], undefined, { chars: DEFAULTS['answer.headChars'], given: new Map() })
   }
   await ctx.close()
   times.sort((a, b) => a - b)
-  if (dump) { mkdirSync(dump, { recursive: true }); writeFileSync(`${dump}/${name}.txt`, body); writeFileSync(`${dump}/${name}.map.txt`, map) }
+  if (dump) { mkdirSync(dump, { recursive: true }); writeFileSync(`${dump}/${name}.txt`, body); writeFileSync(`${dump}/${name}.map.txt`, map); writeFileSync(`${dump}/${name}.arrival.txt`, arrival) }
 
   const row = {
     page: name,
@@ -65,6 +67,7 @@ for (const { name, url, facts = [] } of pages) {
     lines: body.split('\n').length,
     chars: body.length,
     mapChars: map.length,
+    arrivalChars: arrival.length,
     refs: (body.match(/\[\d+\]/g) ?? []).length,
     facts: {},
   }
@@ -74,7 +77,7 @@ for (const { name, url, facts = [] } of pages) {
     if (count < min) { failed = true; console.error(`  MISSING ${name}: "${label}" ${count} < ${min}`) }
   }
   results.push(row)
-  console.log(`${name.padEnd(15)} read p50 ${String(row.readMsP50).padStart(4)}ms max ${String(row.readMsMax).padStart(4)}ms  ${String(row.lines).padStart(4)} lines ${String(row.chars).padStart(6)} chars ${String(row.mapChars).padStart(5)} map ${String(row.refs).padStart(4)} refs  ${JSON.stringify(row.facts)}`)
+  console.log(`${name.padEnd(15)} read p50 ${String(row.readMsP50).padStart(4)}ms max ${String(row.readMsMax).padStart(4)}ms  ${String(row.lines).padStart(4)} lines ${String(row.chars).padStart(6)} chars ${String(row.mapChars).padStart(5)} map ${String(row.arrivalChars).padStart(5)} on arrival ${String(row.refs).padStart(4)} refs  ${JSON.stringify(row.facts)}`)
 }
 await browser.close()
 if (save) writeFileSync(new URL('./results/baseline.json', import.meta.url), JSON.stringify(results, null, 2))

@@ -94,6 +94,18 @@ export const TASKS = [
         out = await t.bl('steps', `click "${next}"; find Founded; find Next:`)
       }
     },
+    // What the manual says to do: open the page, and go deeper only where the answer does not have what is needed.
+    plain: async t => {
+      const founded = []
+      let out = await t.bl('tab', `${t.base}/org/1`)
+      for (;;) {
+        if (!/Founded in/.test(out)) out = await t.bl('read', ref(out, 'main'))
+        founded.push(Number(out.match(/Founded in (\d+)/)?.[1]))
+        const next = out.match(/link "(Next: [^"]+)"/)?.[1]
+        if (!next) return founded
+        out = await t.bl('click', next)
+      }
+    },
     check: found => JSON.stringify(found) === JSON.stringify(ORGS.map(o => o.founded)),
   },
   {

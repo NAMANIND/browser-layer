@@ -210,6 +210,19 @@ row makes an 8,000 to 10,000 character "preview".
 *Done when.* A4 is 15 calls (16 today: finding 6); no answer in any floor script exceeds its budget; `npm run measure`
 map sizes do not grow by more than 10%. The view rule cannot be shown by a floor (A3 is already one call a page for a
 perfect agent): it is kept only if agent runs in phase 4 show fewer calls per page opened.
+*Built, 13 Nov, three parts, each with a test that failed first:*
+1. A page arrives with its main landmark as text when that is no longer than `answer.headChars` (4,000), each list of
+   records in it as its one line; a map the agent asks for is still the map, and what was given is not sent again by a
+   `read`. Measured by a new `plain` row for A3 (open each page; read only where the answer lacks the fact): 40 calls,
+   1,009k read → 20 calls, 493k. On the corpus four first answers are unchanged and Google Flights grows from 1,805 to
+   2,443 characters (+35%, over the 10% set above): it now carries "61 results returned", "Cheapest from ₹6,475" and
+   the refs of the sort and tab controls, which the map had only as "actions: 9". Kept for phase 4 to judge.
+   A first version gave lists whole and raised every list-page row by 2k to 7k; with lists as one line no row rose.
+2. A failed action answers with the lines that changed since the agent's last view, when any did.
+3. A name two controls share means the one the command can act on. A4: 16 calls, 156k → 15 calls, 145k.
+*Not built:* one rule in place of the five. Nothing measured asks for it, and the dialog and long-read rules have their
+own evidence (DESIGN §9). The `--out` preview was not a defect: it is already cut at `answer.previewChars`; the
+8,000-character answers in the recorded run were several commands chained with `&&`.
 
 ### C6. Each thing is shown once, and the tool keeps the account (L2)
 *Rule.* DESIGN §1a already says it. It must hold for every kind of answer, not only the ones that remember.
@@ -244,7 +257,7 @@ Each item is one session in its own worktree from `agent-fixes`, test first, sma
 | Phase | Sessions (parallel within a phase) | Touches | Leaves |
 |---|---|---|---|
 | 0 ✅ | `bench/floor`: the site, checkers, par scripts for A1 to A5 and A7 in three modes, A6 | `bench/floor/` only | The measured table in §2 |
-| 1 | `resume` (C4; `get --all` ✅) · `readback` (C2; records ✅) · `one-view` (C5) | `daemon.ts` collect code · `data.ts`, `cli.ts` · `daemon.ts` view code | Floors after each |
+| 1 | `resume` (C4; `get --all` ✅) · `readback` (C2; records ✅) · `one-view` (C5 ✅, to be judged in phase 4) | `daemon.ts` collect code · `data.ts`, `cli.ts` · `daemon.ts` view code | Floors after each |
 | 2 | `join` (C1) · `columns` (C3) | collect code · `reader.ts`, `data.ts` | Floors after each |
 | 3 | `ledger` (C6) · `survive` (C7) | view code · `daemon.ts` start-up, `client.ts` | Floors after each |
 | 4 | Local agent gate on Haiku (short, long, and the floor tasks as prompts), then one paid run if the gate is clean | none | Gap to floor per task; RESULTS |

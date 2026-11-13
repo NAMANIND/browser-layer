@@ -411,8 +411,11 @@ async function mapView(tab: Tab, snap?: Awaited<ReturnType<typeof snapshot>>, se
   }
   remember(tab, text)
   const now = new Map<number, string>()
-  const map = renderMap(tree, origin, caps(), policy['render.mapFew'], { before: whole ? new Map() : tab.seen.map, now })
+  // A page that arrives comes with its main content when that is short (render.ts); a map the agent asked for is the map.
+  const given = new Map<number, string>()
+  const map = renderMap(tree, origin, caps(), policy['render.mapFew'], { before: whole ? new Map() : tab.seen.map, now }, whole ? undefined : { chars: policy['answer.headChars'], given })
   for (const [ref, whole] of now) tab.seen.map.set(ref, whole)
+  for (const [ref, text] of given) tab.seen.text.set(ref, text)
   if (!map.trim()) note = [note, 'no content yet: the page may still be loading; read again'].filter(Boolean).join('; ')
   return `${await header(tab)}${note ? `  — ${note}` : ''}${settled ? `  — settled: ${settled}` : ''}\n${await blocked(tab, tree)}\n${map}`
 }

@@ -6,7 +6,8 @@ import { cellsOf, COLLECTIONS, isHeaderRow, isTrigger, LANDMARKS, rowsOf, SPACE,
 const SEP = '\u0001'
 
 // urls (get --urls): links give their full address and pictures theirs; otherwise both are left out.
-export type Caps = { nameChars: number; labelChars: number; urls?: boolean }
+// brief: a collection of records is its one line, as in the map (its size and first record); get reads the records.
+export type Caps = { nameChars: number; labelChars: number; urls?: boolean; brief?: boolean }
 // The full text of each region the agent has already been shown (before), by ref; a region shown again
 // exactly as it was answers in one line. now collects this answer's regions, for the caller to keep.
 export type Seen = { before: Map<number, string>; now: Map<number, string> }
@@ -75,6 +76,14 @@ export function renderText(root: Node, origin: string, caps: Caps, seen?: Seen):
       flush()
       return
     }
+    const brief = caps.brief && n.ref && !inRow ? recordsLine(n, origin, { ...caps, brief: false }) : undefined
+    if (brief) {
+      flush()
+      lines.push(brief)
+      // Whatever else the container holds (a heading, pagination) is still read.
+      for (const c of n.children ?? []) if (!rowsOf(c).length) visit(c, false)
+      return
+    }
     // A collection of records starts with its own line, so `get <ref>` is in reach from the text as from
     // the map; then it reads as its contents, as a canvas does.
     if (n.ref && COLLECTIONS.has(n.role ?? '') && !inRow) {
@@ -116,11 +125,33 @@ export function findRef(n: Node, ref: number): Node | undefined {
 
 const FIELDS = new Set(['textbox', 'searchbox', 'combobox', 'checkbox', 'radio', 'switch', 'slider', 'spinbutton', 'listbox'])
 
+// A collection of records in one line: how many, and its first record that shows something, or a table's column
+// names (its header row is its schema, counted out of the records). Nothing for a collection without records.
+function recordsLine(n: Node, origin: string, caps: Caps): string | undefined {
+  if (!COLLECTIONS.has(n.role ?? '')) return undefined
+  const all = rowsOf(n)
+  const header = all.find(isHeaderRow)
+  const rows = all.filter(r => r !== header)
+  if (!rows.length) return undefined
+  const line = (r: Node) => clipTo(renderText({ block: true, children: [r] }, origin, caps).replace(/\n/g, ' · '), caps.nameChars)
+  const sample = header ? `columns ${cellsOf(header).map(c => renderText({ block: true, children: c.children }, origin, caps)).join(' · ')}` : `${line(rows.find(r => line(r)) ?? rows[0])}${rows.length > 1 ? ' …' : ''}`
+  return `[${n.ref}] ${n.role} of ${rows.length}: ${sample}`
+}
+
 // The page as regions, the way screen-reader users survey it: per landmark its headings, collections
 // (item count and the first item), fields, actions and links. Named when few, counted when many.
-export function renderMap(root: Node, origin: string, caps: Caps, few: number, seen?: Seen): string {
+// main: the main landmark is the page's primary content (WAI-ARIA). When its text, with each list of records as its
+// one line, is no longer than main.chars, it is given as that text, refs and all, in place of its summary: a summary
+// of a short article or form tells an agent nothing it can act on, and it reads the region in its next call. Records
+// stay one line, since get is how they are read. given collects what was given so.
+export function renderMap(root: Node, origin: string, caps: Caps, few: number, seen?: Seen, main?: { chars: number; given: Map<number, string> }): string {
   const out: string[] = []
   const summarize = (title: string, nodes: Node[], region?: Node) => {
+    if (region?.role === 'main' && main) {
+      if (seen && unchanged(region, renderText({ block: true, children: [region] }, origin, caps), seen)) return void out.push(`${title} — shown before, unchanged`)
+      const text = renderText({ block: true, children: [region] }, origin, { ...caps, brief: true })
+      if (text.length <= main.chars) { main.given.set(region.ref!, text); return void out.push(text) }
+    }
     const headings: string[] = []
     const lists: string[] = []
     const fields: Node[] = []
@@ -136,14 +167,9 @@ export function renderMap(root: Node, origin: string, caps: Caps, few: number, s
       // misuse, and the region is what the map shows.
       if (n.role === 'heading' && !withRefs(n).some(isRegion)) { headings.push(renderText({ block: true, children: n.children }, origin, caps)); return }
       if (COLLECTIONS.has(n.role ?? '')) {
-        // A table's header row is its schema: counted out of the records, shown as the column names.
-        const all = rowsOf(n)
-        const header = all.find(isHeaderRow)
-        const rows = all.filter(r => r !== header)
-        if (rows.length) {
-          const line = (r: Node) => clipTo(renderText({ block: true, children: [r] }, origin, caps).replace(/\n/g, ' · '), caps.nameChars)
-          const sample = header ? `columns ${cellsOf(header).map(c => renderText({ block: true, children: c.children }, origin, caps)).join(' · ')}` : `${line(rows.find(r => line(r)) ?? rows[0])}${rows.length > 1 ? ' …' : ''}`
-          lists.push(`[${n.ref}] ${n.role} of ${rows.length}: ${sample}`)
+        const records = recordsLine(n, origin, caps)
+        if (records) {
+          lists.push(records)
           // Whatever else the container holds (a heading, pagination) still belongs in the map, and so
           // does a collection nested inside one of its rows.
           const nestedLists = (r: Node): void => (r.children ?? []).forEach(c => (COLLECTIONS.has(c.role ?? '') ? walk(c) : nestedLists(c)))
