@@ -48,7 +48,9 @@ finding.
 | A4 Transact | A 12-step form: dependent dropdowns, a date picker, two validation errors to correct | interactions |
 | A5 Reduce | Three questions over 500 collected records: a filter, a top-10, a count per group | records |
 | A6 Endure | 600 calls in one session, the same 20-call loop repeated | calls |
-| A7 Recover | A1 again with the browser killed six seconds in (built). A crashed tab and an agent that starts from a blank context are not built yet | faults |
+| A7 Recover | A1 again with the browser killed six seconds in. A crashed tab is not built yet | faults |
+| A8 Forgets | Three tabs open and a file saved, then the agent's context is lost: the calls and characters to learn the tabs' addresses and the file's path, with `status` and with `tabs` and `map` | calls |
+| A9 Browser dies | The browser is killed with three tabs open; one fact is needed from each | faults |
 
 A third mode, **plain**, was added after the first run: the one command the manual names for the job and nothing an
 expert would add. A `plain` row that fails is the tool giving a wrong or no result to an agent that did what it was told.
@@ -135,9 +137,30 @@ After C2 for records and columns that line up (13 Nov): A5 tool-only 77k → 29k
 5,789 characters for the new `get` lines, which every call re-reads: A3 203k → 206k, A4 153k → 156k. That is the price
 of any new verb, and it is paid most by the tasks that already cost most. Tests 148 → 153, `npm run measure` unchanged.
 
+### After C7 (13 Nov)
+
+Floors before (`e10de00`, run again with these tasks) and after:
+
+| Row | Before | After |
+|---|---|---|
+| A8 agent forgets: tabs and map | 2 calls, 734 chars, 19k read: the tabs, the page; **the file is not found** (nothing lists files) | same: it is the best a build without `status` can do |
+| A8 agent forgets: `status` | not possible | 1 call, 734 chars, 13k read: the tabs and the file |
+| A9 browser dies, a fact from each of 3 tabs | 2 calls (`use` fails: no tab 1; open the three again, whose maps hold the facts), 2,411 chars, 21k read | 1 call, 2,633 chars, 15k read |
+| A7 browser dies while collecting | 4 calls, 35k read | 4 calls, 36k read (the one new manual line) |
+| A6 keeping tabs: browser memory, first → last 60 calls | 1,929 → 5,097 MB in 18 → 46 processes | 1,483 → 1,492 MB in 14 → 14 processes |
+| A6 keeping tabs: characters answered per 60 calls | 25,617 → 39,959 | 29,198 → 30,877 |
+| A6 keeping tabs: time per call p50 | 478 → 488 ms | 461 → 467 ms |
+| A6 closing tabs: p50 / browser | 489 → 473 ms, 486 → 502 MB | 478 → 458 ms, 483 → 498 MB |
+
+The manual grew from 6,042 to 6,163 characters (the `status` line, which every call re-reads): A3 212k → 215k, A4 148k →
+150k, A5 30k → 31k read, and no other row moved. Tests 157 → 161; `npm run measure` unchanged and exits 0. A9 and A7 are not the
+same fault: A7's agent must still open the list again to get a ref (a restart gives new refs), so it stays 4 calls.
+Memory with tabs left open is bounded by `tabs.max`: 40 tabs opened, 8 kept (the browser holds 14 processes, 1.5 GB: the
+8 tabs, the daemon's own pages and the browser's fixed processes).
+
 What this changes below: C1's number is the `plain` rows, not the call count; C5 and C6 cannot be shown by a floor (a
 perfect agent never reads twice or looks after an error it did not make) and are judged on recorded runs and in phase 4;
-C7 loses its worry about session length and keeps the tab bound and the restore.
+C7 loses its worry about session length and keeps the tab bound and the restore (built, see below).
 
 ## 3. The contracts
 
@@ -259,7 +282,7 @@ something the tool states.
 *Done when.* A7 repeats no page already saved; the slow-server and re-rendering `plain` rows are done; no `plain` row
 says a list ended when it did not.
 *Done for `get --all`, 13 Nov* (floors below). A7 stays at 4 calls: the fourth is opening the page again after the browser
-died, which is C7's.
+died (C7 restores the tab, but a restart gives its list new refs, so it is still read again).
 *Done for `each --out` and bulk `open --out`, 13 Nov.* The file is written as each page finishes (`bulkRun` in
 `render.ts`), and beside it, while any page is failed or missing, `<file>.unfinished` holds the command and its
 addresses in order. The same command run again (same read, same addresses, so `--from` too, whose addresses are those
@@ -311,19 +334,26 @@ removed in the same change.
 *Done when.* Replaying the recorded reads through the new code, repeated characters fall from 25% to under 5%; then the
 local agent gate shows no more look-back calls than before (a ledger that hides what the agent needs shows up there).
 
-### C7. Call 600 costs what call 6 costs, and a session survives (L3)
+### C7. Call 600 costs what call 6 costs, and a session survives (L3) ✅
 *Rule.* Time per call, memory and what an answer carries do not grow with the length of the session. A browser that
 dies, or an agent that lost its context, costs one call to be back where it was.
-*State today.* Nothing tests a long session. Tabs pile up (31 opened in one task) with no bound. When the browser goes away the
-next command starts a fresh one with no tabs. An agent whose context was compacted has no way to ask where it is.
-*Build.*
-1. A6 stays as the check (session length is flat today: finding 8).
-2. The session's tabs (address, which is current) are kept on disk; a new daemon reopens them, as `show`/`hide` already do.
-3. `status`: the session's tabs, the files it saved with their sizes and endings (C4), and the last few calls with how
-   each ended. One call puts an agent with a blank context back in the task.
-4. A bound on tabs per session, closing the least recently used; its address stays in `status`. A6 measured about
-   110 MB a tab and no cost in time at 40 tabs, so the bound is about memory: the number comes from that.
-*Done when.* A6 holds its budgets; A7's "browser dies" and "agent forgets" each cost at most 2 calls.
+*State before.* Nothing tested a long session. Tabs piled up (31 opened in one task) with no bound. When the browser
+went away the next command started a fresh one with no tabs. An agent whose context was compacted had no way to ask
+where it was.
+*Built (13 Nov, `survive`).*
+1. A6 stays as the check (session length is flat: finding 8).
+2. After every command each session's tabs (id, address, last use, which is current) are written to `<home>/kept.json`;
+   a new daemon reopens them with the same ids before it answers. `stop` deletes the file; attached to a person's Chrome
+   nothing is written or restored (DESIGN §10).
+3. `status`: the session's tabs, the addresses of tabs let go, the files saved with `--out` (an unfinished `get --all`
+   says so: `<file>.unfinished`) and the last `status.calls` (5) calls with the first line of each answer. The files are a
+   log, `<home>/saved.log`, that the daemon and the CLI's plain `open --out` both append to, so a restart loses none.
+4. `tabs.max` (8): after a command the session's least recently used tabs past it close, never the current one; the
+   answer names them and `status` keeps their addresses, which an idle session's dropped tabs (`sessions.idleMs`) join.
+   The number is from A6's 110 MB a tab (DESIGN §9).
+*Not built.* A crashed tab (the renderer dies, the browser lives). Page state: a half-filled form or scroll position does
+not come back, only the address. A `status` for plain `open` calls (they never reach the daemon, so their answers are not
+in the last calls; their `--out` files are listed).
 
 ## 4. Order, and how to run it
 
@@ -334,7 +364,7 @@ Each item is one session in its own worktree from `agent-fixes`, test first, sma
 | 0 ✅ | `bench/floor`: the site, checkers, par scripts for A1 to A5 and A7 in three modes, A6 | `bench/floor/` only | The measured table in §2 |
 | 1 | `resume` (C4; `get --all` ✅) · `readback` (C2; records ✅) · `one-view` (C5 ✅, to be judged in phase 4) | `daemon.ts` collect code · `data.ts`, `cli.ts` · `daemon.ts` view code | Floors after each |
 | 2 | `join` (C1 ✅) · `columns` (C3; across pages ✅) | collect code · `reader.ts`, `data.ts` | Floors after each |
-| 3 | `ledger` (C6) · `survive` (C7) | view code · `daemon.ts` start-up, `client.ts` | Floors after each |
+| 3 | `ledger` (C6) · `survive` (C7 ✅) | view code · `daemon.ts` start-up, `client.ts` | Floors after each |
 | 4 | Local agent gate on Haiku (short, long, and the floor tasks as prompts), then one paid run if the gate is clean | none | Gap to floor per task; RESULTS |
 
 If two sessions are to edit the collect code at once, it first moves out of `daemon.ts` into `src/collect.ts` with no

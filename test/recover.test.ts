@@ -47,3 +47,59 @@ test('Chrome killed and slow to come back: every session waits for the one daemo
   assert.ok(results.every(r => r.code === 0 || /browser stopped/.test(r.out)), results.map(r => r.out).join('\n'))
   assert.equal(readFileSync(join(home, 'daemon.log'), 'utf8').split('\n').filter(l => l.startsWith('browser-layer daemon on')).length, 2)
 })
+
+const tabsNow = async (session: string) => (await run('--session', session, 'tabs')).out.trim().split('\n').map(l => l.replace(/ used .*/, ''))
+const killBrowser = async () => {
+  execFileSync('pkill', ['-9', '-f', `user-data-dir=${join(home, 'profile')}`])
+  await new Promise(r => setTimeout(r, 1500))
+}
+
+test('a browser killed with tabs open comes back with the same tabs, the current one still current', async () => {
+  await run('stop')
+  await run('--session', 'keep', 'tab', `${base}/a`)
+  await run('--session', 'keep', 'tab', `${base}/b`)
+  const first = (await tabsNow('keep')).find(l => l.includes('/a'))!.trim().split(/\s+/)[0]
+  await run('--session', 'keep', 'use', first)
+  const before = await tabsNow('keep')
+  assert.match(before[0], /^\* \d+ .*\/a /)
+  await killBrowser()
+  assert.deepEqual(await tabsNow('keep'), before)
+})
+
+test('stop ends the session: a browser that died and was then stopped restores nothing', async () => {
+  await run('--session', 'keep', 'tab', `${base}/c`)
+  await killBrowser()
+  await run('stop')
+  assert.match((await run('--session', 'keep', 'tabs')).out, /no live tabs/)
+})
+
+test('status puts an agent with no context back in its task: the tabs, the files it saved, its last calls; and it survives the browser dying', async () => {
+  await run('stop')
+  const dir = mkdtempSync(join(tmpdir(), 'al-out-'))
+  const [text, rows, plain] = ['page.txt', 'rows.tsv', 'plain.html'].map(f => join(dir, f))
+  await run('--session', 'st', 'tab', `${base}/a`)
+  await run('--session', 'st', 'tab', `${base}/b`)
+  await run('--session', 'st', 'read', '--out', text)
+  await run('--session', 'st', 'find', 'plain', '--out', rows)
+  await run('--session', 'st', 'open', `${base}/c`, '--out', plain)
+  writeFileSync(`${rows}.unfinished`, `${base}/a\n${base}/b\nc1`)
+  const status = async () => (await run('--session', 'st', 'status')).out
+  const check = async () => {
+    const out = await status()
+    assert.match(out, /^tabs:\n\* \d+  \S+\/b  "p"  used .*\n  \d+  \S+\/a  "p"/m, out)
+    assert.match(out, new RegExp(`files:\\n  ${plain}  \\d+ B\\n  ${rows}  \\d+ B  unfinished: run the same get --all again\\n  ${text}  \\d+ B`), out)
+    assert.match(out, /calls:\n(.*\n)*  find plain → saved /, out)
+    assert.ok(out.length < 1500, `${out.length} chars`)
+  }
+  await check()
+  await killBrowser()
+  await check()
+  assert.doesNotMatch(await status(), /status/, 'the status call is not one of the calls it lists')
+  await run('--session', 'st', 'steps', 'find plain; type 7 hunter2')
+  const typed = await status()
+  assert.match(typed, /steps find plain; type 7 →/)
+  assert.doesNotMatch(typed, /hunter2/, 'what was typed (a password) is not kept on disk')
+  await run('stop')
+  assert.doesNotMatch(await status(), /files:|calls:/, 'stop ends the session')
+  rmSync(dir, { recursive: true, force: true })
+})

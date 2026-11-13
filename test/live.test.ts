@@ -782,8 +782,9 @@ test('a page that refuses the browser says so, and how a person can clear it', a
   assert.doesNotMatch((await run('go', `${base}/longmenu`)).out, /blocked:/)
 })
 
-test('a daemon from another version (the CLI was updated) stops, and the next command starts a fresh one', async () => {
+test('a daemon from another version (the CLI was updated) stops, and the next command starts a fresh one with the same tabs', async () => {
   await run('tab', `${base}/longmenu`)
+  const before = (await run('tabs')).out.replace(/ used .*/g, '')
   process.env.BROWSER_LAYER_HOME = home
   const { socketPath } = await import('../src/client.js')
   const reply = await new Promise<string>((done, fail) => request({ socketPath: socketPath(), method: 'POST', path: '/' }, res => {
@@ -791,7 +792,7 @@ test('a daemon from another version (the CLI was updated) stops, and the next co
     res.on('data', d => (body += d)).on('end', () => done(body))
   }).on('error', fail).end(JSON.stringify({ cmd: 'tabs', session: 'default', version: '0.0.0' })))
   assert.deepEqual(JSON.parse(reply), { ok: false, stale: true })
-  assert.match((await run('tabs')).out, /no live tabs/)
+  assert.equal((await run('tabs')).out.replace(/ used .*/g, ''), before)
   assert.match((await run('tab', `${base}/longmenu`)).out, /"longmenu"/)
 })
 
@@ -1606,10 +1607,15 @@ test("attached to a person's own Chrome: it works in tabs of its own, leaves the
     assert.ok(port, 'the browser never wrote its debugging port')
     const mine = mkdtempSync(join(tmpdir(), 'at-'))
     const attached = (...args: string[]) => runIn(mine, '--attach', port, ...args)
+    // Tabs a daemon kept (from a launched browser) are not reopened in a person's Chrome.
+    mkdirSync(join(mine, 'attached'), { recursive: true })
+    writeFileSync(join(mine, 'attached', 'kept.json'), JSON.stringify({ next: 5, sessions: { default: { tabs: [{ id: 4, url: `${base}/restored`, used: 0 }], current: 4 } } }))
     assert.match((await attached('tab', `${base}/longmenu`)).out, /"longmenu"/)
     const tabs = (await attached('tabs')).out
     assert.match(tabs, /\/longmenu/)
-    assert.doesNotMatch(tabs, /\/theirs/)
+    assert.doesNotMatch(tabs, /\/theirs|\/restored/)
+    const there = (await (await fetch(`http://127.0.0.1:${port}/json`)).json() as { url: string }[]).map(t => t.url)
+    assert.ok(!there.some(u => u.endsWith('/restored')), `a tab was opened that nobody asked for: ${there}`)
     assert.match((await attached('allow', 'geolocation', '1,2')).out, /cannot change a person's own browser/)
     assert.equal(existsSync(join(mine, 'attached', 'cookies.json')), false)
     await attached('stop')

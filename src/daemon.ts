@@ -13,6 +13,7 @@ import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFil
 import { fromTsv, group, query, records, toTsv, where, type Query, type Records } from './data.js'
 import { pidPath, ping, socketPath, VERSION } from './client.js'
 import { loadPolicy, type Policy } from './policy.js'
+import { forgetKept, loadKept, noteSaved, savedFiles, saveKept, trimSaved, type Kept } from './kept.js'
 
 // Decoration the agent never needs; DESIGN §1 principle 3. Never requested.
 const DECORATION = new Set(['image', 'font', 'media'])
@@ -162,7 +163,7 @@ export type Command = {
 } & Query
 
 // Commands that only read a page, for the shorter time limit.
-const READS = new Set(['read', 'map', 'find', 'get', 'screenshot', 'net', 'tabs', 'cookies', 'storage'])
+const READS = new Set(['read', 'map', 'find', 'get', 'screenshot', 'net', 'tabs', 'status', 'cookies', 'storage'])
 
 // Tab ids are unique across the daemon; each session (one agent, one task) has its own current tab.
 const tabs = new Map<number, Tab>()
@@ -171,6 +172,70 @@ let nextId = 1
 let ctx: BrowserContext
 let browser: Browser | undefined
 let policy: Policy
+
+// Each session's tabs are written after every command; the next daemon reopens them (a browser or daemon that died
+// takes its tabs with it). A tab with no address of its own has nothing to reopen. Attached, the daemon never opens a
+// tab it was not asked for, so nothing is written or restored.
+let kept: Kept = { next: 1, sessions: {} }
+function persist() {
+  if (ATTACH) return
+  for (const s of Object.values(kept.sessions)) { s.tabs = []; delete s.current }
+  for (const t of tabs.values()) {
+    const url = t.page.url()
+    if (/^(about|chrome-error):/.test(url)) continue
+    const s = (kept.sessions[t.session] ??= { tabs: [], gone: [], calls: [] })
+    s.tabs.push({ id: t.id, url, used: t.used })
+    s.gone = s.gone.filter(u => u !== url)
+    if (current.get(t.session) === t.id) s.current = t.id
+  }
+  for (const [name, s] of Object.entries(kept.sessions)) if (!s.tabs.length && !s.gone.length) delete kept.sessions[name]
+  kept.next = nextId
+  saveKept(kept)
+}
+
+// Tabs keep their ids and their order of use, so what the agent was told about them still holds.
+async function restore() {
+  kept = loadKept()
+  const opened: { tab: Tab; url: string }[] = []
+  for (const [session, s] of Object.entries(kept.sessions)) {
+    for (const t of s.tabs) {
+      nextId = t.id
+      const tab = await setupTab(session, await ctx.newPage())
+      tab.used = t.used
+      opened.push({ tab, url: t.url })
+    }
+    if (s.current && tabs.has(s.current)) current.set(session, s.current)
+  }
+  nextId = Math.max(kept.next, nextId)
+  await Promise.allSettled(opened.map(({ tab, url }) => tab.page.goto(url, COMMIT())))
+}
+
+// What the agent last did, for `status`: the call, and the first line of what it was told.
+function logCall(c: Command, answer: string) {
+  if (c.cmd === 'status') return
+  const s = (kept.sessions[c.session] ??= { tabs: [], gone: [], calls: [] })
+  // Text typed (a password the task gave) is not written to disk.
+  const said = (t: Command) => (t.cmd === 'type' ? `type ${t.ref}` : t.raw ?? t.cmd)
+  const call = [c.cmd, c.steps?.map(said).join('; ') ?? c.url ?? c.ref ?? c.file ?? c.text ?? c.id].filter(x => x !== undefined).join(' ')
+  s.calls = [...s.calls, `${call.slice(0, policy['status.lineChars'] / 2)} → ${answer.split('\n')[0].slice(0, policy['status.lineChars'])}`].slice(-policy['status.calls'])
+  for (const file of [c.out, ...(c.steps ?? []).map(t => t.out)]) if (file && existsSync(file)) noteSaved(c.session, file)
+}
+
+// A tab let go stays in the session's record, so its address can be opened again.
+async function letGo(t: Tab) {
+  const url = t.page.url()
+  const s = (kept.sessions[t.session] ??= { tabs: [], gone: [], calls: [] })
+  s.gone = [url, ...s.gone.filter(u => u !== url)].slice(0, policy['tabs.max'])
+  await t.page.close().catch(() => {})
+}
+
+// A tab costs about 110 MB (DESIGN §9): past tabs.max the least recently used closes, and never the current one.
+async function limitTabs(session: string): Promise<string> {
+  const mine = [...tabs.values()].filter(t => t.session === session)
+  const over = mine.filter(t => t.id !== current.get(session)).sort((a, b) => a.used - b.used).slice(0, Math.max(0, mine.length - policy['tabs.max']))
+  await Promise.all(over.map(letGo))
+  return over.length ? `\nnote: closed tab ${over.map(t => t.id).join(', ')} (least recently used; at most ${policy['tabs.max']} tabs a session): status lists the address` : ''
+}
 
 function toBrowser(c: Cookie) {
   return { name: c.name, value: c.value, domain: c.hostOnly ? c.domain : `.${c.domain}`, path: c.path, expires: c.expires ? c.expires / 1000 : -1, secure: !!c.secure }
@@ -1445,6 +1510,19 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     const now = current.get(c.session)
     return now ? `closed tab ${tab.id}; now on tab ${now}` : `closed tab ${tab.id}; no live tabs left in session "${c.session}"`
   },
+  // Where the agent stands, for one that lost its context: the session's tabs, the addresses it let go of, the files it
+  // saved (an unfinished `get --all` says so) and its last calls.
+  async status(c) {
+    const s = kept.sessions[c.session]
+    const files = (savedFiles().get(c.session) ?? []).slice(0, policy['status.files'])
+    const size = (n: number) => (n < 1000 ? `${n} B` : n < 1e6 ? `${Math.round(n / 1000)} KB` : `${(n / 1e6).toFixed(1)} MB`)
+    return [
+      `tabs:\n${await COMMANDS.tabs(c)}`,
+      ...(s?.gone.length ? [`closed (tab <address> opens one again):\n${s.gone.map(u => `  ${u}`).join('\n')}`] : []),
+      ...(files.length ? [`files:\n${files.map(f => `  ${f}  ${size(statSync(f).size)}${existsSync(`${f}.unfinished`) ? '  unfinished: run the same get --all again' : ''}`).join('\n')}`] : []),
+      ...(s?.calls.length ? [`calls:\n${s.calls.map(l => `  ${l}`).join('\n')}`] : []),
+    ].join('\n')
+  },
   async state(c) {
     return JSON.stringify([...tabs.values()].map(t => ({ session: t.session, url: t.page.url(), current: current.get(t.session) === t.id })))
   },
@@ -1459,7 +1537,7 @@ async function dropIdle(running: string) {
   const lastUse = new Map<string, number>()
   for (const t of tabs.values()) lastUse.set(t.session, Math.max(lastUse.get(t.session) ?? 0, t.used))
   const stale = [...lastUse].filter(([s, used]) => s !== running && Date.now() - used > policy['sessions.idleMs']).map(([s]) => s)
-  await Promise.all([...tabs.values()].filter(t => stale.includes(t.session)).map(t => t.page.close().catch(() => {})))
+  await Promise.all([...tabs.values()].filter(t => stale.includes(t.session)).map(letGo))
 }
 
 async function run(c: Command): Promise<string> {
@@ -1559,6 +1637,9 @@ async function main() {
     parent.opened.push(tab.id)
   })
 
+  trimSaved(policy['status.files'])
+  if (!ATTACH) await restore()
+
   const queues = new Map<string, Promise<void>>()
   let idle: NodeJS.Timeout
   // `stop` answers only after Chrome has exited, so a caller can safely delete the profile next.
@@ -1594,7 +1675,7 @@ async function main() {
         return
       }
       if (c.cmd === 'stop') {
-        void shutdown(text => res.end(JSON.stringify({ ok: true, text }), () => process.exit(0)))
+        void shutdown(text => { forgetKept(); res.end(JSON.stringify({ ok: true, text }), () => process.exit(0)) })
         return
       }
       // The CLI was updated under a running daemon: this one's code is old, so it exits and the CLI starts
@@ -1609,13 +1690,17 @@ async function main() {
       queues.set(c.session, (queues.get(c.session) ?? Promise.resolve()).then(async () => {
         try {
           await pullCookies()
-          const text = ceiling(repeated(c, await (c.cmd === 'steps' || c.cmd === 'each' || (c.cmd === 'get' && c.all) ? run(c) : limited(c))), policy)
+          const answer = await (c.cmd === 'steps' || c.cmd === 'each' || (c.cmd === 'get' && c.all) ? run(c) : limited(c)) + await limitTabs(c.session)
+          logCall(c, answer)
+          const text = ceiling(repeated(c, answer), policy)
           await syncCookies().catch(() => {})
           res.end(JSON.stringify({ ok: true, text }))
         } catch (err) {
           const error = err instanceof Error ? err.message.split('\n')[0] : String(err)
+          logCall(c, `error: ${error}`)
           res.end(JSON.stringify({ ok: false, error: ACTIONS.has(c.cmd) && !/did not answer in/.test(error) ? error + await pageNow(c.session) : error }))
         }
+        if (!stopping) persist()
       }))
     })
   })

@@ -9,6 +9,7 @@ import { extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { home } from './session.js'
 import { findBrowser } from './browser.js'
+import { forgetKept } from './kept.js'
 import type { Command } from './daemon.js'
 
 // Windows has no Unix sockets; a named pipe, named after the home dir, plays the same part.
@@ -89,6 +90,8 @@ function startDaemon(): number | undefined {
 }
 
 export async function live(c: Command): Promise<Reply> {
+  // A browser that died leaves its tabs to be restored; `stop` is what says they are not wanted, whether or not a daemon is there to hear it.
+  if (c.cmd === 'stop') forgetKept()
   // Each of a call's steps (each page of an `each`) has the daemon's own time limit, so the call waits for all of them.
   // A list being collected has that limit per page and the daemon's bound on pages, so the call has no limit of its own;
   // nor has an `each` whose pages the daemon finds (--from).

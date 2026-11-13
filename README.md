@@ -57,7 +57,8 @@ hit sites that block automated browsers, which lowers both scores.
   footer's link lists are gone, and a repeated call that gets the same answer says so.
 - **Agents side by side.** Each `--session` has its own command queue, so agents do not wait on each other.
   `stop` in a named session closes only that session's tabs, `close --all` closes all of them in one call,
-  and a session idle for 15 minutes loses its tabs when another session runs.
+  and a session idle for 15 minutes loses its tabs when another session runs. A session keeps at most 8 tabs (the
+  least recently used closes), and its tabs come back when the browser dies; `status` says where a session stands.
 - **More controls found.** Date, time and colour inputs, contenteditable editors, hover targets and scrollers
   now get a ref.
 - **Steadier daemon.** The client waits for a daemon that is still starting Chrome, a command is not sent

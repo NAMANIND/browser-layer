@@ -48,6 +48,7 @@ Plain HTTP, no browser:  open <url…>|<ref> [--out f] (pages fetched in paralle
 Live tabs (headless browser, runs the page's JS):
   tab <url…>                   open tabs (several load together; the first is current; an open page is switched to)
   go <url> · back · forward · reload · tabs · use <id> · close [id|--all] · stop
+  status                       tabs, files saved with --out, last calls: where you stand after a pause or a lost context
   each '<read>' <url…>         load pages together, run one read on each, one answer; its tabs close (--out <file>: a line per page;
                                --from <ref|file> in place of urls: the pages a list's records link to)
   map                          regions, fields, actions, lists and links, with refs

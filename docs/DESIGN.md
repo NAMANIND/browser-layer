@@ -363,7 +363,7 @@ was opened is: read before it has parsed (its head waiting on a script), it is e
 
 | Capability | Commands |
 |---|---|
-| Navigation | `tab <url…>` (several load together and each answers with its map, the first is current; a page already open in the session switches to its tab), `go <url>`, `back`, `forward`, `reload`, `tabs` (by last use), `use`, `close [id]` (`--all`: every tab of the session), `stop` (the browser; in a named session it closes that session's tabs and leaves the browser to the others) |
+| Navigation | `tab <url…>` (several load together and each answers with its map, the first is current; a page already open in the session switches to its tab), `go <url>`, `back`, `forward`, `reload`, `tabs` (by last use; at most `tabs.max` a session, the least recently used closes), `use`, `status` (where the session stands: its tabs, the addresses of tabs let go, the files it saved with `--out` and whether a `get --all` file is unfinished, its last calls with the first line of each answer; for an agent that lost its context), `close [id]` (`--all`: every tab of the session), `stop` (the browser; in a named session it closes that session's tabs and leaves the browser to the others) |
 | Reading | `map`, `read [ref] [--page N]`, `find <text>` (`--urls`: each link with its address), `get <ref|file>` (records: of a list, or of a file `get` saved), `wait [--gone] <text>` (matched as `find` matches: case and runs of spaces do not matter) |
 | Menus | `explore [ref]`, `menu "A > B > C"` |
 | Pointer | `click`, `dblclick`, `rightclick`, `hover`, `drag <ref> <onto ref>` (pointer drags and HTML drag and drop) |
@@ -443,6 +443,10 @@ Keys are added when the phase that uses them lands.
 | `open.perHost` | 6 | Of those, at most this many on one site: the connections a browser opens to one host (HTTP/1.1 practice), so a bulk fetch is no heavier on a site than a person's page load |
 | `sessions.max` | 8 | Parallel sessions |
 | `sessions.idleMs` | 900000 | A session unused this long loses its tabs when another session runs a command, so it stops holding a slot of `sessions.max` |
+| `tabs.max` | 8 | Tabs a session holds. A tab left open costs about 110 MB of browser memory (A6: 40 tabs held 5,097 MB in 46 processes; 600 calls that closed their tabs held 502 MB) and makes every `tabs` answer longer, with no cost in time. Eight is under 1 GB a session; one recorded task opened 31 tabs and left them. Past it, after a command, the least recently used tab closes (never the current one); the answer says which, and `status` keeps its address so it can be opened again |
+| `status.calls` | 5 | Calls `status` lists: enough to tell what the agent was doing, short enough that the answer, which is paid for on every later call, stays under about 1,500 characters |
+| `status.files` | 10 | Files `status` lists (the newest), and the most `<home>/saved.log` keeps a session |
+| `status.lineChars` | 100 | A call's line in `status` is cut here: the answer's first line at this size, the call at half |
 | `load.timeoutMs` | 30000 | Navigation timeout (until the response begins); for a plain HTTP fetch (`open`, `do`), the limit on each request, headers and body |
 | `load.domMs` | 10000 | Wait for the document; after it, the page is read as far as it got |
 | `load.retryMs` | 8000 | Longest wait before loading a page again after a 429 |
@@ -462,6 +466,16 @@ Keys are added when the phase that uses them lands.
   run side by side, so agents working in parallel, each in its own `--session`, wait on pages together, not
   one after another. The cookie jar is read back only when the fast path wrote it, so one session's page
   rotating a cookie is never undone by another's command.
+- A session's tabs survive the browser or the daemon dying (LONG-TASKS C7): after every command each tab's id, address and
+  last use, and which is current, are written to `<home>/kept.json` (whole file, renamed into place). The next daemon
+  opens them again before it answers anything, with the same ids, and the one that was current is current. `stop` (and
+  the browser's own `stop` when no daemon is there to hear it) deletes the file: a clean stop ends the sessions, and
+  nothing is restored after it. Attached to a person's Chrome nothing is written and nothing is restored: that daemon
+  only ever opens what a command asks for. Page state (a half-filled form, scroll position) is not kept.
+- `status` reads three records: the live tabs; `<home>/kept.json` (the addresses of tabs let go, the last calls, kept with
+  the tabs); and `<home>/saved.log` (one `session<TAB>path` line for each file a command saved with `--out`, appended by
+  the daemon and by the CLI's plain `open --out`, so a restart loses none; rewritten once at start-up to the newest
+  `status.files` a session that still exist). `stop` deletes both files.
 - `~/.browser-layer/<profile>/`: browser profile, downloads, HAR logs (bounded, `Cookie` /
   `Authorization` / `Set-Cookie` redacted before disk), daemon log.
 - The `http` engine reads and writes cookies through the browser profile; no separate jar file.
