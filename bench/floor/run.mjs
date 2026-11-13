@@ -40,6 +40,10 @@ export function runner(base, shell) {
     sh: command => { if (!shell) throw new Error('a tool-only script has no shell'); return exec('/bin/bash', ['-c', command], command) },
     out: name => join(home, 'out', name),
     saved: () => readdirSync(join(home, 'out')).map(f => readFileSync(join(home, 'out', f), 'utf8')).join('\n'),
+    // Setup a task starts from, not part of what it costs.
+    quiet: (...args) => exec(process.execPath, [cli, ...args], '', false),
+    // The browser's processes killed outright, and a moment for the daemon that held them to go.
+    killBrowser: () => new Promise(done => execFile('pkill', ['-9', '-f', join(home, 'profile')], () => setTimeout(done, 1500))),
     killBrowserIn: ms => setTimeout(() => execFile('pkill', ['-f', join(home, 'profile')], () => {}), ms),
     end: async () => { await exec(process.execPath, [cli, 'stop'], '', false); rmSync(home, { recursive: true, force: true }) },
   }

@@ -45,6 +45,17 @@ const fill = {
   Newsletter: () => 'check Newsletter', Terms: () => 'check Terms', Address: v => `type Address "${v}"`, Postcode: v => `type Postcode ${v}`,
 }
 
+// A8: an agent whose context was lost, with tabs open and a file saved. It must learn where things stand: the tabs'
+// addresses and the file's path. A9: the browser dies with three tabs open and one fact is needed from each.
+const pagesOf3 = t => ITEMS.slice(0, 3).map(it => `${t.base}/item/${it.sku}`)
+const standing = async t => {
+  await t.quiet('tab', ...pagesOf3(t))
+  await t.quiet('get', ref(await t.quiet('tab', `${t.base}/list/rel`), 'list of 20'), '--all', '--out', t.out('all.tsv'))
+  t.calls.length = 0
+}
+const knowsTabs = (t, found) => [...pagesOf3(t), `${t.base}/list/rel`].every(u => found.includes(u))
+const weights = (out, t) => pagesOf3(t).every((_, i) => out.includes(ITEMS[i].weight))
+
 export const TASKS = [
   collect('rel', getAll),
   collect('scroll', getAll),
@@ -144,6 +155,30 @@ export const TASKS = [
       }
     },
     check: reducedRight,
+  },
+  {
+    id: 'A8 agent forgets: status',
+    tool: async t => { await standing(t); await t.bl('status') },
+    check: (_, t) => { const found = t.calls.map(c => c.answer).join('\n'); return knowsTabs(t, found) && found.includes(t.out('all.tsv')) },
+  },
+  // Without status: the tabs and the page. Nothing lists the files, so the file is not found.
+  {
+    id: 'A8 agent forgets: tabs and map',
+    tool: async t => { await standing(t); await t.bl('tabs'); await t.bl('map') },
+    check: (_, t) => { const found = t.calls.map(c => c.answer).join('\n'); return knowsTabs(t, found) && (found.includes(t.out('all.tsv')) || 'tabs known, file not found') },
+  },
+  {
+    id: 'A9 browser dies with 3 tabs open: a fact from each',
+    tool: async t => {
+      const pages = pagesOf3(t)
+      await t.quiet('tab', ...pages)
+      await t.killBrowser()
+      const facts = () => t.bl('steps', pages.map((_, i) => `use ${i + 1}; read`).join('; '))
+      const out = await facts()
+      // Opening the pages again answers with their maps, which hold the facts: nothing more to read.
+      return /error:|stopped at step/.test(out) ? t.bl('tab', ...pages) : out
+    },
+    check: weights,
   },
   // A7: the browser dies six seconds into collecting. What it costs to end with the same file.
   {
