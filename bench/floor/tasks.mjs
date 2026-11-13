@@ -22,7 +22,7 @@ const collect = (kind, more, path = `list/${kind}`) => ({
   tool: async t => more(t, ref(await t.bl('tab', `${t.base}/${path}`), 'list of 20')),
   plain: async t => getAll(t, ref(await t.bl('tab', `${t.base}/${path}`), 'list of 20')),
   // Short of every record, an answer that says the end is not shown has not misled anyone.
-  check: (answer, t) => everyRecordSaved(answer, t) || (/not shown to be complete/.test(answer ?? '') && 'says so'),
+  check: (answer, t) => everyRecordSaved(answer, t) || (/all this page shows|not shown to be complete/.test(answer ?? '') && 'says so'),
 })
 // A2: three fields from the own page of each of the first 60 records.
 const enriched = (_, t) => {

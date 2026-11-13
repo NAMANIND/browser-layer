@@ -127,6 +127,9 @@ const server = createServer((req, res) => {
   }
   // Numbered links with nothing that says which page is the current one or the next.
   if (req.url === '/unmarked') return page('unmarked', `<main><ul><li><h3>Item 0</h3><p>₹0</p></li><li><h3>Item 1</h3><p>₹100</p></li><li><h3>Item 2</h3><p>₹200</p></li></ul><p><a href="/unmarked?p=1">1</a> <a href="/unmarked?p=2">2</a></p></main>`)
+  // "Load more" whose rows come a second and a half after the press, with no request to wait on.
+  if (req.url === '/latemore') return page('latemore', `<main><ul id="l"></ul><button id="b">Load more</button></main>
+    <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 1500)</script>`)
   // "Load more" in German: its name is no help, only its place in the page.
   if (req.url === '/mehr') return page('mehr', `<main><ul id="l"></ul><button id="b">Mehr laden</button></main>
     <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 100)</script>`)
@@ -599,17 +602,20 @@ test('get --all follows the list to its end: a rel=next link, Load more, a scrol
   assert.equal(lines().length, 21)
   const stuck = await run('get', await list('/stuck'), '--all', '--out', out)
   assert.match(stuck.out, /3 records/)
+  // A press whose effect is late is waited for before "nothing new" is said.
+  assert.match((await run('get', await list('/latemore'), '--all', '--out', out)).out, /15 records.*ended: no "Load more" on the last page/)
   // An end is said only when the page shows one: a control that did nothing, or no way to more at all, is not an end.
   assert.match(stuck.out, /not shown to be complete: "Load more" was pressed and nothing new came/)
   const unmarked = await run('get', await list('/unmarked'), '--all', '--out', out)
   assert.match(unmarked.out, /3 records/)
-  assert.match(unmarked.out, /not shown to be complete: no next link or control was found, and scrolling brought nothing more; if a control gives more, name it: --more <ref or name>/)
+  // Most lists are one page. Nothing on this one leads to more, and the answer says that, without doubting what it has.
+  assert.match(unmarked.out, /all this page shows: no next link or control leads to more, and scrolling brought nothing \(--more <ref\|name> names a control that does\)/)
   // A pager says which page is the current one (aria-current): the link after it is the next page, in any language.
   const numbers = await run('get', await list('/numbers'), '--all', '--out', out)
   assert.match(numbers.out, /9 records/)
   assert.match(numbers.out, /ended: no next link on the last page/)
   // A control only the agent can tell is the way to more is named by it.
-  assert.match((await run('get', await list('/mehr'), '--all', '--out', out)).out, /5 records.*not shown to be complete/)
+  assert.match((await run('get', await list('/mehr'), '--all', '--out', out)).out, /5 records.*all this page shows/)
   const named = await run('get', ref((await run('map')).out, /list of \d+/), '--all', '--more', 'Mehr laden', '--out', out)
   assert.match(named.out, /15 records/)
   assert.match(named.out, /ended: no "Mehr laden" on the last page/)
@@ -665,6 +671,19 @@ test('get reads a saved records file back: --where, --count, --group and --sort,
   assert.match((await run('get', join(home, 'nothing.tsv'))).out, /no such file/)
   // The same on a list on the page.
   assert.match((await run('get', ref((await run('tab', `${base}/pg?last=2&p=1`)).out, /list of \d+/), '--where', 'c2>600', '--count')).out, /1 of 4 records match c2>600/)
+})
+
+test('a page an action goes to is waited for as an opened page is, however slow its server', async () => {
+  // Every page of this list takes 6 s to answer, far longer than settle waits after an action (2 s here).
+  const first = await run('tab', `${base}/pg?last=1&p=0&ms=6000`)
+  const next = await run('click', 'Older')
+  assert.match(next.out, /p=1/)
+  assert.match((await run('find', 'Item 4')).out, /Item 4/)
+  await run('back')
+  const all = await run('get', ref((await run('map')).out, /list of \d+/), '--all')
+  assert.match(all.out, /8 records/)
+  assert.match(all.out, /ended: no next link on the last page/)
+  assert.ok(first.out)
 })
 
 test('get --all has a time limit for each page, not one for the whole list', async () => {

@@ -623,7 +623,8 @@ const NEXT_PAGE = `(() => {
 const MORE = /^(?:(?:next(?: page)?|load more|show more|see more|view more|more results)\s*[›»→>]?|[›»→>])$/i
 
 // It says a list ended only when the page shows it: the way on that was pressed is no longer there, or scrolling, which
-// had been bringing rows, brings no more. Anything else is "not shown to be complete", with what was tried.
+// had been bringing rows, brings no more. A press that brought nothing is "not shown to be complete". A list with no
+// way on at all is "all this page shows": most lists are one page, and that answer must not make an agent doubt one.
 // The file is written page by page, and beside it, while the list is unfinished, where the collection began, the
 // address it has reached and its columns' fields. A call that stops (a page that fails, get.rounds, the browser gone) has lost nothing, and
 // the same command, run on either of those pages, carries on: the saved rows are kept and no saved page is turned again.
@@ -692,9 +693,15 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
       : controls.find(n => rel && n.url === rel) ?? controls.find(n => MORE.test((n.name ?? '').trim()))
     if (!more && pressed) return undefined
     if (!more && q.more) throw new Error(`nothing is named "${q.more}" — run: browser-layer map`)
+    const shown = () => tab.page.evaluate('window.__alText?.() ?? 0').catch(() => 0)
+    const was = [tab.doc, await shown()]
     if (more) await pointerAt(tab, String(more.ref), {})
     else await tab.page.evaluate('document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)')
     await settle(tab)
+    // A press can take effect late: a navigation a busy machine has not begun, rows a timer adds. Before a press is
+    // said to have brought nothing, the page is watched for a change, settle.deadlineMs at most.
+    for (const end = Date.now() + policy['settle.deadlineMs']; more && tab.doc === was[0] && await shown() === was[1] && Date.now() < end;) await sleep(100)
+    if (more) await settle(tab)
     const found = await locate()
     if (found) { list = found; take() }
     return { way: !more ? 'scroll' : !q.more && rel && more.url === rel ? 'next link' : `"${more.name}"`, found: !!found }
@@ -713,7 +720,7 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
     keep()
     if (rows.size === before) {
       return finished(step.way !== 'scroll' ? `not shown to be complete: ${step.way === 'next link' ? 'the next link' : step.way} was pressed and nothing new came`
-        : scrolled ? 'ended: scrolling to the end brought nothing more' : 'not shown to be complete: no next link or control was found, and scrolling brought nothing more; if a control gives more, name it: --more <ref or name>')
+        : scrolled ? 'ended: scrolling to the end brought nothing more' : 'all this page shows: no next link or control leads to more, and scrolling brought nothing (--more <ref|name> names a control that does)')
     }
     if (step.way === 'scroll') scrolled = true
     else pressed = step.way
