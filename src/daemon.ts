@@ -739,9 +739,18 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
     writeFileSync(q.out, `${toTsv(data())}\n`)
     writeFileSync(mark!, `${from}\n${tab.page.url()}\n${fields.join('\t')}`)
   }
-  const finished = (ending: string) => {
+  // A read does not move the tab: a list paged by address is left on the page the call found it on, so what the
+  // agent does next (a click on that page's control) meets the page it knows. A call that stopped stays where it
+  // stopped: what stopped it is there.
+  const found = tab.page.url()
+  const finished = async (ending: string) => {
     if (mark) rmSync(mark, { force: true })
-    return recordsView(`[${list.ref}] ${list.role}`, data(), q, ` — ${ending}`)
+    const label = `[${list.ref}] ${list.role}`
+    if (pageOf(tab.page.url()) !== pageOf(found)) {
+      await tab.page.goto(found, COMMIT()).catch(() => {})
+      await settle(tab)
+    }
+    return recordsView(label, data(), q, ` — ${ending}`)
   }
   const stopped = (why: string) => (q.out
     ? `saved ${q.out}: ${rows.size} records so far — stopped: ${why}; the same command carries on`

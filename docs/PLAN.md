@@ -544,5 +544,5 @@ and its test are reverted. These tasks have no derived-value rubric, so the gate
 held-out task that grades derivations would be the test of a retry.
 
 Long tasks, state on 13 Nov: six of the seven contracts are built on `agent-fixes` (LONG-TASKS §5 has the floor before and
-after and both agent gates). The floor improved on every row it was aimed at; the agent gate leans our way (steps -13.5%,
-tokens -12% on valid runs) with every interval including zero.
+after and three agent gates). The floor improved on every row it was aimed at. The clean agent gate is a tie on every
+metric (steps +4%, tokens -4%): its tasks average nine steps and do not reach what the contracts change.

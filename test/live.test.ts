@@ -613,6 +613,8 @@ test('get --all follows the list to its end: a rel=next link, Load more, a scrol
   const pages = await run('get', await list('/pg?last=2&p=0'), '--all', '--out', out)
   assert.match(pages.out, /12 records, 2 columns/)
   assert.match(pages.out, /ended: no next link on the last page/)
+  // A read does not move the tab: the list is left on the page the call found it on.
+  assert.match((await run('eval', 'location.search')).out, /p=0/)
   assert.deepEqual(lines().slice(1).map(l => l.split('\t')[0]), Array.from({ length: 12 }, (_, i) => `Item ${i}`))
   const more = await run('get', await list('/more'), '--all', '--out', out)
   assert.match(more.out, /15 records/)

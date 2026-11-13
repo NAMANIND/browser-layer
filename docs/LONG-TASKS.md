@@ -414,8 +414,20 @@ On the valid runs: steps 7.97 against 9.22 (-13.5%), input tokens -12%, wall tim
 about 20% (PLAN), so the honest reading is: it leans the right way and is not shown. The form task went from 4.7 steps to
 2.0 and the poetry task from 15.3 to 7.0.
 
-Open, in order of what the evidence asks for: a second clean gate (the first was run during other work, the second lost
-runs); pages whose scripts hold `DOMContentLoaded` for 10 s (seen on the-internet.herokuapp.com: each open waited the
+Third gate, clean (nothing else running, no run lost, 78 runs): steps 9.85 against 9.44 (+4%), input tokens -4%, wall
+time +7%, cost equal, score 0.970 against 0.967; every metric a tie. So the lean in the second gate was noise. On these
+13 tasks with Haiku the contracts make no difference an agent run can show, in either direction. Task by task it goes
+both ways: the form 2.3 steps against 6.0 and the 50-category task 14.7 against 20.7, the nonfiction count 10.0 against
+5.0 and the author-tag pairs 10.7 against 6.3. The nonfiction task also showed two things: a fact a page carries only in a
+class name (a star rating with no text and no label) is not in any answer, so the agent counted elements with `eval`; and
+`get --all` left the tab on the list's last page, where the agent's next `click "Next"` failed. The second is fixed: a
+read does not move the tab, so a list paged by address is left on the page the call found it on.
+
+What the three gates say together: the floor measures what the tool allows and it improved; these agent tasks average
+nine steps and mostly do not reach the cases the contracts are about (a list over 25 pages, a slow server, a dead
+browser, no shell). A gain here would need tasks that long, which is what the paid benchmark has and this set does not.
+
+Open, in order of what the evidence asks for: agent tasks long enough to reach the contracts; pages whose scripts hold `DOMContentLoaded` for 10 s (seen on the-internet.herokuapp.com: each open waited the
 whole `load.domMs`); `each --from` a plain file of addresses (an agent built one and passed it as one argument);
 the blank-cell rule for lists (C3: none found); the English word list for Next and Load more (kept, see C1).
 
