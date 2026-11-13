@@ -9,6 +9,7 @@ import { renderMap, renderText } from '../dist/render.js'
 import { loadPolicy } from '../dist/policy.js'
 import { findBrowser } from '../dist/browser.js'
 import { deterministic } from './deterministic.mjs'
+import { lists } from './lists.mjs'
 
 const RUNS = 5
 // The policy in effect (<home>/policy.json over the defaults), so caps can be compared by experiment.
@@ -46,11 +47,12 @@ for (const { name, url, facts = [] } of pages) {
   const times = []
   const caps = { nameChars: DEFAULTS['render.nameChars'], labelChars: DEFAULTS['render.labelChars'] }
   let body = ''
+  let tree
   let map = ''
   let arrival = ''
   for (let i = 0; i < RUNS; i++) {
     const t = performance.now()
-    const tree = await readTree(cdp, refs, { minRepeats: DEFAULTS['data.minRepeats'], minParts: DEFAULTS['data.minParts'], revealItems: DEFAULTS['render.mapFew'] })
+    tree = await readTree(cdp, refs, { minRepeats: DEFAULTS['data.minRepeats'], minParts: DEFAULTS['data.minParts'], revealItems: DEFAULTS['render.mapFew'] })
     body = renderText(tree, origin, caps)
     times.push(performance.now() - t)
     map = renderMap(tree, origin, caps, DEFAULTS['render.mapFew'])
@@ -68,6 +70,7 @@ for (const { name, url, facts = [] } of pages) {
     chars: body.length,
     mapChars: map.length,
     arrivalChars: arrival.length,
+    lists: lists(tree, origin, caps),
     refs: (body.match(/\[\d+\]/g) ?? []).length,
     facts: {},
   }
@@ -77,7 +80,7 @@ for (const { name, url, facts = [] } of pages) {
     if (count < min) { failed = true; console.error(`  MISSING ${name}: "${label}" ${count} < ${min}`) }
   }
   results.push(row)
-  console.log(`${name.padEnd(15)} read p50 ${String(row.readMsP50).padStart(4)}ms max ${String(row.readMsMax).padStart(4)}ms  ${String(row.lines).padStart(4)} lines ${String(row.chars).padStart(6)} chars ${String(row.mapChars).padStart(5)} map ${String(row.arrivalChars).padStart(5)} on arrival ${String(row.refs).padStart(4)} refs  ${JSON.stringify(row.facts)}`)
+  console.log(`${name.padEnd(15)} read p50 ${String(row.readMsP50).padStart(4)}ms max ${String(row.readMsMax).padStart(4)}ms  ${String(row.lines).padStart(4)} lines ${String(row.chars).padStart(6)} chars ${String(row.mapChars).padStart(5)} map ${String(row.arrivalChars).padStart(5)} on arrival ${String(row.refs).padStart(4)} refs  lists ${row.lists.slice(0, 3).map(l => `${l.rows}x${l.columns} ${l.blank}% blank (${l.template} columns most rows fill: ${l.templateBlank}%)`).join(', ') || 'none'}  ${JSON.stringify(row.facts)}`)
 }
 await browser.close()
 if (save) writeFileSync(new URL('./results/baseline.json', import.meta.url), JSON.stringify(results, null, 2))
