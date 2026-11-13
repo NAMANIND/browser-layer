@@ -114,6 +114,23 @@ characters per 60 calls (`tabs` lists them all).
 No other row moved, beyond 1k more read per task from two more lines in the manual. `npm run measure` unchanged; tests 145 → 148.
 The two rows that say so become `done` with C1 (continuation by `aria-current`, and a control the agent names).
 
+### After C4 for `each` and bulk `open` (13 Nov)
+
+A7 over many pages (`A7 recover: browser dies during each`: the browser killed 3 s into `each 'read'` over the 60 item
+pages, 400 ms each; the agent runs the same command again when the answer is not 60 pages read):
+
+| | Before | After |
+|---|---|---|
+| Calls | 2 | 2 |
+| Seconds | 10 | 8 |
+| Pages fetched twice | 26 | 10 |
+| Characters answered | 1,460 | 2,098 |
+
+The 10 that are fetched twice are the pages in flight when the browser died (`each.concurrency`); every page read before
+is kept. The answer is longer by the list of the pages' headlines and the line that says the same command carries on.
+Killing a bulk `open --out` part way leaves the pages that had arrived, and the same command fetches only the rest
+(tests, `test/cli.test.ts`). Times vary by a second or two between runs.
+
 After C2 for records and columns that line up (13 Nov): A5 tool-only 77k → 29k read. The manual grew from 5,591 to
 5,789 characters for the new `get` lines, which every call re-reads: A3 203k → 206k, A4 153k → 156k. That is the price
 of any new verb, and it is paid most by the tasks that already cost most. Tests 148 → 153, `npm run measure` unchanged.
@@ -241,8 +258,15 @@ skips what the file already has. The manual's rule "a list is complete only when
 something the tool states.
 *Done when.* A7 repeats no page already saved; the slow-server and re-rendering `plain` rows are done; no `plain` row
 says a list ended when it did not.
-*Done for `get --all`, 13 Nov* (floors below). Not done: `each` and bulk `open` still write their file at the end and
-do not carry on. A7 stays at 4 calls: the fourth is opening the page again after the browser died, which is C7's.
+*Done for `get --all`, 13 Nov* (floors below). A7 stays at 4 calls: the fourth is opening the page again after the browser
+died, which is C7's.
+*Done for `each --out` and bulk `open --out`, 13 Nov.* The file is written as each page finishes (`bulkRun` in
+`render.ts`), and beside it, while any page is failed or missing, `<file>.unfinished` holds the command and its
+addresses in order. The same command run again (same read, same addresses, so `--from` too, whose addresses are those
+of the records) keeps every page the file holds as read, fetches the rest, ends with the pages in the order of the
+addresses and removes the marker; the answer says `N kept from the file`. A page that failed is fetched again, so a
+permanent 404 keeps the marker and the answer says that the same command fetches only the failed. Any other command
+(or a file with no marker) replaces the file as before. A kept page's headline has no title: the file does not hold one.
 
 ### C5. An answer carries the next decision, inside one budget (L1, L2)
 *Rule.* No answer makes the agent call again for something that answer had room for; and no answer is bigger than its

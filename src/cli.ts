@@ -5,7 +5,7 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { Field, Page, Verb } from './html.js'
 import { ceiling, home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
-import { bounded, bulkAnswer, bulkFile, paginate, renderText, xmlLines, type Bulk } from './render.js'
+import { bounded, bulkAnswer, bulkRun, paginate, renderText, xmlLines, type Bulk } from './render.js'
 import { loadPolicy, type Policy } from './policy.js'
 import { live, ping, VERSION } from './client.js'
 import { findBrowser, openChrome, openInspectPage, PROFILE_FLAGS } from './browser.js'
@@ -154,8 +154,9 @@ const buildsItself = (page: Page, text: string, policy: Policy) =>
 async function openMany(urls: string[], out?: string) {
   const policy = loadPolicy()
   const hostOf = (u: string) => { try { return new URL(u).host } catch { return u } }
-  const pages: Bulk[] = []
-  const pending = urls.map((_, k) => k)
+  const run = out ? bulkRun(out, ['open', ...urls], policy['save.lineChars']) : undefined
+  const pages: Bulk[] = urls.map(u => run?.kept.get(u)!)
+  const pending = urls.map((_, k) => k).filter(k => !pages[k])
   const busy = new Map<string, number>()
   let running = 0
   await new Promise<void>(done => {
@@ -168,6 +169,7 @@ async function openMany(urls: string[], out?: string) {
         busy.set(host, (busy.get(host) ?? 0) + 1)
         running++
         fetchText(urls[k], policy).then(p => { pages[k] = { address: urls[k], ...p } }, err => { pages[k] = { address: urls[k], error: why(err), title: '', text: '' } }).finally(() => {
+          run?.add(pages[k])
           busy.set(host, busy.get(host)! - 1)
           running--
           pump()
@@ -177,9 +179,9 @@ async function openMany(urls: string[], out?: string) {
     }
     pump()
   })
-  if (!out) return console.log(ceiling(pages.map(p => `${p.address}\n${p.error ? `error: ${p.error}` : p.text}`).join('\n\n'), policy))
-  writeFileSync(out, bulkFile(pages, policy['save.lineChars']))
-  console.log(bulkAnswer('open', pages, out, policy))
+  if (!run) return console.log(ceiling(pages.map(p => `${p.address}\n${p.error ? `error: ${p.error}` : p.text}`).join('\n\n'), policy))
+  run.finish(pages)
+  console.log(bulkAnswer('open', pages, out!, policy, run.kept.size))
 }
 
 // Node's fetch says only "fetch failed"; its cause (refused, no such host, timed out) is the reason.

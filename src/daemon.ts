@@ -8,7 +8,7 @@ import { isTracker } from './trackers.js'
 import { findBrowser } from './browser.js'
 import { ceiling, home, loadJar, saveJar, type Cookie } from './session.js'
 import { COLLECTIONS, LANDMARKS, humanCheck, isTrigger, newRefs, readTree, withRefs, type Node, type Refs } from './reader.js'
-import { bounded, bulkAnswer, bulkFile, diffLines, findRef, goneLines, itemsLine, paginate, renderArrival, renderMap, renderText, type Bulk } from './render.js'
+import { bounded, bulkAnswer, bulkRun, diffLines, findRef, goneLines, itemsLine, paginate, renderArrival, renderMap, renderText, type Bulk } from './render.js'
 import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFiles, submit, wheel, type Pointer, type Target } from './act.js'
 import { fromTsv, group, query, records, toTsv, where, type Query, type Records } from './data.js'
 import { pidPath, ping, socketPath, VERSION } from './client.js'
@@ -1077,6 +1077,7 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     const pages = c.pages?.length ? c.pages : await addresses(c)
     const failed = (err: unknown) => `error: ${err instanceof Error ? err.message.split('\n')[0] : err}`
     const results: { head: string; page: Bulk }[] = []
+    const run = c.out ? bulkRun(c.out, [`each ${read.raw ?? read.cmd}`, ...pages], policy['save.lineChars']) : undefined
     const entry = (address: string, title: string, text: string): Bulk =>
       text.startsWith('error: ') ? { address, title, text: '', error: text.slice(7) }
         : { address, title, text, error: /^blocked: ([^.\n]+)/m.exec(text)?.[0] }
@@ -1085,6 +1086,8 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     let next = 0
     const worker = async () => {
       for (let k = next++; k < pages.length; k = next++) {
+        const had = run?.kept.get(pages[k])
+        if (had) { results[k] = { head: pages[k], page: had }; continue }
         try {
           const l = await loadTab(c.session, pages[k])
           await (turn = turn.then(async () => {
@@ -1092,17 +1095,21 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
             const note = [l.note, l.settled].filter(Boolean).join('; ')
             const text = await limited({ ...read, session: c.session, out: undefined }).catch(failed)
             results[k] = { head: `${await header(l.tab)}${note ? `  (${note})` : ''}`, page: entry(pages[k], await l.tab.page.title().catch(() => ''), text) }
+            run?.add(results[k].page)
           }))
           if (l.fresh) await l.tab.page.close().catch(() => {})
-        } catch (err) { results[k] = { head: pages[k], page: entry(pages[k], '', failed(err)) } }
+        } catch (err) {
+          results[k] = { head: pages[k], page: entry(pages[k], '', failed(err)) }
+          run?.add(results[k].page)
+        }
       }
     }
     await Promise.all(Array.from({ length: Math.min(pages.length, policy['each.concurrency']) }, worker))
     if (was !== undefined && tabs.has(was)) current.set(c.session, was)
-    if (!c.out) return results.map(r => `${r.head}\n${r.page.error && !r.page.text ? `error: ${r.page.error}` : r.page.text}`).join('\n\n')
+    if (!run) return results.map(r => `${r.head}\n${r.page.error && !r.page.text ? `error: ${r.page.error}` : r.page.text}`).join('\n\n')
     const all = results.map(r => r.page)
-    writeFileSync(c.out, bulkFile(all, policy['save.lineChars']))
-    return bulkAnswer('each', all, c.out, policy)
+    run.finish(all)
+    return bulkAnswer('each', all, c.out!, policy, run.kept.size)
   },
   async tabs(c) {
     // The session's activity map: its tabs, most recently used first.

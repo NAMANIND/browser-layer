@@ -59,7 +59,7 @@ async function floor(only) {
       const t = runner(site.base, mode === 'shell')
       const began = Date.now()
       let ok = false, note = ''
-      try { ok = task.check(await task[mode](t), t) } catch (err) { note = err.message.split('\n')[0].slice(0, 100) }
+      try { ok = task.check(await task[mode](t), t); note = task.note?.(t) ?? '' } catch (err) { note = err.message.split('\n')[0].slice(0, 100) }
       const row = { task: task.id, mode, ok, calls: t.calls.length, chars: t.calls.reduce((n, c) => n + c.answer.length, 0), biggest: Math.max(0, ...t.calls.map(c => c.answer.length)), carried: carried(t.calls, manual), seconds: Math.round((Date.now() - began) / 1000), note }
       rows.push(row)
       console.log(`${row.task.padEnd(44)} ${mode.padEnd(5)} ${(ok === true ? 'done' : ok || 'FAILED').padEnd(8)} ${String(row.calls).padStart(3)} calls ${String(row.chars).padStart(7)} chars  biggest ${String(row.biggest).padStart(6)}  carried ${String(Math.round(row.carried / 1000)).padStart(5)}k  ${String(row.seconds).padStart(3)} s  ${note}`)

@@ -24,7 +24,8 @@ const STEPS = [
   [['Date of birth', 'date']], [['Plan', 'radio', ['Basic', 'Pro', 'Team']]], [['Promo code', 'text']], [['Seats', 'number']],
   [['Newsletter', 'checkbox']], [['Terms', 'checkbox']], [['Address', 'text'], ['Postcode', 'text']], [],
 ]
-export const state = { wizard: null }
+// fetched: how many times each address was asked for, for the runs that count repeated work.
+export const state = { wizard: null, fetched: {} }
 
 const filler = 'It keeps regular hours and publishes its accounts each spring. Members meet in the main hall, and visitors are welcome on the first Monday of the month. '
 const card = (it, pre) => `<li class="card"><div class="t"><a href="${pre}/item/${it.sku}">${it.name}</a></div><div class="sku">${it.sku}</div><div class="cat">${it.cat}</div>${it.sale ? '<div class="badge">Sale</div>' : ''}<div class="price">$${it.price}</div></li>`
@@ -112,6 +113,7 @@ export function start() {
     const url = new URL(req.url, 'http://x')
     const pre = url.pathname.startsWith('/slow') ? '/slow' : ''
     const path = url.pathname.slice(pre.length)
+    state.fetched[url.pathname] = (state.fetched[url.pathname] ?? 0) + 1
     if (pre) await new Promise(r => setTimeout(r, 400))
     const html = body => { res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(body) }
     const [, a, b] = path.split('/')
