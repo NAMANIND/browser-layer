@@ -772,10 +772,12 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
     if (more) await pointerAt(tab, String(more.ref), {})
     else await tab.page.evaluate('document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)')
     await settle(tab)
-    // A press can take effect late: a navigation a busy machine has not begun, rows a timer adds. Before a press is
-    // said to have brought nothing, the page is watched for a change, settle.deadlineMs at most.
+    // A press can take effect late: a navigation a busy machine has not begun, rows a timer adds, a server still
+    // rendering the next page. Before a press is said to have brought nothing, the page is watched for a change,
+    // settle.deadlineMs at most, and for as long as a request the press caused is in flight (the page's own limit,
+    // command.timeoutMs, ends it).
     let late = false
-    for (const end = Date.now() + policy['settle.deadlineMs']; more && tab.doc === was[0] && await shown() === was[1] && Date.now() < end; late = true) await sleep(100)
+    for (const end = Date.now() + policy['settle.deadlineMs']; more && tab.doc === was[0] && await shown() === was[1] && (Date.now() < end || caused(tab) > 0); late = true) await sleep(100)
     if (late) await settle(tab)
     const found = await locate()
     if (found) { list = found; take() }

@@ -132,6 +132,13 @@ const server = createServer((req, res) => {
   // "Load more" whose rows come a second and a half after the press, with no request to wait on.
   if (req.url === '/latemore') return page('latemore', `<main><ul id="l"></ul><button id="b">Load more</button></main>
     <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 1500)</script>`)
+  // A report viewer: the toolbar's Next Page stays, and each press replaces the whole report (a new table, inside layout
+  // tables, with a header row of plain cells) once the server has rendered it, as a report viewer does.
+  if (req.url?.startsWith('/viewer')) return page('viewer', `<main><div><button id="n">Next Page</button></div>
+    <table><tr><td><table><tr><td id="r"></td></tr></table></td></tr></table></main>
+    <script>let p = 0; const draw = () => { r.innerHTML = '<table><tr><td>NAME</td><td>COUNTY</td></tr>' + [0, 1, 2].map(i => '<tr><td>Item ' + (p * 3 + i) + '</td><td>County ' + p + '</td></tr>').join('') + '</table>'; n.disabled = p >= 1 }
+    draw(); n.onclick = () => fetch('/render?ms=' + location.search.slice(4)).then(() => { p++; draw() })</script>`)
+  if (req.url?.startsWith('/render?')) return setTimeout(() => page('render', 'ok'), Number(req.url.slice(11)))
   // "Load more" in German: its name is no help, only its place in the page.
   if (req.url === '/mehr') return page('mehr', `<main><ul id="l"></ul><button id="b">Mehr laden</button></main>
     <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 100)</script>`)
@@ -653,6 +660,13 @@ test('get --all follows the list to its end: a rel=next link, Load more, a scrol
   const plain = await run('get', await list('/pg?last=2&p=0'), '--all')
   assert.match(plain.out, /12 records/)
   assert.match(plain.out, /Item 11\t₹1100/)
+})
+
+test('get --all pages a report whose every press waits on a slow server and replaces the whole table', async () => {
+  const out = join(home, 'report.tsv')
+  const all = await run('get', ref((await run('tab', `${base}/viewer?ms=7000`)).out, /list of \d+/), '--all', '--out', out)
+  assert.match(all.out, /ended: no "Next Page" on the last page/)
+  assert.match(readFileSync(out, 'utf8'), /Item 5\tCounty 1/)
 })
 
 test('a field is in the same column on every page of get --all, wherever an optional part first appears', async () => {
