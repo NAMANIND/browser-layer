@@ -121,6 +121,37 @@ Charts for posts (SVG and 2× PNG) are in `charts/`, and `charts/results.html` i
 charts and side-by-side transcripts; `node bench/charts.mjs` rebuilds all of them from `results/`.
 
 
+### Again on Claude Code, with Browser Use 1.0 (12 Nov 2026, browser-layer 0.1.4)
+
+The same 10 scenarios and 3 runs each, with Claude Code (`claude -p`, Sonnet) as the brain instead of cursor-agent, and
+Browser Use 1.0 CLI (a Python package, `browser-use==1.0.0`) as a third tool. The guard runs as a PreToolUse hook on every
+Bash call. browser-layer's `steps` and `each` are checked command by command inside their quotes, so `steps 'eval …'` is
+refused. Browser Use's CLI is Python piped on stdin, so it gets a different guard: scripts may use its helpers and `js()` to
+read the page's DOM, and may not import, touch files or processes, call `cdp()` or `http_get`, or make network calls from the
+page. That is a text filter, not a sandbox. Each Browser Use run had its own headless Chrome. Raw rows (90):
+`results/web-agent-bench-claude.jsonl`.
+
+| Task | browser-layer | agent-browser 0.41.0 | Browser Use 1.0 |
+|---|---|---|---|
+| controlled/login | 3/3 · 147k · 3 steps · 11 s | 3/3 · 197k · 4 · 10 s | 3/3 · 195k · 4 · 13 s |
+| controlled/shop-filter | 3/3 · 147k · 3 steps · 9 s | 3/3 · 197k · 4 · 10 s | 3/3 · 154k · 3 · 10 s |
+| controlled/todos | 3/3 · 147k · 3 steps · 11 s | 3/3 · 198k · 4 · 10 s | 3/3 · 154k · 3 · 12 s |
+| scroll/scroll-bottom | 3/3 · 185k · 4 steps · 11 s | 3/3 · 323k · 7 · 16 s | 3/3 · 154k · 3 · 10 s |
+| scroll/load-more | 3/3 · 224k · 5 steps · 15 s | 3/3 · 408k · 9 · 20 s | 3/3 · 155k · 3 · 14 s |
+| dynamic/wait-for-value | 3/3 · 109k · 2 steps · 12 s | 3/3 · 184k · 4 · 15 s | 3/3 · 194k · 4 · 24 s |
+| dynamic/poll-status | 3/3 · 147k · 3 steps · 14 s | 3/3 · 146k · 3 · 15 s | 3/3 · 153k · 3 · 13 s |
+| hard/multi-step-form | 3/3 · 224k · 5 steps · 16 s | 3/3 · 372k · 8 · 17 s | 3/3 · 280k · 6 · 34 s |
+| hard/paginated-search | 3/3 · 343k · 8 steps · 26 s | 3/3 · 543k · 13 · 38 s | 3/3 · 196k · 4 · 18 s |
+| hard/modal-trap | 3/3 · 224k · 5 steps · 21 s | 3/3 · 283k · 6 · 19 s | 3/3 · 236k · 5 · 17 s |
+| **All 30 runs** | **30/30 · 5.80M tokens · 127 steps · 7.3 min · $2.51** | **30/30 · 8.80M · 196 · 9.3 min · $3.28** | **30/30 · 5.92M · 121 · 8.3 min · $2.91** |
+
+**Finding.** All three pass everything and no run broke its guard. browser-layer and Browser Use are level: tokens within
+2%, steps within 5% (Browser Use fewer), browser-layer 12% faster and 14% cheaper. Both use about a third fewer tokens and
+steps than agent-browser. Browser Use is ahead on paginated-search and load-more, browser-layer on wait-for-value and
+multi-step-form. Against the cursor-agent run above the lead over agent-browser is smaller (agent-browser took 196 steps
+here, 391 there; a Claude Code step carries about 45k tokens, against about 22k). Medians of 3 runs, small fixture sites,
+one agent; a tie with Browser Use, not a win.
+
 ### Head to head on Haiku: browser-layer against Browser Use 1.0 (12 Nov 2026)
 
 Claude Code (`claude -p --model haiku`, tools Bash and Read only, project settings only) is the brain; the only thing that
