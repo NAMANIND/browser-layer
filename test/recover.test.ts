@@ -47,3 +47,28 @@ test('Chrome killed and slow to come back: every session waits for the one daemo
   assert.ok(results.every(r => r.code === 0 || /browser stopped/.test(r.out)), results.map(r => r.out).join('\n'))
   assert.equal(readFileSync(join(home, 'daemon.log'), 'utf8').split('\n').filter(l => l.startsWith('browser-layer daemon on')).length, 2)
 })
+
+const tabsNow = async (session: string) => (await run('--session', session, 'tabs')).out.trim().split('\n').map(l => l.replace(/ used .*/, ''))
+const killBrowser = async () => {
+  execFileSync('pkill', ['-9', '-f', `user-data-dir=${join(home, 'profile')}`])
+  await new Promise(r => setTimeout(r, 1500))
+}
+
+test('a browser killed with tabs open comes back with the same tabs, the current one still current', async () => {
+  await run('stop')
+  await run('--session', 'keep', 'tab', `${base}/a`)
+  await run('--session', 'keep', 'tab', `${base}/b`)
+  const first = (await tabsNow('keep')).find(l => l.includes('/a'))!.trim().split(/\s+/)[0]
+  await run('--session', 'keep', 'use', first)
+  const before = await tabsNow('keep')
+  assert.match(before[0], /^\* \d+ .*\/a /)
+  await killBrowser()
+  assert.deepEqual(await tabsNow('keep'), before)
+})
+
+test('stop ends the session: a browser that died and was then stopped restores nothing', async () => {
+  await run('--session', 'keep', 'tab', `${base}/c`)
+  await killBrowser()
+  await run('stop')
+  assert.match((await run('--session', 'keep', 'tabs')).out, /no live tabs/)
+})

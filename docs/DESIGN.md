@@ -454,6 +454,12 @@ Keys are added when the phase that uses them lands.
   run side by side, so agents working in parallel, each in its own `--session`, wait on pages together, not
   one after another. The cookie jar is read back only when the fast path wrote it, so one session's page
   rotating a cookie is never undone by another's command.
+- A session's tabs survive the browser or the daemon dying (LONG-TASKS C7): after every command each tab's id, address and
+  last use, and which is current, are written to `<home>/kept.json` (whole file, renamed into place). The next daemon
+  opens them again before it answers anything, with the same ids, and the one that was current is current. `stop` (and
+  the browser's own `stop` when no daemon is there to hear it) deletes the file: a clean stop ends the sessions, and
+  nothing is restored after it. Attached to a person's Chrome nothing is written and nothing is restored: that daemon
+  only ever opens what a command asks for. Page state (a half-filled form, scroll position) is not kept.
 - `~/.browser-layer/<profile>/`: browser profile, downloads, HAR logs (bounded, `Cookie` /
   `Authorization` / `Set-Cookie` redacted before disk), daemon log.
 - The `http` engine reads and writes cookies through the browser profile; no separate jar file.

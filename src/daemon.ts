@@ -13,6 +13,7 @@ import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFil
 import { fromTsv, group, query, records, toTsv, where, type Query, type Records } from './data.js'
 import { pidPath, ping, socketPath, VERSION } from './client.js'
 import { loadPolicy, type Policy } from './policy.js'
+import { forgetKept, loadKept, saveKept, type Kept } from './kept.js'
 
 // Decoration the agent never needs; DESIGN §1 principle 3. Never requested.
 const DECORATION = new Set(['image', 'font', 'media'])
@@ -171,6 +172,39 @@ let nextId = 1
 let ctx: BrowserContext
 let browser: Browser | undefined
 let policy: Policy
+
+// Each session's tabs are written after every command; the next daemon reopens them (a browser or daemon that died
+// takes its tabs with it). A tab with no address of its own has nothing to reopen. Attached, the daemon never opens a
+// tab it was not asked for.
+function persist() {
+  if (ATTACH) return
+  const sessions: Kept['sessions'] = {}
+  for (const t of tabs.values()) {
+    const url = t.page.url()
+    if (/^(about|chrome-error):/.test(url)) continue
+    const s = (sessions[t.session] ??= { tabs: [] })
+    s.tabs.push({ id: t.id, url, used: t.used })
+    if (current.get(t.session) === t.id) s.current = t.id
+  }
+  saveKept({ next: nextId, sessions })
+}
+
+// Tabs keep their ids and their order of use, so what the agent was told about them still holds.
+async function restore() {
+  const { next, sessions } = loadKept()
+  const opened: { tab: Tab; url: string }[] = []
+  for (const [session, s] of Object.entries(sessions)) {
+    for (const t of s.tabs) {
+      nextId = t.id
+      const tab = await setupTab(session, await ctx.newPage())
+      tab.used = t.used
+      opened.push({ tab, url: t.url })
+    }
+    if (s.current && tabs.has(s.current)) current.set(session, s.current)
+  }
+  nextId = Math.max(next, nextId)
+  await Promise.allSettled(opened.map(({ tab, url }) => tab.page.goto(url, COMMIT())))
+}
 
 function toBrowser(c: Cookie) {
   return { name: c.name, value: c.value, domain: c.hostOnly ? c.domain : `.${c.domain}`, path: c.path, expires: c.expires ? c.expires / 1000 : -1, secure: !!c.secure }
@@ -1544,6 +1578,8 @@ async function main() {
     parent.opened.push(tab.id)
   })
 
+  if (!ATTACH) await restore()
+
   const queues = new Map<string, Promise<void>>()
   let idle: NodeJS.Timeout
   // `stop` answers only after Chrome has exited, so a caller can safely delete the profile next.
@@ -1579,7 +1615,7 @@ async function main() {
         return
       }
       if (c.cmd === 'stop') {
-        void shutdown(text => res.end(JSON.stringify({ ok: true, text }), () => process.exit(0)))
+        void shutdown(text => { forgetKept(); res.end(JSON.stringify({ ok: true, text }), () => process.exit(0)) })
         return
       }
       // The CLI was updated under a running daemon: this one's code is old, so it exits and the CLI starts
@@ -1601,6 +1637,7 @@ async function main() {
           const error = err instanceof Error ? err.message.split('\n')[0] : String(err)
           res.end(JSON.stringify({ ok: false, error: ACTIONS.has(c.cmd) && !/did not answer in/.test(error) ? error + await pageNow(c.session) : error }))
         }
+        if (!stopping) persist()
       }))
     })
   })
