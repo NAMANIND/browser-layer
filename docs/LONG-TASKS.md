@@ -381,8 +381,8 @@ are green, and the size note is written. A contract whose floor does not move is
 
 ## 5. Where it stands (13 Nov 2026, `agent-fixes` after the merges)
 
-Built: C1, C2 (records), C3 (but the blank-cell rule), C4, C5, C7. Not built: C6 (see C6), `find --in` for text files,
-one view rule in place of the five. 173 tests green; `npm run measure` exits 0 with read times as before.
+Built: C1, C2 (records and text files), C3 (but the blank-cell rule), C4, C5, C7. Not built: C6 (see C6), one view
+rule in place of the five. 173 tests green; `npm run measure` exits 0 with read times as before.
 
 **The floor, first measurement against now** (`bench/results/floor.json`):
 
@@ -423,11 +423,33 @@ class name (a star rating with no text and no label) is not in any answer, so th
 `get --all` left the tab on the list's last page, where the agent's next `click "Next"` failed. The second is fixed: a
 read does not move the tab, so a list paged by address is left on the page the call found it on.
 
+**Long tasks, paid benchmark (13 Nov, `e5b7f90`, bu2-162/163/168/178/179, two runs, Browser Use once; `bench/results/long5-report.md`).**
+Against the build before the contracts: steps -23%, input tokens -26%, time -23%, score the same or higher, and the two
+tasks that were cut by the cap now finish. Against Browser Use the same day: score level (0.47 against 0.39, inside the
+noise: the same build moved by up to 0.88 on one task between runs), time 68 against 61 minutes, 1.9 times its tokens
+and 1.6 times its steps (4.6 times the tokens the day before). The gap sits in two tasks: 163 (12 to 14M tokens against
+3M; 125 to 133 commands against 50) and 179. On 163 the agent made 34 to 45 shell calls of its own, 315k to 343k
+characters, over half of all it read: it read saved text with `sed -n` and `rg`, filtered records with `awk` (a list of
+types, a date range), and paged a report by hand because `get --all` said "nothing new came" when the server took
+longer than 5 s to answer a press.
+
+Fixed after that, each test first: `get --all` waits for a press while a request it caused is in flight (c269c56);
+`--where` takes `v1|v2` as any of and compares dates as dates (60f153f); `find <text> --in <file>` and
+`read <file> --lines a-b` read saved text back, and the manual no longer says "then grep, jq or sed -n" (dabda21).
+Help 6,210 to 6,380 characters. src 4,309 to 4,373 lines.
+
+Fourth gate, local Haiku, 13 tasks, 3 runs an arm, none lost, against the build before these three commits: commands that
+re-read a file 0.46 a run against 1.21 (-62%), steps 8.8 against 9.8, input tokens -25%, cost -15%, wall time equal,
+score 0.967 against 0.996. Every interval includes zero. The score gap is one run of `long-quotes-century` that
+answered 30 for 41: the agent counted `sort | uniq -c` output by hand, not a tool fault. The gate's rule calls a lower
+score NO-GO. The paid long tasks are what could show the token gap, and have not been run on this build.
+
 What the three gates say together: the floor measures what the tool allows and it improved; these agent tasks average
 nine steps and mostly do not reach the cases the contracts are about (a list over 25 pages, a slow server, a dead
 browser, no shell). A gain here would need tasks that long, which is what the paid benchmark has and this set does not.
 
-Open, in order of what the evidence asks for: agent tasks long enough to reach the contracts; pages whose scripts hold `DOMContentLoaded` for 10 s (seen on the-internet.herokuapp.com: each open waited the
+Open, in order of what the evidence asks for: a table whose header row is plain cells counts the header as a record;
+the long-task paid run on this build; agent tasks long enough to reach the contracts; pages whose scripts hold `DOMContentLoaded` for 10 s (seen on the-internet.herokuapp.com: each open waited the
 whole `load.domMs`); `each --from` a plain file of addresses (an agent built one and passed it as one argument);
 the blank-cell rule for lists (C3: none found); the English word list for Next and Load more (kept, see C1).
 
