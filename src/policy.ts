@@ -54,6 +54,9 @@ export const DEFAULTS = {
   'sessions.max': 8,
   'sessions.idleMs': 15 * 60 * 1000,
   'tabs.max': 8,
+  'status.calls': 5,
+  'status.files': 10,
+  'status.lineChars': 100,
   'daemon.idleMs': 30 * 60 * 1000,
 }
 

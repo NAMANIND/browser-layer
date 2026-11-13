@@ -8,6 +8,7 @@ import { ceiling, home, lastPage, request, saveLastPage, type Response, type Sav
 import { bounded, bulkAnswer, bulkFile, paginate, renderText, xmlLines, type Bulk } from './render.js'
 import { loadPolicy, type Policy } from './policy.js'
 import { live, ping, VERSION } from './client.js'
+import { noteSaved } from './kept.js'
 import { findBrowser, openChrome, openInspectPage, PROFILE_FLAGS } from './browser.js'
 import type { Command } from './daemon.js'
 import { script } from './script.js'
@@ -47,6 +48,7 @@ Plain HTTP, no browser:  open <url…>|<ref> [--out f] (pages fetched in paralle
 Live tabs (headless browser, runs the page's JS):
   tab <url…>                   open tabs (several load together; the first is current; an open page is switched to)
   go <url> · back · forward · reload · tabs · use <id> · close [id|--all] · stop
+  status                       tabs, files saved with --out, last calls: where you stand after a pause or a lost context
   each '<read>' <url…>         load pages together, run one read on each, one answer; its tabs close (--out <file>: a line per page;
                                --from <ref|file> in place of urls: the pages a list's records link to)
   map                          regions, fields, actions, lists and links, with refs
@@ -78,7 +80,7 @@ attach: set up your own Chrome for the agent. --attach <port|auto> (BROWSER_LAYE
 BROWSER_LAYER_BROWSER=<path> picks the browser.
 install · browser · update · --version`
 
-const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'viewport', 'dialog', 'eval', 'allow', 'explore', 'menu', 'check', 'uncheck', 'submit', 'drag', 'find', 'cookies', 'storage', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop', 'screenshot'])
+const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'viewport', 'dialog', 'eval', 'allow', 'explore', 'menu', 'check', 'uncheck', 'submit', 'drag', 'find', 'cookies', 'storage', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop', 'screenshot', 'status'])
 
 function fail(msg: string): never {
   console.error(msg)
@@ -476,6 +478,7 @@ async function main() {
   }
 
   if (cmd === 'open' && target) {
+    if (file) noteSaved(session, file)
     const address = (a: string) => /^\d+$/.test(a)
       ? needPage().links[Number(a)] ?? fail(`[${a}] is not a link on the last page`)
       : /^https?:\/\//i.test(a) ? a : `https://${a}`

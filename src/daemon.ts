@@ -13,7 +13,7 @@ import { call, drag, fill, heldBy, isChecked, isFileInput, pick, pointer, setFil
 import { fromTsv, group, query, records, toTsv, where, type Query, type Records } from './data.js'
 import { pidPath, ping, socketPath, VERSION } from './client.js'
 import { loadPolicy, type Policy } from './policy.js'
-import { forgetKept, loadKept, saveKept, type Kept } from './kept.js'
+import { forgetKept, loadKept, noteSaved, savedFiles, saveKept, trimSaved, type Kept } from './kept.js'
 
 // Decoration the agent never needs; DESIGN §1 principle 3. Never requested.
 const DECORATION = new Set(['image', 'font', 'media'])
@@ -163,7 +163,7 @@ export type Command = {
 } & Query
 
 // Commands that only read a page, for the shorter time limit.
-const READS = new Set(['read', 'map', 'find', 'get', 'screenshot', 'net', 'tabs', 'cookies', 'storage'])
+const READS = new Set(['read', 'map', 'find', 'get', 'screenshot', 'net', 'tabs', 'status', 'cookies', 'storage'])
 
 // Tab ids are unique across the daemon; each session (one agent, one task) has its own current tab.
 const tabs = new Map<number, Tab>()
@@ -183,7 +183,7 @@ function persist() {
   for (const t of tabs.values()) {
     const url = t.page.url()
     if (/^(about|chrome-error):/.test(url)) continue
-    const s = (kept.sessions[t.session] ??= { tabs: [], gone: [] })
+    const s = (kept.sessions[t.session] ??= { tabs: [], gone: [], calls: [] })
     s.tabs.push({ id: t.id, url, used: t.used })
     s.gone = s.gone.filter(u => u !== url)
     if (current.get(t.session) === t.id) s.current = t.id
@@ -210,10 +210,19 @@ async function restore() {
   await Promise.allSettled(opened.map(({ tab, url }) => tab.page.goto(url, COMMIT())))
 }
 
+// What the agent last did, for `status`: the call, and the first line of what it was told.
+function logCall(c: Command, answer: string) {
+  if (c.cmd === 'status') return
+  const s = (kept.sessions[c.session] ??= { tabs: [], gone: [], calls: [] })
+  const call = [c.cmd, c.steps?.map(t => t.raw ?? t.cmd).join('; ') ?? c.url ?? c.ref ?? c.file ?? c.text ?? c.id].filter(x => x !== undefined).join(' ')
+  s.calls = [...s.calls, `${call.slice(0, policy['status.lineChars'] / 2)} → ${answer.split('\n')[0].slice(0, policy['status.lineChars'])}`].slice(-policy['status.calls'])
+  for (const file of [c.out, ...(c.steps ?? []).map(t => t.out)]) if (file && existsSync(file)) noteSaved(c.session, file)
+}
+
 // A tab let go stays in the session's record, so its address can be opened again.
 async function letGo(t: Tab) {
   const url = t.page.url()
-  const s = (kept.sessions[t.session] ??= { tabs: [], gone: [] })
+  const s = (kept.sessions[t.session] ??= { tabs: [], gone: [], calls: [] })
   s.gone = [url, ...s.gone.filter(u => u !== url)].slice(0, policy['tabs.max'])
   await t.page.close().catch(() => {})
 }
@@ -1484,6 +1493,19 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     const now = current.get(c.session)
     return now ? `closed tab ${tab.id}; now on tab ${now}` : `closed tab ${tab.id}; no live tabs left in session "${c.session}"`
   },
+  // Where the agent stands, for one that lost its context: the session's tabs, the addresses it let go of, the files it
+  // saved (an unfinished `get --all` says so) and its last calls.
+  async status(c) {
+    const s = kept.sessions[c.session]
+    const files = (savedFiles().get(c.session) ?? []).slice(0, policy['status.files'])
+    const size = (n: number) => (n < 1000 ? `${n} B` : n < 1e6 ? `${Math.round(n / 1000)} KB` : `${(n / 1e6).toFixed(1)} MB`)
+    return [
+      `tabs:\n${await COMMANDS.tabs(c)}`,
+      ...(s?.gone.length ? [`closed (tab <address> opens one again):\n${s.gone.map(u => `  ${u}`).join('\n')}`] : []),
+      ...(files.length ? [`files:\n${files.map(f => `  ${f}  ${size(statSync(f).size)}${existsSync(`${f}.unfinished`) ? '  unfinished: run the same get --all again' : ''}`).join('\n')}`] : []),
+      ...(s?.calls.length ? [`calls:\n${s.calls.map(l => `  ${l}`).join('\n')}`] : []),
+    ].join('\n')
+  },
   async state(c) {
     return JSON.stringify([...tabs.values()].map(t => ({ session: t.session, url: t.page.url(), current: current.get(t.session) === t.id })))
   },
@@ -1598,6 +1620,7 @@ async function main() {
     parent.opened.push(tab.id)
   })
 
+  trimSaved(policy['status.files'])
   if (!ATTACH) await restore()
 
   const queues = new Map<string, Promise<void>>()
@@ -1650,11 +1673,14 @@ async function main() {
       queues.set(c.session, (queues.get(c.session) ?? Promise.resolve()).then(async () => {
         try {
           await pullCookies()
-          const text = ceiling(repeated(c, await (c.cmd === 'steps' || c.cmd === 'each' || (c.cmd === 'get' && c.all) ? run(c) : limited(c)) + await limitTabs(c.session)), policy)
+          const answer = await (c.cmd === 'steps' || c.cmd === 'each' || (c.cmd === 'get' && c.all) ? run(c) : limited(c)) + await limitTabs(c.session)
+          logCall(c, answer)
+          const text = ceiling(repeated(c, answer), policy)
           await syncCookies().catch(() => {})
           res.end(JSON.stringify({ ok: true, text }))
         } catch (err) {
           const error = err instanceof Error ? err.message.split('\n')[0] : String(err)
+          logCall(c, `error: ${error}`)
           res.end(JSON.stringify({ ok: false, error: ACTIONS.has(c.cmd) && !/did not answer in/.test(error) ? error + await pageNow(c.session) : error }))
         }
         if (!stopping) persist()

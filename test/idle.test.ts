@@ -38,6 +38,7 @@ test('a session idle past sessions.idleMs loses its tabs when another session wo
   await run('--session', 'busy', 'tab', `${base}/`)
   assert.match(await run('--session', 'idle', 'tabs'), /no live tabs/)
   assert.match(await run('--session', 'busy', 'tabs'), /http/)
+  assert.match(await run('--session', 'idle', 'status'), new RegExp(`closed \\(tab <address> opens one again\\):\\n  ${base}/\\n`))
 })
 
 test('a session holds at most tabs.max tabs: the least recently used closes, never the current one, and the answer says so', async () => {
@@ -51,4 +52,5 @@ test('a session holds at most tabs.max tabs: the least recently used closes, nev
   assert.equal(tabs.length, 3)
   assert.doesNotMatch(tabs.join('\n'), /\/two /)
   assert.match(tabs.join('\n'), /\* \d+ +\S+\/four /)
+  assert.match(await run('--session', 'many', 'status'), new RegExp(`closed \\(tab <address> opens one again\\):\\n  ${base}/two\\n`))
 })
