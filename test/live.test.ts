@@ -202,6 +202,8 @@ const server = createServer((req, res) => {
   if (req.url === '/draws-late') return page('draws-late', `<script>setTimeout(() => { document.body.innerHTML = '<p>Drawn at last</p>' }, 6000)</script>`)
   if (req.url === '/draws-soon') return page('draws-soon', `<script>setTimeout(() => { document.body.innerHTML = '<p>Drawn soon</p>' }, 1500)</script>`)
   // A banner over a control, with buttons that answer it.
+  // A page that replaces a control a moment after it loaded, as an app that re-renders does.
+  if (req.url === '/replaced') return page('replaced', `<button id="a">Old offer</button><script>setTimeout(() => { a.outerHTML = '<button>New offer</button><p>Prices updated</p>' }, 1500)</script>`)
   // A box and a field that each share their name with a link elsewhere on the page.
   if (req.url === '/shared') return page('shared', `<label><input type="checkbox" onchange="o.textContent = 'terms ' + this.checked"> Terms</label>
     <label>Email <input oninput="o.textContent = 'email ' + this.value"></label><p id="o">none</p><footer><a href="/t">Terms</a> <a href="/e">Email</a></footer>`)
@@ -1359,6 +1361,18 @@ test('a covered control names what covers it and the buttons that answer it', as
   assert.equal(r.code, 1)
   assert.match(r.out, /covered by <\w+> "We use cookies[^"]*"; its controls: "Reject all" · "Accept all" \(click one by name, then this again\)/)
   assert.match((await run('steps', 'click "Reject all"; click Behind')).out, /reached/)
+})
+
+test('an action that fails answers with what changed on the page, so the agent need not look', async () => {
+  const old = ref((await run('tab', `${base}/replaced`)).out, /button "Old offer"/)
+  await run('eval', 'await new Promise(r => setTimeout(r, 1800))')
+  const failed = await run('click', old)
+  assert.equal(failed.code, 1)
+  assert.match(failed.out, new RegExp(`error: \\[${old}\\] is not on the page`))
+  assert.match(failed.out, /the page now:[\s\S]*\[\d+\] button "New offer"[\s\S]*Prices updated/)
+  // A failure that changed nothing says nothing more.
+  await run('tab', `${base}/banner`)
+  assert.doesNotMatch((await run('click', 'Behind')).out, /the page now/)
 })
 
 test('a name two controls share means the one the command can act on: a box to check, a field to type in', async () => {

@@ -1420,6 +1420,14 @@ async function run(c: Command): Promise<string> {
   return COMMANDS[c.cmd](c)
 }
 
+// An action that failed still leaves a page to act on. What changed on it since the agent's last view comes with the
+// error, as a failed step of `steps` gives it, so the agent does not spend a call looking; nothing when nothing changed.
+async function pageNow(session: string): Promise<string> {
+  const tab = tabs.get(current.get(session) ?? 0)
+  const now = tab ? await within(changes(tab), policy['read.timeoutMs']).catch(() => '') : ''
+  return now && !/ — no visible change/.test(now.split('\n')[0]) ? `\nthe page now:\n${now}` : ''
+}
+
 // What each session last did and was told. An agent that repeats a call and gets the same answer is not
 // getting anywhere, and it cannot see that from one answer; the tool can. Reads and batches repeat legitimately.
 const history = new Map<string, string[]>()
@@ -1551,7 +1559,8 @@ async function main() {
           await syncCookies().catch(() => {})
           res.end(JSON.stringify({ ok: true, text }))
         } catch (err) {
-          res.end(JSON.stringify({ ok: false, error: err instanceof Error ? err.message.split('\n')[0] : String(err) }))
+          const error = err instanceof Error ? err.message.split('\n')[0] : String(err)
+          res.end(JSON.stringify({ ok: false, error: ACTIONS.has(c.cmd) && !/did not answer in/.test(error) ? error + await pageNow(c.session) : error }))
         }
       }))
     })
