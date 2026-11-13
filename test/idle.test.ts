@@ -13,7 +13,7 @@ const server = createServer((_, res) => {
 })
 
 const home = mkdtempSync(join(tmpdir(), 'al-'))
-writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'sessions.idleMs': 1500 }))
+writeFileSync(join(home, 'policy.json'), JSON.stringify({ 'sessions.idleMs': 1500, 'tabs.max': 3 }))
 
 function run(...args: string[]): Promise<string> {
   return new Promise(resolve => {
@@ -38,4 +38,17 @@ test('a session idle past sessions.idleMs loses its tabs when another session wo
   await run('--session', 'busy', 'tab', `${base}/`)
   assert.match(await run('--session', 'idle', 'tabs'), /no live tabs/)
   assert.match(await run('--session', 'busy', 'tabs'), /http/)
+})
+
+test('a session holds at most tabs.max tabs: the least recently used closes, never the current one, and the answer says so', async () => {
+  for (const p of ['one', 'two', 'three']) await run('--session', 'many', 'tab', `${base}/${p}`)
+  const listed = (await run('--session', 'many', 'tabs')).trim().split('\n')
+  const id = (page: string) => listed.find(l => l.includes(`/${page} `))!.trim().replace(/^\* /, '').split(/\s+/)[0]
+  await run('--session', 'many', 'use', id('one'))
+  const answer = await run('--session', 'many', 'tab', `${base}/four`)
+  assert.match(answer, new RegExp(`note: closed tab ${id('two')} \\(least recently used; at most 3 tabs a session\\)`))
+  const tabs = (await run('--session', 'many', 'tabs')).trim().split('\n')
+  assert.equal(tabs.length, 3)
+  assert.doesNotMatch(tabs.join('\n'), /\/two /)
+  assert.match(tabs.join('\n'), /\* \d+ +\S+\/four /)
 })

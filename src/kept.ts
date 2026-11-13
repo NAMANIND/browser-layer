@@ -1,11 +1,11 @@
-// What a session keeps when its browser or daemon dies (DESIGN §10): its tabs, in <home>/kept.json.
+// What a session keeps when its browser or daemon dies (DESIGN §10): its tabs and the addresses of tabs it let go of, in <home>/kept.json.
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { home } from './session.js'
 
 export type Kept = {
   next: number
-  sessions: Record<string, { tabs: { id: number; url: string; used: number }[]; current?: number }>
+  sessions: Record<string, { tabs: { id: number; url: string; used: number }[]; current?: number; gone: string[] }>
 }
 
 const keptFile = () => join(home(), 'kept.json')

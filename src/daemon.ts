@@ -175,25 +175,29 @@ let policy: Policy
 
 // Each session's tabs are written after every command; the next daemon reopens them (a browser or daemon that died
 // takes its tabs with it). A tab with no address of its own has nothing to reopen. Attached, the daemon never opens a
-// tab it was not asked for.
+// tab it was not asked for, so nothing is written or restored.
+let kept: Kept = { next: 1, sessions: {} }
 function persist() {
   if (ATTACH) return
-  const sessions: Kept['sessions'] = {}
+  for (const s of Object.values(kept.sessions)) { s.tabs = []; delete s.current }
   for (const t of tabs.values()) {
     const url = t.page.url()
     if (/^(about|chrome-error):/.test(url)) continue
-    const s = (sessions[t.session] ??= { tabs: [] })
+    const s = (kept.sessions[t.session] ??= { tabs: [], gone: [] })
     s.tabs.push({ id: t.id, url, used: t.used })
+    s.gone = s.gone.filter(u => u !== url)
     if (current.get(t.session) === t.id) s.current = t.id
   }
-  saveKept({ next: nextId, sessions })
+  for (const [name, s] of Object.entries(kept.sessions)) if (!s.tabs.length && !s.gone.length) delete kept.sessions[name]
+  kept.next = nextId
+  saveKept(kept)
 }
 
 // Tabs keep their ids and their order of use, so what the agent was told about them still holds.
 async function restore() {
-  const { next, sessions } = loadKept()
+  kept = loadKept()
   const opened: { tab: Tab; url: string }[] = []
-  for (const [session, s] of Object.entries(sessions)) {
+  for (const [session, s] of Object.entries(kept.sessions)) {
     for (const t of s.tabs) {
       nextId = t.id
       const tab = await setupTab(session, await ctx.newPage())
@@ -202,8 +206,24 @@ async function restore() {
     }
     if (s.current && tabs.has(s.current)) current.set(session, s.current)
   }
-  nextId = Math.max(next, nextId)
+  nextId = Math.max(kept.next, nextId)
   await Promise.allSettled(opened.map(({ tab, url }) => tab.page.goto(url, COMMIT())))
+}
+
+// A tab let go stays in the session's record, so its address can be opened again.
+async function letGo(t: Tab) {
+  const url = t.page.url()
+  const s = (kept.sessions[t.session] ??= { tabs: [], gone: [] })
+  s.gone = [url, ...s.gone.filter(u => u !== url)].slice(0, policy['tabs.max'])
+  await t.page.close().catch(() => {})
+}
+
+// A tab costs about 110 MB (DESIGN §9): past tabs.max the least recently used closes, and never the current one.
+async function limitTabs(session: string): Promise<string> {
+  const mine = [...tabs.values()].filter(t => t.session === session)
+  const over = mine.filter(t => t.id !== current.get(session)).sort((a, b) => a.used - b.used).slice(0, Math.max(0, mine.length - policy['tabs.max']))
+  await Promise.all(over.map(letGo))
+  return over.length ? `\nnote: closed tab ${over.map(t => t.id).join(', ')} (least recently used; at most ${policy['tabs.max']} tabs a session): status lists the address` : ''
 }
 
 function toBrowser(c: Cookie) {
@@ -1478,7 +1498,7 @@ async function dropIdle(running: string) {
   const lastUse = new Map<string, number>()
   for (const t of tabs.values()) lastUse.set(t.session, Math.max(lastUse.get(t.session) ?? 0, t.used))
   const stale = [...lastUse].filter(([s, used]) => s !== running && Date.now() - used > policy['sessions.idleMs']).map(([s]) => s)
-  await Promise.all([...tabs.values()].filter(t => stale.includes(t.session)).map(t => t.page.close().catch(() => {})))
+  await Promise.all([...tabs.values()].filter(t => stale.includes(t.session)).map(letGo))
 }
 
 async function run(c: Command): Promise<string> {
@@ -1630,7 +1650,7 @@ async function main() {
       queues.set(c.session, (queues.get(c.session) ?? Promise.resolve()).then(async () => {
         try {
           await pullCookies()
-          const text = ceiling(repeated(c, await (c.cmd === 'steps' || c.cmd === 'each' || (c.cmd === 'get' && c.all) ? run(c) : limited(c))), policy)
+          const text = ceiling(repeated(c, await (c.cmd === 'steps' || c.cmd === 'each' || (c.cmd === 'get' && c.all) ? run(c) : limited(c)) + await limitTabs(c.session)), policy)
           await syncCookies().catch(() => {})
           res.end(JSON.stringify({ ok: true, text }))
         } catch (err) {

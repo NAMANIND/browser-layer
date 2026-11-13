@@ -355,7 +355,7 @@ was opened is: read before it has parsed (its head waiting on a script), it is e
 
 | Capability | Commands |
 |---|---|
-| Navigation | `tab <url…>` (several load together and each answers with its map, the first is current; a page already open in the session switches to its tab), `go <url>`, `back`, `forward`, `reload`, `tabs` (by last use), `use`, `close [id]` (`--all`: every tab of the session), `stop` (the browser; in a named session it closes that session's tabs and leaves the browser to the others) |
+| Navigation | `tab <url…>` (several load together and each answers with its map, the first is current; a page already open in the session switches to its tab), `go <url>`, `back`, `forward`, `reload`, `tabs` (by last use; at most `tabs.max` a session, the least recently used closes), `use`, `close [id]` (`--all`: every tab of the session), `stop` (the browser; in a named session it closes that session's tabs and leaves the browser to the others) |
 | Reading | `map`, `read [ref] [--page N]`, `find <text>` (`--urls`: each link with its address), `get <ref|file>` (records: of a list, or of a file `get` saved), `wait [--gone] <text>` (matched as `find` matches: case and runs of spaces do not matter) |
 | Menus | `explore [ref]`, `menu "A > B > C"` |
 | Pointer | `click`, `dblclick`, `rightclick`, `hover`, `drag <ref> <onto ref>` (pointer drags and HTML drag and drop) |
@@ -435,6 +435,7 @@ Keys are added when the phase that uses them lands.
 | `open.perHost` | 6 | Of those, at most this many on one site: the connections a browser opens to one host (HTTP/1.1 practice), so a bulk fetch is no heavier on a site than a person's page load |
 | `sessions.max` | 8 | Parallel sessions |
 | `sessions.idleMs` | 900000 | A session unused this long loses its tabs when another session runs a command, so it stops holding a slot of `sessions.max` |
+| `tabs.max` | 8 | Tabs a session holds. A tab left open costs about 110 MB of browser memory (A6: 40 tabs held 5,097 MB in 46 processes; 600 calls that closed their tabs held 502 MB) and makes every `tabs` answer longer, with no cost in time. Eight is under 1 GB a session; one recorded task opened 31 tabs and left them. Past it, after a command, the least recently used tab closes (never the current one); the answer says which, and `status` keeps its address so it can be opened again |
 | `load.timeoutMs` | 30000 | Navigation timeout (until the response begins); for a plain HTTP fetch (`open`, `do`), the limit on each request, headers and body |
 | `load.domMs` | 10000 | Wait for the document; after it, the page is read as far as it got |
 | `load.retryMs` | 8000 | Longest wait before loading a page again after a 429 |
