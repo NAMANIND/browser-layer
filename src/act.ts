@@ -3,30 +3,44 @@ import type { CDPSession } from 'playwright-core'
 // Actions on a browser node id, with trusted input through the DevTools protocol.
 // Hit testing uses layout, so none of this needs pixels.
 
-// Why the element at (x, y) of this frame is not the target: '' when it is the target or inside it,
-// else a short description of what is on top. Walks open shadow roots and same-origin frame offsets.
-const BLOCKER = `function (x, y) {
-  let w = this.ownerDocument.defaultView
-  try { while (w.frameElement) { const f = w.frameElement, r = f.getBoundingClientRect(); x -= r.left + f.clientLeft; y -= r.top + f.clientTop; w = w.parent } } catch {}
-  let e = this.ownerDocument.elementFromPoint(x, y)
-  while (e && e.shadowRoot) { const d = e.shadowRoot.elementFromPoint(x, y); if (!d || d === e) break; e = d }
-  const top = e
-  for (; e; e = e.parentElement || (e.getRootNode() instanceof ShadowRoot ? e.getRootNode().host : null)) if (e === this) return ''
-  if (!top) return 'nothing is at its position'
-  // HTML label activation: a click on a control's own label acts on the control, so that label does not cover it.
-  if (top.closest('label')?.control === this) return ''
-  const what = top.getAttribute('aria-label') || top.innerText || ''
-  // The overlay it belongs to (a dialog, a fixed or sticky banner) and the controls that answer or close
-  // it, by name, so the next step can be "click one, then this again" without looking first.
-  let box = top
-  for (let p = top; p && p !== p.ownerDocument.body; p = p.parentElement) {
-    const pos = getComputedStyle(p).position
-    if (pos === 'fixed' || pos === 'sticky' || p.matches('dialog, [role=dialog], [role=alertdialog]')) box = p
+// Where on this element a click lands on it. Takes candidate points of the frame, best first; returns the index
+// of the first that is the element or part of it and not one of its own controls (a card's options button), else
+// of the first inside it at all, else -1 with why the first point is not the element: '' is never returned with -1.
+// Walks open shadow roots and same-origin frame offsets.
+const BLOCKER = `function (points) {
+  let w = this.ownerDocument.defaultView, dx = 0, dy = 0
+  try { while (w.frameElement) { const f = w.frameElement, r = f.getBoundingClientRect(); dx += r.left + f.clientLeft; dy += r.top + f.clientTop; w = w.parent } } catch {}
+  const CONTROL = 'button, a[href], input, select, textarea, summary, [role=button], [role=link], [role=checkbox], [role=menuitem], [role=tab], [role=switch], [role=option], [tabindex]:not([tabindex="-1"])'
+  const why = (x, y) => {
+    let e = this.ownerDocument.elementFromPoint(x - dx, y - dy)
+    while (e && e.shadowRoot) { const d = e.shadowRoot.elementFromPoint(x - dx, y - dy); if (!d || d === e) break; e = d }
+    const top = e
+    let control = false
+    for (; e; e = e.parentElement || (e.getRootNode() instanceof ShadowRoot ? e.getRootNode().host : null)) {
+      if (e === this) return control ? 'control' : ''
+      if (e.matches(CONTROL)) control = true
+    }
+    if (!top) return 'nothing is at its position'
+    // HTML label activation: a click on a control's own label acts on the control, so that label does not cover it.
+    if (top.closest('label')?.control === this) return ''
+    const what = top.getAttribute('aria-label') || top.innerText || ''
+    // The overlay it belongs to (a dialog, a fixed or sticky banner) and the controls that answer or close
+    // it, by name, so the next step can be "click one, then this again" without looking first.
+    let box = top
+    for (let p = top; p && p !== p.ownerDocument.body; p = p.parentElement) {
+      const pos = getComputedStyle(p).position
+      if (pos === 'fixed' || pos === 'sticky' || p.matches('dialog, [role=dialog], [role=alertdialog]')) box = p
+    }
+    const names = [...box.querySelectorAll('button, [role=button], a[href], input[type=submit], input[type=button]')]
+      .map(b => (b.getAttribute('aria-label') || b.innerText || b.value || '').trim().replace(/\\s+/g, ' ')).filter(n => n && n.length <= 40)
+    const controls = [...new Set(names)].slice(0, 6).map(n => '"' + n + '"').join(' · ')
+    return 'covered by <' + top.tagName.toLowerCase() + '>' + (what ? ' "' + what.trim().replace(/\\s+/g, ' ').slice(0, 40) + '"' : '') + (controls ? '; its controls: ' + controls : '')
   }
-  const names = [...box.querySelectorAll('button, [role=button], a[href], input[type=submit], input[type=button]')]
-    .map(b => (b.getAttribute('aria-label') || b.innerText || b.value || '').trim().replace(/\\s+/g, ' ')).filter(n => n && n.length <= 40)
-  const controls = [...new Set(names)].slice(0, 6).map(n => '"' + n + '"').join(' · ')
-  return 'covered by <' + top.tagName.toLowerCase() + '>' + (what ? ' "' + what.trim().replace(/\\s+/g, ' ').slice(0, 40) + '"' : '') + (controls ? '; its controls: ' + controls : '')
+  const results = points.map(([x, y]) => why(x, y))
+  const free = results.indexOf('')
+  if (free >= 0) return [free, '']
+  const inside = results.indexOf('control')
+  return inside >= 0 ? [inside, ''] : [-1, results[0]]
 }`
 const DISABLED = `function () { return !!this.disabled || this.getAttribute('aria-disabled') === 'true' }`
 const SELECT_CONTENTS = `function () {
@@ -79,6 +93,15 @@ export async function call(t: Target, fn: string, args: unknown[] = []): Promise
   return result.value
 }
 
+// The element's center first, then a grid across its box: a card is clicked where its own controls are not.
+const PROBE_STEPS = [0.5, 0.25, 0.75, 0.1, 0.9]
+const probes = (q: number[]): [number, number][] => {
+  const xs = [q[0], q[2], q[4], q[6]], ys = [q[1], q[3], q[5], q[7]]
+  const [x0, y0, w, h] = [Math.min(...xs), Math.min(...ys), Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)]
+  const at = PROBE_STEPS.flatMap(fx => PROBE_STEPS.map(fy => [fx, fy]))
+  return at.sort((a, b) => Math.hypot(a[0] - 0.5, a[1] - 0.5) - Math.hypot(b[0] - 0.5, b[1] - 0.5)).map(([fx, fy]) => [x0 + w * fx, y0 + h * fy])
+}
+
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 // Waits until the target can take the pointer: it has a box, is enabled, has stopped moving, and is the
@@ -96,11 +119,11 @@ export async function pointAt(t: Target, timeoutMs: number): Promise<[number, nu
       else if (await call(t, DISABLED)) why = 'it is disabled'
       else if (last && q.some((v, i) => Math.abs(v - last![i]) > 1)) why = 'it is still moving'
       else if (last) {
-        const x = (q[0] + q[2] + q[4] + q[6]) / 4
-        const y = (q[1] + q[3] + q[5] + q[7]) / 4
-        why = String(await call(t, BLOCKER, [x, y]))
-        if (!why) {
+        const [at, blocked] = (await call(t, BLOCKER, [probes(q)])) as [number, string]
+        why = blocked
+        if (at >= 0) {
           const [ox, oy] = await t.offset()
+          const [x, y] = probes(q)[at]
           return [x + ox, y + oy]
         }
       }

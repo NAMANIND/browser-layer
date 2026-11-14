@@ -7,6 +7,8 @@ export type Node = {
   name?: string
   // Everything the name says is on screen; otherwise it is a label only assistive tech hears.
   nameShown?: boolean
+  // A clickable box that holds controls of its own (a card), as opposed to one that is a control.
+  boxed?: boolean
   // What the control opens that is not on screen yet: items of the element it controls (aria-controls,
   // aria-owns, popovertarget) or the content of a closed <details>, known before it is triggered.
   reveals?: string[]
@@ -150,7 +152,7 @@ type Snapshot = Awaited<ReturnType<CDPSession['send']>> & { documents: any[]; st
 export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, frameSession?: FrameSession, scope = ''): Promise<Node> {
   const [{ nodes: ax }, snap] = await Promise.all([
     cdp.send('Accessibility.getFullAXTree') as Promise<{ nodes: AXNode[] }>,
-    cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: ['display', 'visibility', 'opacity'] }) as Promise<Snapshot>,
+    cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: ['display', 'visibility', 'opacity', 'cursor'] }) as Promise<Snapshot>,
   ])
   const str = (i: number | undefined) => (i === undefined || i < 0 ? '' : snap.strings[i])
   // Same-process frames come in the same snapshot as more documents, each with its own accessibility tree.
@@ -309,7 +311,7 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     if (attr(i, 'inert') !== undefined) return []
     const quiet = muted || attr(i, 'aria-hidden') === 'true'
     const a = axOf.get(backendNodeId[i])
-    const [display, visibility, opacity] = l === undefined ? [] : doc.layout.styles[l].map(str)
+    const [display, visibility, opacity, cursor] = l === undefined ? [] : doc.layout.styles[l].map(str)
     const hidden = l === undefined ? unseen : visibility === 'hidden' || visibility === 'collapse' || unseen || opacity === '0'
     const raw = !quiet && a && !a.ignored ? String(a.role?.value ?? '') : ''
     const role = FIELD_ROLES[raw] ?? raw
@@ -325,7 +327,10 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     const perKid = frame !== undefined ? [walk(docs[frame], 0, quiet, hidden, key, inner)]
       : remote.has(backendNodeId[i]) ? [remote.get(backendNodeId[i])!]
       : kids[i].map(c => walk(d, c, quiet, hidden, key, inner))
-    const children = perKid.flat()
+    // A pointer box beside a link in the same parent is that link's card (a stretched link covers it): the link is
+    // the way in, and a second ref for the same area would only repeat the card's text.
+    const flat = perKid.flat()
+    const children = flat.some(n => n.role === 'link' && n.ref) ? flat.flatMap(n => n.boxed ? n.children ?? [] : [n]) : flat
     const canvas = drawn.get(backendNodeId[i]) as { lines: string[]; runs: [string, number, number][] } | undefined
     // A canvas with drawn text is content the map points to; it gets a ref so the agent can read it.
     if (canvas?.lines?.length) return [{ ref: refFor(backendNodeId[i], as('canvas')), role: 'canvas', block: true, drawn: canvas.runs, children: canvas.lines.map(t => ({ block: true, children: [{ text: String(t) }] })) }]
@@ -377,10 +382,18 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     // The same for an element that reacts to the pointer: the page never says it is a control, but it acts as one.
     // An element in the tab order (tabindex 0 or more) is operable by keyboard whoever listens for the click: a page
     // that handles clicks on a parent (a delegated listener) still has to put its buttons there.
+    // CSS UI: cursor: pointer is how a page tells the person "this is clickable". It is inherited, so the box where it
+    // starts is the whole clickable thing; with controls inside it, it keeps a ref beside them (a card with a checkbox and a menu).
+    const pl = d.layoutOf.get(doc.nodes.parentIndex[i])
+    const pointed = cursor === 'pointer' && (pl === undefined || str(doc.layout.styles[pl][3]) !== 'pointer') && i > 0 && str(nodeName[i]) !== 'BODY'
+    const outside = (ns: Node[]): string => ns.map(n => n.ref ? '' : n.text ?? outside(n.children ?? [])).join('')
     const reacts = clicked.has(backendNodeId[i]) || hovered.has(backendNodeId[i]) || parseInt(attr(i, 'tabindex') ?? '-1', 10) >= 0 || [...CLICK_ATTRS, ...HOVER_ATTRS].some(h => attr(i, h) !== undefined)
-    if (plain && !quiet && l !== undefined && !hidden && reacts && !hasRef(children)) {
-      const name = squash(textOf(children)) || squash(attr(i, 'aria-label') ?? attr(i, 'title') ?? '')
-      return [{ ref: refFor(backendNodeId[i], as('clickable', name)), role: 'clickable', name, nameShown: true, states: hovered.has(backendNodeId[i]) || HOVER_ATTRS.some(h => attr(i, h) !== undefined) ? ['reacts to hover'] : [], block, key, children: [] }]
+    const holds = hasRef(children)
+    // A control inside that is named by the box's own text is what the box shows (a label beside its button): it is that control.
+    const shown = (ns: Node[]): boolean => ns.some(n => (n.ref && n.name && content(n.name).includes(content(outside(children)))) || (n.children && shown(n.children)))
+    if (plain && !quiet && l !== undefined && !hidden && (holds ? pointed && squash(outside(children)) !== '' && !shown(children) : reacts)) {
+      const name = squash(outside(children)) || squash(attr(i, 'aria-label') ?? attr(i, 'title') ?? '')
+      return [{ ref: refFor(backendNodeId[i], as('clickable', name)), role: 'clickable', name, nameShown: true, states: hovered.has(backendNodeId[i]) || HOVER_ATTRS.some(h => attr(i, h) !== undefined) ? ['reacts to hover'] : [], block, key, boxed: holds, children: holds ? children : [] }]
     }
     // A picture is not read out (rule 5), but its address is data that records carry. A data: URL is the
     // picture itself inline, not an address.

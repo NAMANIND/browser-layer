@@ -360,6 +360,11 @@ const server = createServer((req, res) => {
     <a tabindex="0">Keyboard one</a><a tabindex="-1">Skipped one</a><p id="o">none</p>
     <script>a.addEventListener('click', () => o.textContent = 'report opened'); w.addEventListener('click', () => {})
       document.addEventListener('click', e => { if (e.target.id === 'd') o.textContent = 'delegated' })</script>`)
+  if (req.url === '/card') return page('card', `<style>.card { position: relative; width: 400px; height: 60px; cursor: pointer; border: 1px solid }
+    .card input { cursor: default } .card button { position: absolute; left: 150px; width: 100px; height: 60px; top: 0; cursor: default }</style>
+    <div class="card" data-id="pranay"><input type="checkbox" aria-label="Select conversation"> Pranay Prateek, You: Hey Pranay <button aria-label="Options" id="opt">...</button></div>
+    <div class="card" data-id="karim"><input type="checkbox" aria-label="Select conversation"> Karim Rahme, Thanks <button aria-label="Options">...</button></div><p id="o">none</p>
+    <script>document.addEventListener('click', e => { const b = e.target.closest('button'), c = e.target.closest('.card'); if (b) o.textContent = 'options'; else if (e.target.type !== 'checkbox' && c) o.textContent = 'thread ' + c.dataset.id })</script>`)
   if (req.url === '/parity') return page('parity', `<header><a href="/">Home</a><nav aria-label="Main"><a href="/a">About</a> <a href="/b">Blog</a></nav></header>
     <main><h1>Title</h1><p>Text with an <a href="/c">inline link</a>.</p>
     <form aria-label="Signup"><label for="e">Email</label><input id="e" type="email"><label><input type="checkbox" name="t"> Terms</label>
@@ -1424,6 +1429,16 @@ test('elements made clickable only by a script, or put in the tab order, get ref
   assert.doesNotMatch(page.out, /clickable "Real button"|clickable "Delegated"|clickable "Skipped one"/)
   assert.match(page.out, /clickable "Keyboard one"/)
   assert.match((await run('click', ref(page.out, /clickable "Open report"/))).out, /report opened/)
+})
+
+test('a box the page marks as clickable (cursor: pointer) gets a ref beside the controls inside it, and a click lands on the box, not on a control over its center', async () => {
+  const page = await openRead(`${base}/card`)
+  assert.match(page.out, /clickable "Pranay Prateek[^"]*"/)
+  assert.match(page.out, /button "Options"/)
+  await run('click', ref(page.out, /clickable "Karim Rahme/))
+  assert.match((await run('read')).out, /thread karim/)
+  await run('click', ref(page.out, /clickable "Pranay Prateek/))
+  assert.match((await run('read')).out, /thread pranay/)
 })
 
 test('find says which closed part holds the text when it is not shown, and finds it once that part is open', async () => {
