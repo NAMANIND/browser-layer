@@ -141,6 +141,8 @@ const server = createServer((req, res) => {
     <table><tr><td><table><tr><td id="r"></td></tr></table></td></tr></table></main>
     <script>let p = 0; const draw = () => { r.innerHTML = '<table><tr><td>NAME</td><td>COUNTY</td></tr>' + [0, 1, 2].map(i => '<tr><td>Item ' + (p * 3 + i) + '</td><td>County ' + p + '</td></tr>').join('') + '</table>'; n.disabled = p >= 1 }
     draw(); n.onclick = () => { ld.textContent = 'Loading...'; fetch('/render?ms=' + location.search.slice(4)).then(() => { p++; ld.textContent = ''; draw() }) }</script>`)
+  // A region the page marks busy (aria-busy) and fills in after two and a half seconds, with no request at all.
+  if (req.url === '/busyregion') return page('busyregion', `<main><div id="r" aria-busy="true">Loading...</div><script>setTimeout(() => { r.textContent = 'Report ready: 42 rows'; r.removeAttribute('aria-busy') }, 2500)</script></main>`)
   if (req.url?.startsWith('/render?')) return setTimeout(() => page('render', 'ok'), Number(req.url.slice(11)))
   // "Load more" in German: its name is no help, only its place in the page.
   if (req.url === '/mehr') return page('mehr', `<main><ul id="l"></ul><button id="b">Mehr laden</button></main>
@@ -685,6 +687,16 @@ test('get --all pages a report whose every press waits on a slow server and repl
   const all = await run('get', ref((await run('tab', `${base}/viewer?ms=7000`)).out, /list of \d+/), '--all', '--out', out)
   assert.match(all.out, /ended: no "Next Page" on the last page/)
   assert.match(readFileSync(out, 'utf8'), /Item 5\tCounty 1/)
+})
+
+test('read does not answer a page that still says Loading: it waits for the requests in flight and for what the page marks busy', async () => {
+  await run('tab', `${base}/viewer?ms=4000`)
+  await run('click', 'Next Page')
+  const after = (await run('read')).out
+  assert.doesNotMatch(after, /Loading\.\.\./)
+  assert.match(after, /Item 3/)
+  await run('tab', `${base}/busyregion`)
+  assert.match((await run('read', '--full')).out, /Report ready: 42 rows/)
 })
 
 test('a field is in the same column on every page of get --all, wherever an optional part first appears', async () => {

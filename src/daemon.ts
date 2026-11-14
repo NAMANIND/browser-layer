@@ -145,7 +145,7 @@ type Tab = {
   seen: { map: Map<number, string>; text: Map<number, string> }
   // used: when a command last acted on this tab; `tabs` lists by it.
   used: number
-  pending: Map<Request, number>; standing: Set<string>; net: Req[]; netId: number; frames: Map<string, Frame>; dialog?: Dialog; opened: number[]
+  pending: Map<Request, number>; standing: Set<string>; carried: Set<string>; net: Req[]; netId: number; frames: Map<string, Frame>; dialog?: Dialog; opened: number[]
   downloads: { file: string; size: number; url: string }[]; saving: Promise<void>[]; status?: number; retryAfter?: string
   // The document the current command began on, and when a new one arrived during it: which of another
   // site's data calls count (caused).
@@ -326,7 +326,11 @@ function beginCommand(session: string) {
   commandStart.set(session, Date.now())
   for (const t of tabs.values()) {
     if (t.session !== session) continue
+    const before = t.standing
     t.standing = new Set([...t.pending.keys()].map(r => channel(r.url())))
+    // What a read leaves out as the page's standing traffic: what was open when the last command began, or, if that
+    // command brought a new page, whatever is open now (the page's own start-up).
+    t.carried = t.arrived === undefined ? before : t.standing
     t.startDoc = t.doc
     t.arrived = undefined
   }
@@ -360,9 +364,8 @@ const CLOSED_PART = `(want) => {
 // them: on a loaded page, those an action starts right away (a search box served by a search API); on a
 // page that just arrived, those its scripts make in its first settle.arrivalMs, each for that long at most,
 // since ad scripts keep making more (results served by another site's API).
-const caused = (tab: Tab) => {
+const caused = (tab: Tab, began = commandStart.get(tab.session) ?? 0) => {
   const site = registrable(tab.page.url())
-  const began = commandStart.get(tab.session) ?? 0
   return [...tab.pending].filter(([r, at]) => {
     if (at < began || tab.standing.has(channel(r.url())) || r.resourceType() === 'eventsource' || DECORATION.has(r.resourceType()) || isTracker(r.url())) return false
     if (registrable(r.url()) === site) return true
@@ -557,7 +560,21 @@ async function view(tab: Tab, page = 1, text?: string, ref?: number): Promise<st
 // Reading the same page again answers with what changed since the agent last read it: the rest is already
 // in its context. Nothing changed is one line; a page that mostly changed, or a new one, reads whole. Only
 // a read that fit one answer is remembered: of a longer page the agent has seen just the first part.
+// A page marks what is still being made: aria-busy, and a progress indicator with no value (the standard's sign of
+// an unknown wait). Where nothing is marked, the site's own requests in flight say it.
+const UNFINISHED = `[...document.querySelectorAll('[aria-busy=true],progress:not([value]),[role=progressbar]:not([aria-valuenow])')].some(e => e.checkVisibility())`
+
+// A read does not answer a page that is still being made: a request an earlier command began is still out (what
+// was open before that command, and what the page itself started as it arrived, is its standing traffic, as for any
+// command), or the page says it is busy. wait.timeoutMs at most.
+async function untilMade(tab: Tab) {
+  tab.standing = tab.carried
+  for (const end = Date.now() + policy['wait.timeoutMs']; Date.now() < end && (caused(tab, 0) > 0 || await tab.page.evaluate(UNFINISHED).catch(() => false)); ) await sleep(250)
+  await settle(tab)
+}
+
 async function reread(tab: Tab, full: boolean): Promise<string> {
+  await untilMade(tab)
   const snap = await snapshot(tab)
   remember(tab, snap.text)
   const text = snap.text
@@ -908,7 +925,7 @@ async function setupTab(session: string, page: Page): Promise<Tab> {
   await cdp.send('Accessibility.enable')
   await cdp.send('Animation.enable')
   await cdp.send('Animation.setPlaybackRate', { playbackRate: MOTION_RATE })
-  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(refCounter), used: Date.now(), doc: 0, shown: new Map(), seen: { map: new Map(), text: new Map() }, pending: new Map(), standing: new Set(), net: [], netId: 0, frames: new Map(), opened: [], downloads: [], saving: [] }
+  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(refCounter), used: Date.now(), doc: 0, shown: new Map(), seen: { map: new Map(), text: new Map() }, pending: new Map(), standing: new Set(), carried: new Set(), net: [], netId: 0, frames: new Map(), opened: [], downloads: [], saving: [] }
   // A new document can reuse node ids, so old refs are dropped; numbering continues, never reused.
   // Only a new document invalidates node ids. pushState and hash changes (navigatedWithinDocument)
   // keep the same nodes, so refs and the agent's view of the page stay valid.
