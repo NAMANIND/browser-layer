@@ -132,12 +132,12 @@ const server = createServer((req, res) => {
   // "Load more" whose rows come a second and a half after the press, with no request to wait on.
   if (req.url === '/latemore') return page('latemore', `<main><ul id="l"></ul><button id="b">Load more</button></main>
     <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 1500)</script>`)
-  // A report viewer: the toolbar's Next Page stays, and each press replaces the whole report (a new table, inside layout
-  // tables, with a header row of plain cells) once the server has rendered it, as a report viewer does.
-  if (req.url?.startsWith('/viewer')) return page('viewer', `<main><div><button id="n">Next Page</button></div>
+  // A report viewer: the toolbar's Next Page stays, and each press shows "Loading..." at once and replaces the whole report (a new table,
+  // inside layout tables, with a header row of plain cells) only when the server has rendered it, as a report viewer does.
+  if (req.url?.startsWith('/viewer')) return page('viewer', `<main><div><button id="n">Next Page</button><span id="ld"></span></div>
     <table><tr><td><table><tr><td id="r"></td></tr></table></td></tr></table></main>
     <script>let p = 0; const draw = () => { r.innerHTML = '<table><tr><td>NAME</td><td>COUNTY</td></tr>' + [0, 1, 2].map(i => '<tr><td>Item ' + (p * 3 + i) + '</td><td>County ' + p + '</td></tr>').join('') + '</table>'; n.disabled = p >= 1 }
-    draw(); n.onclick = () => fetch('/render?ms=' + location.search.slice(4)).then(() => { p++; draw() })</script>`)
+    draw(); n.onclick = () => { ld.textContent = 'Loading...'; fetch('/render?ms=' + location.search.slice(4)).then(() => { p++; ld.textContent = ''; draw() }) }</script>`)
   if (req.url?.startsWith('/render?')) return setTimeout(() => page('render', 'ok'), Number(req.url.slice(11)))
   // "Load more" in German: its name is no help, only its place in the page.
   if (req.url === '/mehr') return page('mehr', `<main><ul id="l"></ul><button id="b">Mehr laden</button></main>
