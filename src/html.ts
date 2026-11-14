@@ -8,10 +8,7 @@ import { COLLECTIONS, LANDMARKS, SPACE, type Node } from './reader.js'
 type El = DefaultTreeAdapterMap['element']
 type Child = DefaultTreeAdapterMap['childNode']
 
-export type Field = { name: string; type: string; label: string; required: boolean; value: string; options?: string[]; checked?: boolean; multi?: boolean; dirname?: string }
-// Fields are in tree order, as the entry list is built; type 'hidden' and 'submit' (the submitter) carry fixed values.
-export type Verb = { name: string; method: 'GET' | 'POST'; action: string; enctype: string; fields: Field[] }
-export type Page = { url: string; status: number; title: string; tree: Node; links: Record<number, string>; verbs: Verb[]; scripts: number }
+export type Page = { url: string; status: number; title: string; tree: Node; links: Record<number, string>; scripts: number }
 
 // HTML rendering (§15.3): elements whose default display is not inline. Everything else is inline.
 const BLOCK = new Set(['address', 'article', 'aside', 'blockquote', 'body', 'br', 'center', 'dd', 'details', 'dialog', 'dir', 'div', 'dl', 'dt', 'fieldset', 'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hgroup', 'hr', 'html', 'legend', 'li', 'listing', 'main', 'menu', 'nav', 'ol', 'p', 'plaintext', 'pre', 'search', 'section', 'summary', 'table', 'td', 'th', 'tr', 'ul', 'xmp'])
@@ -166,85 +163,5 @@ export function readHtml(html: string, url: string, status: number): Page {
 
   const body = all.find(el => el.tagName === 'body')
   const tree: Node = { block: true, children: body ? walk(body, false, false) : [] }
-  return { url, status, title, tree, links, verbs: forms(all, byId, ancestors, labels, base, url), scripts: all.filter(el => el.tagName === 'script').length }
-}
-
-// HTML form submission: the controls a form owns (a form="id" attribute wins over the enclosing form),
-// minus disabled ones (their own attribute, or a disabled fieldset they are not in the first legend of),
-// and the default button as submitter, whose formaction / formmethod / formenctype override the form's.
-function forms(all: El[], byId: Map<string, El>, ancestors: (el: El) => Generator<El>, labels: (el: El) => El[], base: string, page: string): Verb[] {
-  const LISTED = new Set(['input', 'select', 'textarea', 'button'])
-  const ownerOf = (el: El) => {
-    const f = attr(el, 'form')
-    if (f !== undefined) { const o = byId.get(f); return o?.tagName === 'form' ? o : undefined }
-    return [...ancestors(el)].find(a => a.tagName === 'form')
-  }
-  const disabled = (el: El) => attr(el, 'disabled') !== undefined || [...ancestors(el)].some(a => {
-    if (a.tagName !== 'fieldset' || attr(a, 'disabled') === undefined) return false
-    const legend = a.childNodes.filter(isEl).find(c => c.tagName === 'legend')
-    return !(legend && [...ancestors(el)].includes(legend))
-  })
-  const label = (el: El) => squash(attr(el, 'aria-label') ?? labels(el).map(l => textOf(l)).join(' ')) || squash(attr(el, 'placeholder') ?? attr(el, 'title') ?? '')
-  // A radio group or a set of same-named checkboxes is labelled by its fieldset's legend, if any.
-  const groupLabel = (el: El) => {
-    const set = [...ancestors(el)].find(a => a.tagName === 'fieldset')
-    const legend = set?.childNodes.filter(isEl).find(c => c.tagName === 'legend')
-    return legend ? squash(textOf(legend)) : ''
-  }
-  const used = new Map<string, number>()
-  return all.filter(el => el.tagName === 'form' && !hiddenEl(el)).flatMap((form, index) => {
-    const controls = all.filter(el => LISTED.has(el.tagName) && ownerOf(el) === form && !disabled(el) && ![...ancestors(el)].some(a => a.tagName === 'datalist'))
-    const type = (el: El) => (el.tagName === 'input' ? attr(el, 'type')?.toLowerCase() ?? 'text' : el.tagName === 'button' ? attr(el, 'type')?.toLowerCase() ?? 'submit' : el.tagName)
-    const submitter = controls.find(el => (el.tagName === 'button' || el.tagName === 'input') && (type(el) === 'submit' || type(el) === 'image'))
-    const fields: Field[] = []
-    for (const el of controls) {
-      const name = attr(el, 'name')
-      const t = type(el)
-      if (el === submitter && name) { fields.push({ name, type: 'submit', label: '', required: false, value: attr(el, 'value') ?? '' }); continue }
-      if (!name || el.tagName === 'button' || ['submit', 'image', 'reset', 'button'].includes(t)) continue
-      if (t === 'hidden') { fields.push({ name, type: 'hidden', label: '', required: false, value: attr(el, 'value') ?? '' }); continue }
-      const dirname = attr(el, 'dirname')
-      if (t === 'radio' || t === 'checkbox') {
-        const v = attr(el, 'value') ?? 'on'
-        const on = attr(el, 'checked') !== undefined
-        const same = fields.find(f => f.name === name && f.type === t)
-        if (t === 'radio') {
-          if (same) { same.options!.push(v); if (on) same.value = v; continue }
-          fields.push({ name, type: t, label: groupLabel(el), required: attr(el, 'required') !== undefined, value: on ? v : '', options: [v] })
-          continue
-        }
-        // Checkboxes sharing a name are one "pick any of" field, sent once per picked value.
-        if (same) {
-          if (!same.multi) { same.multi = true; same.options = [same.value]; same.value = same.checked ? same.value : ''; same.label = groupLabel(el); delete same.checked }
-          same.options!.push(v)
-          if (on) same.value = same.value ? `${same.value},${v}` : v
-          continue
-        }
-        fields.push({ name, type: t, label: label(el), required: attr(el, 'required') !== undefined, value: v, checked: on })
-        continue
-      }
-      if (el.tagName === 'select') {
-        const opts = el.childNodes.flatMap(c => (isEl(c) && c.tagName === 'optgroup' ? c.childNodes : [c])).filter(isEl).filter(o => o.tagName === 'option' && attr(o, 'disabled') === undefined)
-        const valueOf = (o: El) => attr(o, 'value') ?? squash(textOf(o))
-        const multi = attr(el, 'multiple') !== undefined
-        const picked = opts.filter(o => attr(o, 'selected') !== undefined)
-        fields.push({ name, type: 'select', label: label(el), required: attr(el, 'required') !== undefined, options: opts.map(valueOf), multi: multi || undefined, value: multi ? picked.map(valueOf).join(',') : valueOf(picked[0] ?? opts[0] ?? el) })
-        continue
-      }
-      fields.push({ name, type: t, label: label(el), required: attr(el, 'required') !== undefined, value: el.tagName === 'textarea' ? textOf(el) : attr(el, 'value') ?? '', dirname })
-    }
-    const method = ((submitter && attr(submitter, 'formmethod')) ?? attr(form, 'method') ?? 'get').toLowerCase() === 'post' ? 'POST' : 'GET'
-    const target = (submitter && attr(submitter, 'formaction')) || attr(form, 'action') || page
-    // HTML form submission: an action that does not parse cannot be submitted, so it is no verb.
-    if (!URL.canParse(target, base)) return []
-    const action = new URL(target, base).href
-    const enc = ((submitter && attr(submitter, 'formenctype')) ?? attr(form, 'enctype') ?? '').toLowerCase()
-    const enctype = enc === 'multipart/form-data' || enc === 'text/plain' ? enc : 'application/x-www-form-urlencoded'
-    const id = attr(form, 'id') || attr(form, 'name') || attr(form, 'aria-label') || new URL(action).pathname.split('/').filter(Boolean).pop() || `form${index + 1}`
-    let name = `${id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 32) || `form${index + 1}`}`
-    const n = (used.get(name) ?? 0) + 1
-    used.set(name, n)
-    if (n > 1) name = `${name}-${n}`
-    return [{ name: `${name}.submit`, method, action, enctype, fields }]
-  })
+  return { url, status, title, tree, links, scripts: all.filter(el => el.tagName === 'script').length }
 }

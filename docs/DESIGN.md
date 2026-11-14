@@ -390,7 +390,7 @@ was opened is: read before it has parsed (its head waiting on a script), it is e
 | Engine | Use | Notes |
 |---|---|---|
 | `chromium` | Default | Installed Chrome, headless. Playwright for lifecycle and actionability, raw CDP for the accessibility tree, DOMSnapshot and network. Images, fonts and media never requested; `prefers-reduced-motion` on and animations/transitions disabled. |
-| `http` | Static pages, forms | parse5 (the HTML parsing algorithm, scripting off so `<noscript>` shows); the same Node tree and renderer as live tabs, with HTML-AAM roles and the accessible-name rules HTML alone can answer; a table that holds a table is layout, as browsers treat it. Forms follow the HTML form submission algorithm: owners (`form="id"`), disabled controls and fieldsets (first legend exempt), the default button as submitter with its `formaction`/`formmethod`/`formenctype`, `dirname`, multi-selects, entries in tree order, CRLF newlines, all three encodings. A page with little text and scripts says it is built by JavaScript and names `tab`. Cookies are shared with the browser through the jar (synced both ways); reading Chrome's own encrypted store was decided against. |
+| `http` | Static pages | parse5 (the HTML parsing algorithm, scripting off so `<noscript>` shows); the same Node tree and renderer as live tabs, with HTML-AAM roles and the accessible-name rules HTML alone can answer; a table that holds a table is layout, as browsers treat it. It reads pages and does not submit forms: a form is filled and submitted in a live tab (`type`, `pick`, `submit`). A page with little text and scripts says it is built by JavaScript and names `tab`. Cookies are shared with the browser through the jar (synced both ways); reading Chrome's own encrypted store was decided against. |
 
 ## 8. Owning the engine (later)
 
@@ -484,7 +484,7 @@ Keys are added when the phase that uses them lands.
 
 ## 11. Quality
 
-- Spec conformance tests: accessible names, HTML form submission, ARIA reveal patterns.
+- Spec conformance tests: accessible names, ARIA reveal patterns.
 - Recorded corpus (HAR of real pages, seeded `Math.random`) replayed offline, so measurements are deterministic.
 - Live checks against real sites on demand (`npm run live`), never blocking the build.
 - Budgets per commit: read p95 under 150 ms on the corpus; no regression in `bench/` numbers.

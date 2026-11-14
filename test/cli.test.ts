@@ -163,35 +163,15 @@ test('--version prints the package version; an unknown command fails and says so
   assert.match(bad.out, /^unknown command "nope"\n\nbrowser-layer — /)
 })
 
-test('open shows text, links and forms as verbs, without hidden content', async () => {
+test('open shows text and links, without hidden content', async () => {
   const { code, out } = await run('open', `${base}/contact`)
   assert.equal(code, 0)
   assert.match(out, /"Contact us"/)
   assert.match(out, /Write to us\./)
   assert.doesNotMatch(out, /secret promo/)
-  assert.match(out, /contact\.submit → POST \/contact/)
-  assert.match(out, /name\*\s+text\s+"Your name"/)
-  assert.match(out, /topic\s+sales \| help/)
-  assert.match(out, /size\s+s \| m\n/)
-  assert.match(out, /top\s+any of bacon, onion, cheese\s+"Toppings" = onion/)
   assert.doesNotMatch(out, /doctype|^Contact us$/im)
-  assert.match(out, /search\.submit → GET \/search/)
   assert.match(out, /\[1\] link "About"/)
   assert.doesNotMatch(out, /csrf/)
-})
-
-test('forms submit as the HTML spec builds the entry list: owners, disabled, submitter, dirname, CRLF', async () => {
-  const page = await run('open', `${base}/spec`)
-  assert.match(page.out, /Enable JavaScript please/)
-  const sent = JSON.parse((await run('do', 'spec', '--json')).out).body
-  const echoed = JSON.parse(sent)
-  assert.equal(echoed.path, '/echo2')
-  assert.equal(echoed.type, 'application/x-www-form-urlencoded')
-  assert.equal(echoed.body, 't=1&q=hi&q.dir=ltr&t=2&note=line1%0D%0Aline2&kept=y&tags=a&tags=c&go=yes&outside=o')
-  await run('open', `${base}/spec`)
-  const plain = JSON.parse(JSON.parse((await run('do', 'plain', '--json')).out).body)
-  assert.equal(plain.type, 'text/plain')
-  assert.equal(plain.body, 'a=1\r\nb=2\r\n')
 })
 
 test('a page built by JavaScript says so instead of looking empty', async () => {
@@ -307,33 +287,6 @@ test('saved answers stay within answer.keepFiles and answer.keepBytes', async ()
   writeFileSync(join(env.BROWSER_LAYER_HOME, 'policy.json'), JSON.stringify({ 'answer.keepBytes': 80000 }))
   await run('open', ...urls)
   assert.deepEqual(readdirSync(join(env.BROWSER_LAYER_HOME, 'results')).sort(), ['5.txt', '6.txt'], 'two files of about 34k fit under 80k, a third does not')
-})
-
-test('do refuses a verb with a missing required field', async () => {
-  await run('open', `${base}/contact`)
-  const { code, out } = await run('do', 'contact.submit', 'name=Naman')
-  assert.equal(code, 1)
-  assert.match(out, /missing required email/)
-})
-
-test('do submits the form with cookie, csrf and defaults, follows the redirect', async () => {
-  await run('open', `${base}/contact`)
-  const { code, out } = await run('do', 'contact', 'name=Naman', 'email=n@x.com', 'news=on', 'top=bacon,cheese', 'message=hello there')
-  assert.equal(code, 0, out)
-  assert.match(out, /Thanks, we will be in touch\./)
-  assert.equal(posted!.get('csrf'), CSRF)
-  assert.equal(posted!.get('topic'), 'help')
-  assert.equal(posted!.get('size'), 'm')
-  assert.equal(posted!.get('news'), 'on')
-  assert.deepEqual(posted!.getAll('top'), ['bacon', 'cheese'])
-  assert.equal(posted!.get('message'), 'hello there')
-})
-
-test('GET verbs become a query, JSON comes back as JSON', async () => {
-  await run('open', `${base}/contact`)
-  const { code, out } = await run('do', 'search', 'q=shoes')
-  assert.equal(code, 0, out)
-  assert.match(out, /"q":"shoes"/)
 })
 
 test('no file saved with open --out has a line longer than save.lineChars, JSON or text, one page or several', async () => {

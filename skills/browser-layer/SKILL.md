@@ -45,7 +45,7 @@ Rules
   Sign-in: type a password only if the user gave it in the task; otherwise a person runs login <url>. Irreversible steps (submit, pay, send, delete): confirm first
   unless they already said to. Several agents at once: each its own --session <name>. stop closes the browser when done.
 
-Plain HTTP, no browser:  open <url…>|<ref> [--out f] (pages fetched in parallel) · verbs · do <verb> k=v ... · --json
+Plain HTTP, no browser:  open <url…>|<ref> [--out f] (pages fetched in parallel) · --json
 Live tabs (headless browser, runs the page's JS):
   tab <url…>                   open tabs (several load together; the first is current; an open page is switched to)
   go <url> · back · forward · reload · tabs · use <id> · close [id|--all] · stop

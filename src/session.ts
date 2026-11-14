@@ -1,11 +1,10 @@
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { Verb } from './html.js'
 import type { Policy } from './policy.js'
 
 // What the fast path keeps of the last page: where its links go and its forms.
-export type Saved = { url: string; links: Record<number, string>; verbs: Verb[] }
+export type Saved = { url: string; links: Record<number, string> }
 
 export type Cookie = { name: string; value: string; domain: string; hostOnly: boolean; path: string; expires?: number; secure?: boolean }
 

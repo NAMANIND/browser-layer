@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import type { Field, Page, Verb } from './html.js'
+import type { Page } from './html.js'
 import { ceiling, home, lastPage, request, saveLastPage, type Response, type Saved } from './session.js'
 import { bounded, bulkAnswer, bulkRun, paginate, renderText, xmlLines, type Bulk } from './render.js'
 import { loadPolicy, type Policy } from './policy.js'
@@ -45,7 +45,7 @@ Rules
   Sign-in: type a password only if the user gave it in the task; otherwise a person runs login <url>. Irreversible steps (submit, pay, send, delete): confirm first
   unless they already said to. Several agents at once: each its own --session <name>. stop closes the browser when done.
 
-Plain HTTP, no browser:  open <url…>|<ref> [--out f] (pages fetched in parallel) · verbs · do <verb> k=v ... · --json
+Plain HTTP, no browser:  open <url…>|<ref> [--out f] (pages fetched in parallel) · --json
 Live tabs (headless browser, runs the page's JS):
   tab <url…>                   open tabs (several load together; the first is current; an open page is switched to)
   go <url> · back · forward · reload · tabs · use <id> · close [id|--all] · stop
@@ -96,19 +96,6 @@ const short = (href: string, from: string) => {
   return u.host === new URL(from).host ? `${u.pathname}${u.search}` : `${u.host}${u.pathname === '/' ? '' : u.pathname}${u.search}`
 }
 
-function fieldLine(f: Field): string {
-  const name = `${f.name}${f.required ? '*' : ''}`
-  const kind = f.multi ? `any of ${f.options!.join(', ')}` : f.options ? f.options.join(' | ') : f.type
-  const extra = [
-    f.label && f.label !== f.name ? `"${f.label}"` : '',
-    f.multi ? (f.value ? `= ${f.value}` : '') : f.type === 'checkbox' ? (f.checked ? 'checked' : 'unchecked') : f.value && !f.options ? `= ${JSON.stringify(f.value)}` : '',
-  ].filter(Boolean).join(' ')
-  return `    ${name.padEnd(16)} ${kind}${extra ? `  ${extra}` : ''}`
-}
-
-// Hidden fields and the submitter are sent as the page set them; the agent sees what it can fill.
-const verbView = (v: Verb, from: string) => [`  ${v.name} → ${v.method} ${short(v.action, from)}`, ...v.fields.filter(f => f.type !== 'hidden' && f.type !== 'submit').map(fieldLine)].join('\n')
-
 // The most of a non-HTML body (JSON, text) an answer shows; --out writes all of it.
 const BODY_CHARS = 8000
 
@@ -117,7 +104,7 @@ const dataBody = (res: Response) => /xml/.test(res.type) && !/html/.test(res.typ
   ? xmlLines(res.body) || res.body
   : !/html|xml/.test(res.type) && res.body.trimStart()[0] !== '<' ? res.body : undefined
 
-// A fetched page reads like a live one: the same tree and renderer, plus its forms as verbs. JSON is
+// A fetched page reads like a live one: the same tree and renderer. JSON is
 // printed compact: indentation is for eyes, and for an agent only tokens. --out writes the whole result.
 async function show(res: Response, json: boolean, out?: string) {
   const policy = loadPolicy()
@@ -133,13 +120,12 @@ async function show(res: Response, json: boolean, out?: string) {
     return console.log(`${res.url}  [${res.status}]  ${res.type}\n\n${data.slice(0, BODY_CHARS)}${more}`)
   }
   const { page, text } = await readPage(res, policy)
-  saveLastPage(session, { url: page.url, links: page.links, verbs: page.verbs })
+  saveLastPage(session, { url: page.url, links: page.links })
   if (json) return console.log(JSON.stringify(page))
   if (out) { const file = bounded(text, policy['save.lineChars']); writeFileSync(out, `${file}\n`); return console.log(`saved ${out}: ${file.split('\n').length} lines, ${file.length} chars`) }
   const [first, ...more] = paginate(text, policy['render.pageChars'])
   const lines = [`${page.url}  [${page.status}]${page.title ? `  "${page.title}"` : ''}`, '', first]
   if (more.length) lines.push(`… ${more.join('\n').length} more chars: --out <file> writes it all`)
-  if (page.verbs.length) lines.push('', 'verbs:', ...page.verbs.map(v => verbView(v, page.url)))
   const shell = buildsItself(page, text, policy)
   if (shell) lines.push('', shell)
   console.log(ceiling(lines.join('\n').trimEnd(), policy))
@@ -158,7 +144,7 @@ const buildsItself = (page: Page, text: string, policy: Policy) =>
 
 // open <url> <url> …: plain fetches, open.concurrency at a time and at most open.perHost on one site. Each
 // page is its text as `open <url> --out` writes it; a failed fetch is its own entry and the rest carry on.
-// Without --out the pages print in full, one after another. The last page (refs, verbs) is left as it was.
+// Without --out the pages print in full, one after another. The last page (refs) is left as it was.
 async function openMany(urls: string[], out?: string) {
   const policy = loadPolicy()
   const hostOf = (u: string) => { try { return new URL(u).host } catch { return u } }
@@ -209,46 +195,6 @@ async function fetchText(url: string, policy: Policy): Promise<Omit<Bulk, 'addre
 
 function needPage(): Saved {
   return lastPage(session) ?? fail('no page open yet — run: browser-layer open <url>')
-}
-
-// HTML form submission: the entry list in tree order (fields, dirname, the submitter), newlines as CRLF,
-// then one of the three encodings. GET always sends it urlencoded in the action's query.
-function encode(verb: Verb, args: Record<string, string>): { method: string; body: URLSearchParams | FormData | string; type?: string } {
-  const known = new Set(verb.fields.map(f => f.name))
-  const unknown = Object.keys(args).filter(k => !known.has(k))
-  if (unknown.length) fail(`unknown field ${unknown.join(', ')}\n\n${verbView(verb, verb.action)}`)
-  const entries: [string, string][] = []
-  const missing: string[] = []
-  for (const f of verb.fields) {
-    const given = args[f.name]
-    if (f.type === 'submit') { entries.push([f.name, f.value]); continue }
-    if (f.multi) {
-      const picked = (given ?? f.value).split(',').map(s => s.trim()).filter(Boolean)
-      const bad = picked.filter(p => !f.options!.includes(p))
-      if (bad.length) fail(`${f.name} takes any of: ${f.options!.join(', ')} (comma-separated), not ${bad.join(', ')}`)
-      for (const p of picked) entries.push([f.name, p])
-      continue
-    }
-    if (f.type === 'checkbox') {
-      const on = given === undefined ? f.checked : !/^(false|off|no|0)$/i.test(given)
-      if (on) entries.push([f.name, given && !/^(true|on|yes|1)$/i.test(given) ? given : f.value])
-      continue
-    }
-    const value = given ?? f.value
-    if (f.options && given !== undefined && !f.options.includes(given)) fail(`${f.name} must be one of: ${f.options.join(' | ')}`)
-    if (f.required && !value) missing.push(f.name)
-    if (f.type === 'radio' && !value) continue
-    entries.push([f.name, value])
-    if (f.dirname) entries.push([f.dirname, 'ltr'])
-  }
-  if (missing.length) fail(`missing required ${missing.join(', ')}\n\n${verbView(verb, verb.action)}`)
-  const crlf = (t: string) => t.replace(/\r\n|\r|\n/g, '\r\n')
-  const list = entries.map(([k, v]) => [crlf(k), crlf(v)] as [string, string])
-  if (verb.method === 'GET' || verb.enctype === 'application/x-www-form-urlencoded') return { method: verb.method, body: new URLSearchParams(list), type: 'application/x-www-form-urlencoded' }
-  if (verb.enctype === 'text/plain') return { method: 'POST', body: list.map(([k, v]) => `${k}=${v}\r\n`).join(''), type: 'text/plain' }
-  const form = new FormData()
-  for (const [k, v] of list) form.append(k, v)
-  return { method: 'POST', body: form }
 }
 
 // Flags with no value, anywhere among a command's words.
@@ -500,31 +446,6 @@ async function main() {
       : /^https?:\/\//i.test(a) ? a : `https://${a}`
     if (!rest.length) return show(await request(address(target), loadPolicy()['load.timeoutMs']), json, file)
     return openMany([target, ...rest].map(address), file)
-  }
-
-  if (cmd === 'verbs') {
-    const page = needPage()
-    return console.log(json ? JSON.stringify(page.verbs) : page.verbs.map(v => verbView(v, page.url)).join('\n') || 'no verbs on this page')
-  }
-
-  if (cmd === 'do' && target) {
-    const page = needPage()
-    const verb = page.verbs.find(v => v.name === target || v.name === `${target}.submit`)
-      ?? fail(`no verb "${target}" on ${page.url}\n\nverbs:\n${page.verbs.map(v => verbView(v, page.url)).join('\n') || '  (none)'}`)
-    const args: Record<string, string> = {}
-    for (const pair of rest) {
-      const eq = pair.indexOf('=')
-      if (eq < 1) fail(`expected key=value, got "${pair}"`)
-      args[pair.slice(0, eq)] = pair.slice(eq + 1)
-    }
-    const { method, body, type } = encode(verb, args)
-    if (method === 'GET') {
-      const url = new URL(verb.action)
-      url.search = body.toString()
-      return show(await request(url.href, loadPolicy()['load.timeoutMs']), json, file)
-    }
-    const headers: Record<string, string> = type ? { 'content-type': type } : {}
-    return show(await request(verb.action, loadPolicy()['load.timeoutMs'], { method, body: body instanceof FormData ? body : body.toString(), headers: { ...headers, referer: page.url, origin: new URL(page.url).origin } }), json, file)
   }
 
   if (cmd && cmd !== 'help' && cmd !== '--help' && cmd !== '-h') {

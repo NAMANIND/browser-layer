@@ -136,8 +136,8 @@ With `--out <file>` on `open`, `read`, `find` or `get` the whole result goes to 
 between commands and exits after 30 idle minutes. Its state (profile, cookies, last page) lives in
 `~/.browser-layer`, or `BROWSER_LAYER_HOME`.
 
-**Fast path** (`open`, `do`, `verbs`): plain HTTP, no browser at all. It works when the content and
-forms are in the HTML the server sends; pages built by JavaScript need a live tab.
+**Fast path** (`open`): plain HTTP, no browser at all. It works when the content is in the HTML the server
+sends; pages built by JavaScript, and every form, need a live tab.
 
 **Signing in**: `browser-layer login <url>` opens a normal browser window on the agent's profile. You
 sign in yourself (passwords, 2FA and passkeys stay with you), close it, and the agent stays signed in.

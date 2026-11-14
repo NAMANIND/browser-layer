@@ -201,7 +201,7 @@ documented). 48 tests green.
 P5 ✅: the fast path parses with parse5 and renders through the same tree and renderer as live tabs
 (a static page gives the same roles and names on both engines, tested); forms follow the HTML form
 submission algorithm (conformance test: owners, disabled fieldset with legend exemption, submitter
-overrides, dirname, multi-select, tree order, CRLF, text/plain); JavaScript-built pages say so.
+overrides, dirname, multi-select, tree order, CRLF, text/plain; removed 15 Nov with `verbs` and `do`: 0 uses in 834 recorded runs, forms go through live tabs); JavaScript-built pages say so.
 `page.ts`, `view.ts` and node-html-parser removed. Decided against: reading Chrome's encrypted cookie
 store directly (Chrome internals, not a standard); the two-way jar sync stays. 51 tests green.
 
