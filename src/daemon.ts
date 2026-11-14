@@ -341,6 +341,19 @@ const registrable = (url: string) => {
     return p.slice(p.length > 2 && p[p.length - 2].length <= 3 && p[p.length - 1].length === 2 ? -3 : -2).join('.')
   } catch { return '' }
 }
+// The name of the link that opens the part of the page holding the text, when it is there but closed (an accordion
+// section): the page itself says which, by a link to the part's id. (aria-controls and <details> the reader already
+// says.) Only that name is told, never the hidden text, so a find still shows what a person could see.
+const CLOSED_PART = `(want) => {
+  const holds = e => (e.textContent || '').toLowerCase().includes(want)
+  const inner = [...document.body.querySelectorAll('*')].find(e => holds(e) && ![...e.children].some(holds) && !e.checkVisibility())
+  for (let p = inner; p; p = p.parentElement) {
+    const control = p.id ? document.querySelector('a[href$="#' + CSS.escape(p.id) + '"]') : null
+    if (control) return (control.textContent || control.getAttribute('aria-label') || '').trim().replace(/\\s+/g, ' ')
+  }
+  return null
+}`
+
 // Requests the current command caused that are still in flight and that the page's content waits on: the
 // site's own, never decoration (pictures, fonts, media cannot change the text). Another site's requests
 // (ads, analytics, widgets) keep a page busy for seconds and change nothing the agent reads, so only its data calls (fetch, XHR) count, and only where content may come from
@@ -1277,7 +1290,10 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
     const want = c.text.toLowerCase()
     const { tree, origin, text } = await snapshot(tab)
     const hits = (c.urls ? renderText(tree, origin, { ...caps(), urls: true }) : text).split('\n').filter(l => l.toLowerCase().includes(want))
-    if (!hits.length) return `"${c.text}" is not on the page`
+    if (!hits.length) {
+      const part = await tab.page.evaluate(`(${CLOSED_PART})(${JSON.stringify(want)})`).catch(() => null)
+      return `"${c.text}" is not on the page${part ? ` — inside the closed part "${part}": click it, then find again` : ''}`
+    }
     if (c.out) return saved(c.out, hits.join('\n'), `${hits.length} lines with "${c.text}"`)
     const per = policy['data.rows']
     const page = c.page ?? 1

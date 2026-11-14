@@ -348,6 +348,13 @@ const server = createServer((req, res) => {
     <button onclick="o.textContent = 'clicked'">Quick</button>
     <button onclick="fetch('/slow').then(r => r.text()).then(t => o.textContent = 'loaded ' + t)">Load</button>
     <script>(async function poll() { for (;;) await fetch('/poll').then(r => r.text()) })()</script>`)
+  // Sections a page keeps closed: a link to the section's id (an accordion); aria-controls and <details> the reader already says.
+  if (req.url === '/accordion') return page('accordion', `<main><h1>Project</h1>
+    <h2><a href="#s1" id="h1">First Submission</a></h2><ul id="s1" hidden><li><a href="/files/cover.pdf">Cover Letter</a></li></ul>
+    <h2><a href="#s2">Second Submission</a></h2><ul id="s2" style="display:none"><li><a href="/files/matrix.pdf">Comment Matrix</a></li></ul>
+    <button aria-controls="s3">More files</button><div id="s3" hidden><a href="/files/plan.pdf">Site Plan</a></div>
+    <details><summary>Notices</summary><a href="/files/notice.pdf">Notice of Application</a></details></main>
+    <script>document.querySelectorAll('h2 a, button').forEach(c => c.onclick = e => { e.preventDefault(); const t = document.getElementById(c.getAttribute('href')?.slice(1) ?? c.getAttribute('aria-controls')); t.hidden = false; t.style.display = 'block' })</script>`)
   if (req.url === '/clicky') return page('clicky', `<div id="a">Open report</div><span onclick="o.textContent = 'inline'">Inline one</span>
     <div id="w"><button>Real button</button></div><div id="d">Delegated</div>
     <a tabindex="0">Keyboard one</a><a tabindex="-1">Skipped one</a><p id="o">none</p>
@@ -1417,6 +1424,14 @@ test('elements made clickable only by a script, or put in the tab order, get ref
   assert.doesNotMatch(page.out, /clickable "Real button"|clickable "Delegated"|clickable "Skipped one"/)
   assert.match(page.out, /clickable "Keyboard one"/)
   assert.match((await run('click', ref(page.out, /clickable "Open report"/))).out, /report opened/)
+})
+
+test('find says which closed part holds the text when it is not shown, and finds it once that part is open', async () => {
+  await openRead(`${base}/accordion`)
+  assert.match((await run('find', 'comment matrix')).out, /not on the page — inside the closed part "Second Submission": click it, then find again/)
+  assert.equal((await run('find', 'no such words')).out.trim(), '"no such words" is not on the page')
+  await run('click', 'Second Submission')
+  assert.match((await run('find', 'comment matrix', '--urls')).out, /Comment Matrix.*matrix\.pdf/)
 })
 
 test('a link or form whose address is not a valid URL does not stop the page from reading', async () => {

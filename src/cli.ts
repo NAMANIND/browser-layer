@@ -22,7 +22,8 @@ Start here
   click 31 · click "Next" · type 15 Mumbai --enter · pick 22 "Economy" · check 40
                        every action answers with what changed: that answer is the new state, read nothing after it
   steps '<cmd>; <cmd>; ...'   everything you already know in one call (actions answer in one line, reads and the last
-                       step in full); the first error stops the rest
+                       step in full); the first error stops the rest. Many records, one call: names repeat across pages, refs do not:
+                       steps 'tab <url1>; click "Details"; find "matrix" --urls; tab <url2>; click "Details"; find "matrix" --urls'
   read <ref> · find <text> · get <ref>   go deeper only where you need to
   --out <file>         a big result goes to a file; read it back: find <text> --in <file> · read <file> --lines a-b · get <file>
   Many pages, one call, never a shell loop: open --out f <url…> (static HTML, XML sitemaps, feeds), each --out f '<read>' <url…>
