@@ -375,7 +375,9 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
       return [{ ref: refFor(backendNodeId[i], as('textbox', name)), role: 'textbox', name, nameShown: false, states: [], block, key, value: squash(textOf(children)) || undefined, children: hasRef(children) ? children : undefined }]
     }
     // The same for an element that reacts to the pointer: the page never says it is a control, but it acts as one.
-    const reacts = clicked.has(backendNodeId[i]) || hovered.has(backendNodeId[i]) || [...CLICK_ATTRS, ...HOVER_ATTRS].some(h => attr(i, h) !== undefined)
+    // An element in the tab order (tabindex 0 or more) is operable by keyboard whoever listens for the click: a page
+    // that handles clicks on a parent (a delegated listener) still has to put its buttons there.
+    const reacts = clicked.has(backendNodeId[i]) || hovered.has(backendNodeId[i]) || parseInt(attr(i, 'tabindex') ?? '-1', 10) >= 0 || [...CLICK_ATTRS, ...HOVER_ATTRS].some(h => attr(i, h) !== undefined)
     if (plain && !quiet && l !== undefined && !hidden && reacts && !hasRef(children)) {
       const name = squash(textOf(children)) || squash(attr(i, 'aria-label') ?? attr(i, 'title') ?? '')
       return [{ ref: refFor(backendNodeId[i], as('clickable', name)), role: 'clickable', name, nameShown: true, states: hovered.has(backendNodeId[i]) || HOVER_ATTRS.some(h => attr(i, h) !== undefined) ? ['reacts to hover'] : [], block, key, children: [] }]

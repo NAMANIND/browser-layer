@@ -349,7 +349,8 @@ const server = createServer((req, res) => {
     <button onclick="fetch('/slow').then(r => r.text()).then(t => o.textContent = 'loaded ' + t)">Load</button>
     <script>(async function poll() { for (;;) await fetch('/poll').then(r => r.text()) })()</script>`)
   if (req.url === '/clicky') return page('clicky', `<div id="a">Open report</div><span onclick="o.textContent = 'inline'">Inline one</span>
-    <div id="w"><button>Real button</button></div><div id="d">Delegated</div><p id="o">none</p>
+    <div id="w"><button>Real button</button></div><div id="d">Delegated</div>
+    <a tabindex="0">Keyboard one</a><a tabindex="-1">Skipped one</a><p id="o">none</p>
     <script>a.addEventListener('click', () => o.textContent = 'report opened'); w.addEventListener('click', () => {})
       document.addEventListener('click', e => { if (e.target.id === 'd') o.textContent = 'delegated' })</script>`)
   if (req.url === '/parity') return page('parity', `<header><a href="/">Home</a><nav aria-label="Main"><a href="/a">About</a> <a href="/b">Blog</a></nav></header>
@@ -1408,12 +1409,13 @@ test('a standing long-poll channel does not hold settle; requests the action sta
   assert.match(load.out, /loaded slow data/)
 })
 
-test('elements made clickable only by a script get refs; wrappers and root listeners do not', async () => {
+test('elements made clickable only by a script, or put in the tab order, get refs; wrappers and root listeners do not', async () => {
   const page = await openRead(`${base}/clicky`)
   assert.match(page.out, /clickable "Open report"/)
   assert.match(page.out, /clickable "Inline one"/)
   assert.match(page.out, /button "Real button"/)
-  assert.doesNotMatch(page.out, /clickable "Real button"|clickable "Delegated"/)
+  assert.doesNotMatch(page.out, /clickable "Real button"|clickable "Delegated"|clickable "Skipped one"/)
+  assert.match(page.out, /clickable "Keyboard one"/)
   assert.match((await run('click', ref(page.out, /clickable "Open report"/))).out, /report opened/)
 })
 
