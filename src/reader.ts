@@ -393,7 +393,7 @@ export async function readTree(cdp: CDPSession, refs: Refs, limits: Limits, fram
     const shown = (ns: Node[]): boolean => ns.some(n => (n.ref && n.name && content(n.name).includes(content(outside(children)))) || (n.children && shown(n.children)))
     if (plain && !quiet && l !== undefined && !hidden && (holds ? pointed && squash(outside(children)) !== '' && !shown(children) : reacts)) {
       const name = squash(outside(children)) || squash(attr(i, 'aria-label') ?? attr(i, 'title') ?? '')
-      return [{ ref: refFor(backendNodeId[i], as('clickable', name)), role: 'clickable', name, nameShown: true, states: hovered.has(backendNodeId[i]) || HOVER_ATTRS.some(h => attr(i, h) !== undefined) ? ['reacts to hover'] : [], block, key, boxed: holds, children: holds ? children : [] }]
+      return [{ ref: refFor(backendNodeId[i], as('clickable', name)), role: 'clickable', name: holds ? undefined : name, nameShown: true, states: hovered.has(backendNodeId[i]) || HOVER_ATTRS.some(h => attr(i, h) !== undefined) ? ['reacts to hover'] : [], block, key, boxed: holds, children: holds ? children : [] }]
     }
     // A picture is not read out (rule 5), but its address is data that records carry. A data: URL is the
     // picture itself inline, not an address.

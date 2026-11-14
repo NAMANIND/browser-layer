@@ -1433,11 +1433,12 @@ test('elements made clickable only by a script, or put in the tab order, get ref
 
 test('a box the page marks as clickable (cursor: pointer) gets a ref beside the controls inside it, and a click lands on the box, not on a control over its center', async () => {
   const page = await openRead(`${base}/card`)
-  assert.match(page.out, /clickable "Pranay Prateek[^"]*"/)
+  assert.match(page.out, /\[\d+\] clickable .*Pranay Prateek, You: Hey Pranay/)
+  assert.doesNotMatch(page.out, /clickable "Pranay/)
   assert.match(page.out, /button "Options"/)
-  await run('click', ref(page.out, /clickable "Karim Rahme/))
+  await run('click', ref(page.out, /clickable .*Karim Rahme/))
   assert.match((await run('read')).out, /thread karim/)
-  await run('click', ref(page.out, /clickable "Pranay Prateek/))
+  await run('click', ref(page.out, /clickable .*Pranay Prateek/))
   assert.match((await run('read')).out, /thread pranay/)
 })
 
