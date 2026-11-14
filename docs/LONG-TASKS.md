@@ -448,8 +448,31 @@ What the three gates say together: the floor measures what the tool allows and i
 nine steps and mostly do not reach the cases the contracts are about (a list over 25 pages, a slow server, a dead
 browser, no shell). A gain here would need tasks that long, which is what the paid benchmark has and this set does not.
 
+Paid run against Browser Use 1.0 (`bench/results/long6-report.md`, build eeb6f5b, two runs an arm, five tasks, one night):
+we cost more in both runs (steps 625 and 542 against 434 and 390; input 49.9M and 39.4M against 30.7M and 31.9M),
+because we make more model requests at the same context size; no score claim holds (ours 0.59 and 0.24, theirs 0.32
+and 0.32). Reading the transcripts showed what the numbers could not:
+
+- The pager fix of c269c56 did not work on the real report site: nine `get --all` calls in a row ended "Next Page was
+  pressed and nothing new came". The viewer says "Loading..." the moment it is pressed, which changed the page text and
+  ended the wait while the old table was still shown. Fixed in 99112e1 by waiting for the list's own records to change;
+  the test's viewer now says Loading. bu2-163 alone on dfa9fea (`bench/results/long7-report.md`, one run, ours only):
+  `get --all` ended on a whole report in one call 4 times (1 and 0 in long6), "not shown to be complete" 0 times
+  (15 and 3), score 0.72 and no timeout (long6: timed out twice), 110 requests against 177 and 121.
+- `open` of a PDF printed its bytes into the context; it now names the type and size, `--out` saves the bytes (e33eec3).
+- A cookie banner's Agree link (no href, click handled by its container) read as plain text and cost about twenty
+  requests; an element in the tab order now gets a ref (dfa9fea).
+- bu2-178 is a per-record loop: 3 to 4 requests a project, 10 projects, against Browser Use's one script. The matrix link
+  sits in a collapsed accordion, which reads do not show, so `each --from <list>` answered "not on the page". `find` now
+  names the closed part that holds the text and the manual shows a many-records `steps` call (f75cb12). Hidden links
+  are not shown: the reads keep showing what a person could see.
+
+Fifth gate, local Haiku, f75cb12 against eeb6f5b, 13 tasks, 78 runs, none lost: every metric a tie (score 0.998 against
+0.982, steps 9.21 against 9.18, input tokens +3%, cost equal, wall time -15%); GO. It compares builds of ours, not Browser
+Use, and has no task of the bu2-178 kind. src 4,373 to 4,397 lines, help 6,380 to 6,577 characters.
+
 Open, in order of what the evidence asks for: a table whose header row is plain cells counts the header as a record;
-the long-task paid run on this build; agent tasks long enough to reach the contracts; pages whose scripts hold `DOMContentLoaded` for 10 s (seen on the-internet.herokuapp.com: each open waited the
+the Browser Use comparison again on this build (bu2-178 and bu2-163, both tools in one window); agent tasks long enough to reach the contracts; pages whose scripts hold `DOMContentLoaded` for 10 s (seen on the-internet.herokuapp.com: each open waited the
 whole `load.domMs`); `each --from` a plain file of addresses (an agent built one and passed it as one argument);
 the blank-cell rule for lists (C3: none found); the English word list for Next and Load more (kept, see C1).
 
