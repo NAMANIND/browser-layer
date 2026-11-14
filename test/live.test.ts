@@ -150,7 +150,7 @@ const server = createServer((req, res) => {
   // A list whose records link to a page each.
   if (req.url === '/things') return page('things', `<main><ul>${[1, 2, 3].map(n => `<li><h3><a href="/thing/${n}">Thing ${n}</a></h3><p>₹${n}00</p></li>`).join('')}</ul></main>`)
   if (req.url === '/things-gone') return page('things', `<main><ul>${[1, 2].map(n => `<li><h3><a href="/thing/${n}">Thing ${n}</a></h3><p>₹${n}00</p></li>`).join('')}<li><h3><a href="http://localhost:1/none">Thing 3</a></h3><p>₹300</p></li></ul></main>`)
-  if (req.url?.startsWith('/thing/')) return page(`thing ${req.url.slice(7)}`, `<main><h1>Thing ${req.url.slice(7)}</h1><p>Weight ${req.url.slice(7)} kg</p></main>`)
+  if (req.url?.startsWith('/thing/')) return page(`thing ${req.url.slice(7)}`, `<main><h1>Thing ${req.url.slice(7)}</h1><p>Weight ${req.url.slice(7)} kg</p><button onclick="s.hidden = false">Reveal</button><p id="s" hidden>Secret ${req.url.slice(7)}</p></main>`)
   // Lists whose fields are named the ways HTML and schema.org name them: a <dt> for its <dd>, itemprop, aria-label,
   // and a JSON-LD property; the last has a rating whose label says its own value, which names nothing.
   // From page 1, rows have an extra part first, so the named fields are not in the same place.
@@ -739,6 +739,13 @@ test('each takes its addresses from records: a list on the page, or a file get s
   assert.match((await run('tabs')).out, /^\* \d+ +\S+\/things /m)
   await run('tab', `${base}/numbers`)
   assert.match((await run('each', 'find Weight', '--from', ref((await run('map')).out, /list of 3/))).out, /no addresses in \[\d+\] list/)
+})
+
+test('each runs steps on every record\'s page: a control named in them is that page\'s own, and the list stays the current tab', async () => {
+  const list = ref((await run('tab', `${base}/things`)).out, /list of 3/)
+  const out = (await run('each', "steps 'click \"Reveal\"; find Secret'", '--from', list)).out
+  for (const n of [1, 2, 3]) assert.match(out, new RegExp(`thing/${n}[\\s\\S]*Secret ${n}`))
+  assert.match((await run('tabs')).out, /^\* \d+ +\S+\/things /m)
 })
 
 test('get reads a saved records file back: --where, --count, --group and --sort, inside steps too', async () => {

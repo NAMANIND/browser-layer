@@ -24,6 +24,8 @@ Start here
   steps '<cmd>; <cmd>; ...'   everything you already know in one call (actions answer in one line, reads and the last
                        step in full); the first error stops the rest. Many records, one call: names repeat across pages, refs do not:
                        steps 'tab <url1>; click "Details"; find "matrix" --urls; tab <url2>; click "Details"; find "matrix" --urls'
+  A list of records that link to a page each: one visit per record, fields out, ONE call (never one tab/click/find per record):
+                       each "steps 'click \"Show extension\"; find Extension'" --from <list ref> --out f.txt; then find <text> --in f.txt
   read <ref> · find <text> · get <ref>   go deeper only where you need to
   --out <file>         a big result goes to a file; read it back: find <text> --in <file> · read <file> --lines a-b · get <file>
   Many pages, one call, never a shell loop: open --out f <url…> (static HTML, XML sitemaps, feeds), each --out f '<read>' <url…>

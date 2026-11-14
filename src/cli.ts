@@ -24,6 +24,8 @@ Start here
   steps '<cmd>; <cmd>; ...'   everything you already know in one call (actions answer in one line, reads and the last
                        step in full); the first error stops the rest. Many records, one call: names repeat across pages, refs do not:
                        steps 'tab <url1>; click "Details"; find "matrix" --urls; tab <url2>; click "Details"; find "matrix" --urls'
+  A list of records that link to a page each: one visit per record, fields out, ONE call (never one tab/click/find per record):
+                       each "steps 'click \\"Show extension\\"; find Extension'" --from <list ref> --out f.txt; then find <text> --in f.txt
   read <ref> · find <text> · get <ref>   go deeper only where you need to
   --out <file>         a big result goes to a file; read it back: find <text> --in <file> · read <file> --lines a-b · get <file>
   Many pages, one call, never a shell loop: open --out f <url…> (static HTML, XML sitemaps, feeds), each --out f '<read>' <url…>
@@ -457,12 +459,14 @@ async function main() {
 
   if (cmd === 'mcp') return serve()
 
+  const stepsOf = (text: string) => script(text).map(({ raw, words }) => {
+    const p = parse(words)
+    if (!LIVE.has(p.cmd) || p.cmd === 'stop' || p.session !== undefined || p.profile !== undefined) fail(`steps runs live-tab commands, without stop, --session or --profile: "${raw}"`)
+    return { ...liveCommand(p), raw }
+  })
+
   if (cmd === 'steps') {
-    const steps = script([target, ...rest].join(' ')).map(({ raw, words }) => {
-      const p = parse(words)
-      if (!LIVE.has(p.cmd) || p.cmd === 'stop' || p.session !== undefined || p.profile !== undefined) fail(`steps runs live-tab commands, without stop, --session or --profile: "${raw}"`)
-      return { ...liveCommand(p), raw }
-    })
+    const steps = stepsOf([target, ...rest].join(' '))
     if (!steps.length) fail(`usage: browser-layer steps 'type 14 "Mumbai"; press Enter; read'`)
     const reply = await live({ cmd: 'steps', session, steps })
     if (!reply.ok) fail(`error: ${reply.error}`)
@@ -477,10 +481,10 @@ async function main() {
     const [{ raw, words }] = script(text ?? '')
     const p = parse(words ?? [])
     const { from } = parsed
-    if (!text || !(urls.length || from) || !LIVE.has(p.cmd) || p.cmd === 'stop' || p.session !== undefined || p.profile !== undefined) fail(`usage: browser-layer each '<read command>' <url…> | --from <ref|file>`)
+    if (!text || !(urls.length || from) || !(LIVE.has(p.cmd) || p.cmd === 'steps') || p.cmd === 'stop' || p.session !== undefined || p.profile !== undefined) fail(`usage: browser-layer each '<read command>' <url…> | --from <ref|file>`)
     // --from: a number is a list on the page, anything else a file get saved; its records' addresses are the pages.
     const source = from === undefined ? {} : /^\d+$/.test(from) ? { ref: from } : { file: resolve(from) }
-    const reply = await live({ cmd: 'each', session, pages: urls, steps: [{ ...liveCommand(p), raw }], out: parsed.file, limit: parsed.limit, cols: parsed.cols, ...source })
+    const reply = await live({ cmd: 'each', session, pages: urls, steps: [p.cmd === 'steps' ? { cmd: 'steps', session, steps: stepsOf([p.target, ...p.rest].join(' ')), raw } : { ...liveCommand(p), raw }], out: parsed.file, limit: parsed.limit, cols: parsed.cols, ...source })
     if (!reply.ok) fail(`error: ${reply.error}`)
     return console.log(reply.text)
   }

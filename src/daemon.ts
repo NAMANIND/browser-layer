@@ -915,7 +915,7 @@ const refCounter = { next: 1 }
 // Decoration is not loaded unless a site was allowed to show it.
 const skipDecoration = (r: Route) => (DECORATION.has(r.request().resourceType()) && !pictured.has(siteOf(r.request())) ? r.abort() : r.continue())
 
-async function setupTab(session: string, page: Page): Promise<Tab> {
+async function setupTab(session: string, page: Page, background = false): Promise<Tab> {
   // Attached, these reach this tab only; a launched browser has them for all its tabs (see main).
   if (ATTACH) {
     await page.route('**/*', skipDecoration)
@@ -957,32 +957,33 @@ async function setupTab(session: string, page: Page): Promise<Tab> {
   })
   tabs.set(tab.id, tab)
   track(tab)
-  current.set(session, tab.id)
+  if (!background) current.set(session, tab.id)
   return tab
 }
 
 // Navigations return once the response begins; settle then waits for the document (load.domMs at most).
 const COMMIT = () => ({ waitUntil: 'commit' as const, timeout: policy['load.timeoutMs'] })
 
-async function newTab(session: string, url: string): Promise<Tab> {
+async function newTab(session: string, url: string, background = false): Promise<Tab> {
   const open = new Set([...tabs.values()].map(t => t.session))
   if (!open.has(session) && open.size >= policy['sessions.max']) {
     throw new Error(`${open.size} sessions are open, the most there can be: close the tabs of one (browser-layer --session <name> close <id>) or use a session already open`)
   }
-  const tab = await setupTab(session, await ctx.newPage())
+  const tab = await setupTab(session, await ctx.newPage(), background)
   await tab.page.goto(withUrl(url), COMMIT())
   return tab
 }
 
 // A page already open in this session is switched to, as a browser's "switch to tab" does (no second copy to
 // load and keep track of); any other opens in a new tab.
-async function loadTab(session: string, url: string) {
+// background: a tab opened for a bulk read, which must not take the session's current tab from a read in progress.
+async function loadTab(session: string, url: string, background = false) {
   const open = [...tabs.values()].find(t => t.session === session && pageOf(t.page.url()) === pageOf(new URL(withUrl(url)).href))
   if (open) {
     open.used = Date.now()
     return { tab: open, fresh: false, settled: '', note: 'already open here, so this is that tab (reload loads it again)' }
   }
-  const tab = await newTab(session, url)
+  const tab = await newTab(session, url, background)
   const note = await arrive(tab)
   return { tab, fresh: true, settled: unusual(await settle(tab)), note }
 }
@@ -1192,7 +1193,7 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
   async each(c) {
     const [read] = c.steps ?? []
     if (!read || !(c.pages?.length || c.ref || c.file)) throw new Error("usage: browser-layer each '<read command>' <url…> | --from <ref|file>")
-    if (!READS.has(read.cmd) && read.cmd !== 'eval') throw new Error(`each only reads: ${[...READS, 'eval'].join(', ')}`)
+    if (!READS.has(read.cmd) && read.cmd !== 'eval' && read.cmd !== 'steps') throw new Error(`each only reads: ${[...READS, 'eval'].join(', ')}`)
     const was = current.get(c.session)
     const pages = c.pages?.length ? c.pages : await addresses(c)
     const failed = (err: unknown) => `error: ${err instanceof Error ? err.message.split('\n')[0] : err}`
@@ -1209,11 +1210,11 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
         const had = run?.kept.get(pages[k])
         if (had) { results[k] = { head: pages[k], page: had }; continue }
         try {
-          const l = await loadTab(c.session, pages[k])
+          const l = await loadTab(c.session, pages[k], true)
           await (turn = turn.then(async () => {
             current.set(c.session, l.tab.id)
             const note = [l.note, l.settled].filter(Boolean).join('; ')
-            const text = await limited({ ...read, session: c.session, out: undefined }).catch(failed)
+            const text = await limited({ ...read, session: c.session, out: undefined, steps: read.steps?.map(step => ({ ...step })) }).catch(failed)
             results[k] = { head: `${await header(l.tab)}${note ? `  (${note})` : ''}`, page: entry(pages[k], await l.tab.page.title().catch(() => ''), text) }
             run?.add(results[k].page)
           }))
