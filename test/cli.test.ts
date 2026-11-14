@@ -105,6 +105,10 @@ line2</textarea>
     res.setHeader('content-type', 'application/xml')
     return res.end('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/a?x=1&amp;y=2</loc><lastmod>2024-07-19</lastmod></url><url><loc>https://example.com/b</loc></url></urlset>')
   }
+  if (url.pathname === '/doc.pdf') {
+    res.setHeader('content-type', 'application/pdf')
+    return res.end(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0xe2, 0xe3, 0xcf, 0xd3, 0x00, 0xff, 0xfe, 0x0a]))
+  }
   if (url.pathname === '/wide.json') {
     res.setHeader('content-type', 'application/json')
     return res.end(JSON.stringify(Array.from({ length: 300 }, (_, i) => ({ id: i, name: `row ${i} ${'x'.repeat(30)}` }))))
@@ -124,6 +128,15 @@ line2</textarea>
 })
 
 const env = { ...process.env, BROWSER_LAYER_HOME: mkdtempSync(join(tmpdir(), 'browser-layer-')) }
+
+test('a binary body is named, not printed, and --out saves its bytes as they came', async () => {
+  const shown = await run('open', `${base}/doc.pdf`)
+  assert.match(shown.out, /application\/pdf — binary, 13 bytes: --out <file> saves it/)
+  assert.doesNotMatch(shown.out, /%PDF/)
+  const file = join(env.BROWSER_LAYER_HOME, 'doc.pdf')
+  assert.match((await run('open', '--out', file, `${base}/doc.pdf`)).out, /saved .*doc\.pdf: 13 bytes/)
+  assert.deepEqual([...readFileSync(file)], [0x25, 0x50, 0x44, 0x46, 0x2d, 0xe2, 0xe3, 0xcf, 0xd3, 0x00, 0xff, 0xfe, 0x0a])
+})
 
 function run(...args: string[]): Promise<{ code: number; out: string }> {
   return new Promise(resolve => {

@@ -67,7 +67,7 @@ function cookieHeader(jar: Cookie[], url: URL): string {
     .join('; ')
 }
 
-export type Response = { url: string; status: number; type: string; body: string }
+export type Response = { url: string; status: number; type: string; body: string; bytes: Buffer }
 
 // Plain HTTP with a persistent cookie jar. Redirects are followed by hand so every hop's cookies are kept.
 // A server that takes the request and never answers would hold the call for as long as Node allows (minutes):
@@ -102,7 +102,8 @@ export async function request(url: string, timeoutMs: number, init: { method?: s
       if (res.status !== 307 && res.status !== 308) { method = 'GET'; body = undefined; headers = {} }
       continue
     }
-    return { url: target.href, status: res.status, type: res.headers.get('content-type') ?? '', body: await res.text().catch(late) }
+    const bytes = Buffer.from(await res.arrayBuffer().catch(late))
+    return { url: target.href, status: res.status, type: res.headers.get('content-type') ?? '', body: bytes.toString('utf8'), bytes }
   }
   throw new Error(`too many redirects from ${url}`)
 }

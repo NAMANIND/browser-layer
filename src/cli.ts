@@ -120,6 +120,10 @@ const dataBody = (res: Response) => /xml/.test(res.type) && !/html/.test(res.typ
 // printed compact: indentation is for eyes, and for an agent only tokens. --out writes the whole result.
 async function show(res: Response, json: boolean, out?: string) {
   const policy = loadPolicy()
+  if (res.type && !/text|html|json|xml|javascript/.test(res.type) && !json) {
+    if (out) { writeFileSync(out, res.bytes); return console.log(`saved ${out}: ${res.bytes.length} bytes`) }
+    return console.log(`${res.url}  [${res.status}]  ${res.type} — binary, ${res.bytes.length} bytes: --out <file> saves it`)
+  }
   const data = dataBody(res)
   if (data !== undefined) {
     if (json) return console.log(JSON.stringify({ url: res.url, status: res.status, type: res.type, body: res.body }))
