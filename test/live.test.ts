@@ -132,6 +132,9 @@ const server = createServer((req, res) => {
   // "Load more" whose rows come a second and a half after the press, with no request to wait on.
   if (req.url === '/latemore') return page('latemore', `<main><ul id="l"></ul><button id="b">Load more</button></main>
     <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); b.onclick = () => setTimeout(add, 1500)</script>`)
+  // "Load more" whose handler a script attaches after the button is shown (hydration): a press before that does nothing.
+  if (req.url === '/hydrating') return page('hydrating', `<main><ul id="l"></ul><button id="b">Load more</button></main>
+    <script>let n = 0; const add = () => { for (let k = 0; k < 5; k++, n++) l.insertAdjacentHTML('beforeend', '<li><h3>Item ' + n + '</h3><p>₹' + n + '00</p></li>'); if (n >= 15) b.hidden = true }; add(); setTimeout(() => { b.onclick = add }, 3000)</script>`)
   // A report viewer: the toolbar's Next Page stays, and each press shows "Loading..." at once and replaces the whole report (a new table,
   // inside layout tables, with a header row of plain cells) only when the server has rendered it, as a report viewer does.
   if (req.url?.startsWith('/viewer')) return page('viewer', `<main><div><button id="n">Next Page</button><span id="ld"></span></div>
@@ -648,6 +651,8 @@ test('get --all follows the list to its end: a rel=next link, Load more, a scrol
   assert.match(stuck.out, /3 records/)
   // A press whose effect is late is waited for before "nothing new" is said.
   assert.match((await run('get', await list('/latemore'), '--all', '--out', out)).out, /15 records.*ended: no "Load more" on the last page/)
+  // A press that was lost (the handler not attached yet) is made once more before it is said to have brought nothing.
+  assert.match((await run('get', await list('/hydrating'), '--all', '--out', out)).out, /15 records.*ended: no "Load more" on the last page/)
   // An end is said only when the page shows one: a control that did nothing, or no way to more at all, is not an end.
   assert.match(stuck.out, /not shown to be complete: "Load more" was pressed and nothing new came/)
   const unmarked = await run('get', await list('/unmarked'), '--all', '--out', out)

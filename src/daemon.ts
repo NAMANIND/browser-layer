@@ -784,16 +784,21 @@ async function recordsAll(tab: Tab, first: Node, origin: string, q: Query & { ou
     if (!more && q.more) throw new Error(`nothing is named "${q.more}" — run: browser-layer map`)
     const read = async () => { const l = await locate(); return l ? JSON.stringify(records(l, origin, caps()).rows) : '' }
     const was = [tab.doc, await read()]
-    if (more) await pointerAt(tab, String(more.ref), {})
-    else await tab.page.evaluate('document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)')
-    await settle(tab)
-    // A press can take effect late: a navigation a busy machine has not begun, rows a timer adds, a server still
-    // rendering the next page (and saying "Loading" meanwhile, which changes the page but not the list). Before a
-    // press is said to have brought nothing, the list is watched for a change, settle.deadlineMs at most, and for as
-    // long as a request the press caused is in flight (the page's own limit, command.timeoutMs, ends it).
-    let late = false
-    for (const end = Date.now() + policy['settle.deadlineMs']; more && tab.doc === was[0] && await read() === was[1] && (Date.now() < end || caused(tab) > 0); late = true) await sleep(100)
-    if (late) await settle(tab)
+    const press = async () => {
+      if (more) await pointerAt(tab, String(more.ref), {})
+      else await tab.page.evaluate('document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)')
+      await settle(tab)
+      // A press can take effect late: a navigation a busy machine has not begun, rows a timer adds, a server still
+      // rendering the next page (and saying "Loading" meanwhile, which changes the page but not the list). Before a
+      // press is said to have brought nothing, the list is watched for a change, settle.deadlineMs at most, and for as
+      // long as a request the press caused is in flight (the page's own limit, command.timeoutMs, ends it).
+      let late = false
+      for (const end = Date.now() + policy['settle.deadlineMs']; more && tab.doc === was[0] && await read() === was[1] && (Date.now() < end || caused(tab) > 0); late = true) await sleep(100)
+      if (late) await settle(tab)
+    }
+    await press()
+    // A press can also be lost (a handler a script has not attached yet): one that brought nothing is made once more.
+    if (more && tab.doc === was[0] && await read() === was[1]) await press().catch(() => {})
     const found = await locate()
     if (found) { list = found; take() }
     return { way: !more ? 'scroll' : !q.more && rel && more.url === rel ? 'next link' : `"${more.name}"`, found: !!found }
