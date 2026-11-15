@@ -42,6 +42,25 @@ Paired by task, no metric differs beyond chance (95% intervals include zero): th
 with browser-layer 11% cheaper and 16% slower in total, both inside the noise at 50 tasks. Many of these tasks
 hit sites that block automated browsers, which lowers both scores.
 
+## What's new in 0.1.5
+
+- **A list to its end.** `get --all` follows a list's next link, its "Load more" control or its scroll until the list
+  ends, and says how it ended. Saved with `--out`, `get <file>` reads it back with `--where`, `--count`, `--group`
+  and `--sort`; columns are named by what the page calls them, and `--where` compares dates as dates.
+- **Read a saved answer back with the tool.** `find <text> --in <file>` and `read <file> --lines a-b`.
+- **Long jobs carry on.** `each --out` and `open --out` write as pages finish and pick up where they stopped when run
+  again; `each` can run `steps` on every page. `status` says where a session stands, and a session's tabs come back
+  after the browser dies.
+- **`browser-layer mcp`.** One MCP tool for agents without a shell.
+- **`adopt`.** Attached to your own Chrome, `adopt` lists your tabs and `adopt <n>` takes one: it keeps its pictures
+  and animations, and `close` and `stop` leave it open.
+- **`viewport`.** Set a tab's layout size or a phone profile.
+- **More controls found.** A box the page marks clickable, and an element in the tab order, get a ref.
+- **Steadier reads.** A page an action opens is settled from its own arrival, pictures and fonts no longer hold a
+  page, a page still being made is waited for, and a failed action answers with what changed.
+- **Removed:** `do`, `verbs` and the plain-HTTP form commands. A form is filled in a live tab (`type`, `pick`,
+  `submit`). `open` stays for static pages.
+
 ## What's new in 0.1.4
 
 - **Many pages in one call.** `tab <url…>` opens several pages at once and answers with each map.
