@@ -78,6 +78,6 @@ Pop-ups open as tabs and become current; downloads are saved and reported.
 
 show / hide: watch the browser in a window. login <url>: a person signs in; the agent stays signed in.
 --session <name> (BROWSER_LAYER_SESSION): an agent's own tabs, cookies shared. --profile <name>: a separate browser.
-attach: set up your own Chrome for the agent. --attach <port|auto> (BROWSER_LAYER_ATTACH): work in it, in tabs of its own; it never closes yours.
+attach: set up your own Chrome for the agent. --attach <port|auto> (BROWSER_LAYER_ATTACH): work in it, in tabs of its own; adopt [n] lists yours and takes one; it never closes yours.
 BROWSER_LAYER_BROWSER=<path> picks the browser.
 install · browser · update · --version

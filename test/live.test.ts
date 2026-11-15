@@ -1676,11 +1676,14 @@ test('results a page loads from another site\'s API as it arrives are waited for
   assert.match((await run('steps', `tab ${base}/listing; find "results:"`)).out, /results: slow data/)
 })
 
-test("attached to a person's own Chrome: it works in tabs of its own, leaves theirs, copies no cookies, and stop leaves the browser running", async () => {
+// A Chrome a person already uses, with one tab of theirs open and remote debugging on; `attached` runs a command in a
+// daemon attached to it, under its own home.
+async function inPersonsChrome(theirs: string, body: (port: string, attached: (...args: string[]) => Promise<{ code: number; out: string }>, mine: string) => Promise<void>) {
   const found = await findBrowser()
   assert.ok(!('error' in found))
   const profile = mkdtempSync(join(tmpdir(), 'own-'))
-  spawn(found.path, [`--user-data-dir=${profile}`, ...PROFILE_FLAGS, '--headless=new', '--remote-debugging-port=0', '--no-first-run', `${base}/theirs`], { stdio: 'ignore' }).unref()
+  const mine = mkdtempSync(join(tmpdir(), 'at-'))
+  spawn(found.path, [`--user-data-dir=${profile}`, ...PROFILE_FLAGS, '--headless=new', '--remote-debugging-port=0', '--no-first-run', theirs], { stdio: 'ignore' }).unref()
   try {
     // Chrome writes the port it picked to DevToolsActivePort, in its profile directory.
     let port = ''
@@ -1689,29 +1692,73 @@ test("attached to a person's own Chrome: it works in tabs of its own, leaves the
       port = existsSync(join(profile, 'DevToolsActivePort')) ? readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0] : ''
     }
     assert.ok(port, 'the browser never wrote its debugging port')
-    const mine = mkdtempSync(join(tmpdir(), 'at-'))
-    const attached = (...args: string[]) => runIn(mine, '--attach', port, ...args)
-    // Tabs a daemon kept (from a launched browser) are not reopened in a person's Chrome.
-    mkdirSync(join(mine, 'attached'), { recursive: true })
-    writeFileSync(join(mine, 'attached', 'kept.json'), JSON.stringify({ next: 5, sessions: { default: { tabs: [{ id: 4, url: `${base}/restored`, used: 0 }], current: 4 } } }))
-    assert.match((await attached('tab', `${base}/longmenu`)).out, /"longmenu"/)
-    const tabs = (await attached('tabs')).out
-    assert.match(tabs, /\/longmenu/)
-    assert.doesNotMatch(tabs, /\/theirs|\/restored/)
-    const there = (await (await fetch(`http://127.0.0.1:${port}/json`)).json() as { url: string }[]).map(t => t.url)
-    assert.ok(!there.some(u => u.endsWith('/restored')), `a tab was opened that nobody asked for: ${there}`)
-    assert.match((await attached('allow', 'geolocation', '1,2')).out, /cannot change a person's own browser/)
-    assert.equal(existsSync(join(mine, 'attached', 'cookies.json')), false)
-    await attached('stop')
-    const open = (await (await fetch(`http://127.0.0.1:${port}/json`)).json() as { type: string; url: string }[]).filter(t => t.type === 'page').map(t => t.url)
-    assert.ok(open.some(u => u.endsWith('/theirs')), `their tab is gone: ${open}`)
-    assert.ok(!open.some(u => u.endsWith('/longmenu')), `the agent's tab was left behind: ${open}`)
-    rmSync(mine, { recursive: true, force: true })
+    await body(port, (...args) => runIn(mine, '--attach', port, ...args), mine)
   } finally {
     await killByArgument(profile)
     await new Promise(r => setTimeout(r, 500))
     rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 })
+    rmSync(mine, { recursive: true, force: true })
   }
+}
+
+const pagesOf = async (port: string) => (await (await fetch(`http://127.0.0.1:${port}/json`)).json() as { type: string; url: string }[]).filter(t => t.type === 'page').map(t => t.url)
+
+test("attached to a person's own Chrome: it works in tabs of its own, leaves theirs, copies no cookies, and stop leaves the browser running", () => inPersonsChrome(`${base}/theirs`, async (port, attached, mine) => {
+  // Tabs a daemon kept (from a launched browser) are not reopened in a person's Chrome.
+  mkdirSync(join(mine, 'attached'), { recursive: true })
+  writeFileSync(join(mine, 'attached', 'kept.json'), JSON.stringify({ next: 5, sessions: { default: { tabs: [{ id: 4, url: `${base}/restored`, used: 0 }], current: 4 } } }))
+  assert.match((await attached('tab', `${base}/longmenu`)).out, /"longmenu"/)
+  const tabs = (await attached('tabs')).out
+  assert.match(tabs, /\/longmenu/)
+  assert.doesNotMatch(tabs, /\/theirs|\/restored/)
+  assert.ok(!(await pagesOf(port)).some(u => u.endsWith('/restored')), 'a tab was opened that nobody asked for')
+  assert.match((await attached('allow', 'geolocation', '1,2')).out, /cannot change a person's own browser/)
+  assert.equal(existsSync(join(mine, 'attached', 'cookies.json')), false)
+  await attached('stop')
+  const open = await pagesOf(port)
+  assert.ok(open.some(u => u.endsWith('/theirs')), `their tab is gone: ${open}`)
+  assert.ok(!open.some(u => u.endsWith('/longmenu')), `the agent's tab was left behind: ${open}`)
+}))
+
+test("attached, `adopt` lists the person's tabs and takes one; the tab is theirs still: close and stop leave it open", () => inPersonsChrome(`${base}/view`, async (port, attached) => {
+  assert.match((await attached('tabs')).out, /no live tabs/)
+  const listed = (await attached('adopt')).out
+  assert.match(listed, /1  .*\/view/)
+  assert.match((await attached('adopt', '1')).out, /view/)
+  assert.match((await attached('tabs')).out, /\/view/)
+  assert.match((await attached('read')).out, /\S/)
+  assert.equal((await attached('adopt')).out.trim(), 'no other tabs open in this browser')
+  await attached('close')
+  assert.ok((await pagesOf(port)).some(u => u.endsWith('/view')), 'close shut the person\'s own tab')
+  assert.match((await attached('adopt', '1')).out, /view/)
+  await attached('stop')
+  assert.ok((await pagesOf(port)).some(u => u.endsWith('/view')), 'stop shut the person\'s own tab')
+}))
+
+// Runs an expression in the person's tab over its own debugging socket, as anything else on their machine could.
+async function inTheirTab(port: string, expression: string, ms = 5000): Promise<unknown> {
+  const [tab] = (await (await fetch(`http://127.0.0.1:${port}/json`)).json() as { type: string; webSocketDebuggerUrl: string }[]).filter(t => t.type === 'page')
+  const ws = new WebSocket(tab.webSocketDebuggerUrl)
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { ws.close(); reject(new Error(`the tab did not answer in ${ms} ms`)) }, ms)
+    ws.onopen = () => ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression, returnByValue: true } }))
+    ws.onmessage = e => { const m = JSON.parse(String(e.data)); if (m.id === 1) { clearTimeout(timer); ws.close(); resolve(m.result.result.value) } }
+  })
+}
+
+test("an adopted tab is not changed for the person: its pictures load, and once it is let go its dialogs are not held", () => inPersonsChrome(`${base}/pictured`, async (port, attached) => {
+  await attached('adopt', '1')
+  // Reloaded while adopted: blocking pictures would make this "image missing".
+  await attached('reload')
+  assert.match((await attached('read')).out, /image loaded/)
+  assert.equal(await inTheirTab(port, 'document.getElementById("p").textContent'), 'image loaded')
+  await attached('close')
+  assert.equal(await inTheirTab(port, "alert('hello'); 'answered'"), 'answered')
+}))
+
+test('without --attach, adopt says it is for a person\'s own Chrome', async () => {
+  const r = await run('adopt')
+  assert.match(r.out, /adopt is for an attached browser/)
 })
 
 test('an action that gives the same answer as the same call a moment ago says so', async () => {

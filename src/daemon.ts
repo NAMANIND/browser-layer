@@ -145,6 +145,8 @@ type Tab = {
   seen: { map: Map<number, string>; text: Map<number, string> }
   // used: when a command last acted on this tab; `tabs` lists by it.
   used: number
+  // adopted: a tab of a person's own Chrome, taken with `adopt`; it is theirs, so it is let go, never closed.
+  adopted?: boolean
   pending: Map<Request, number>; standing: Set<string>; carried: Set<string>; net: Req[]; netId: number; frames: Map<string, Frame>; dialog?: Dialog; opened: number[]
   downloads: { file: string; size: number; url: string }[]; saving: Promise<void>[]; status?: number; retryAfter?: string
   // The document the current command began on, and when a new one arrived during it: which of another
@@ -228,7 +230,7 @@ async function letGo(t: Tab) {
   const url = t.page.url()
   const s = (kept.sessions[t.session] ??= { tabs: [], gone: [], calls: [] })
   s.gone = [url, ...s.gone.filter(u => u !== url)].slice(0, policy['tabs.max'])
-  await t.page.close().catch(() => {})
+  await drop(t)
 }
 
 // A tab costs about 110 MB (DESIGN §9): past tabs.max the least recently used closes, and never the current one.
@@ -307,13 +309,24 @@ function track(tab: Tab) {
       if (n.body) { held -= n.body.length; n.body = undefined }
     }
   })
-  page.on('close', () => {
-    tabs.delete(tab.id)
-    if (current.get(tab.session) !== tab.id) return
-    const next = [...tabs.values()].filter(t => t.session === tab.session).pop()
-    if (next) current.set(tab.session, next.id)
-    else current.delete(tab.session)
-  })
+  page.on('close', () => forget(tab))
+}
+
+function forget(tab: Tab) {
+  tabs.delete(tab.id)
+  if (current.get(tab.session) !== tab.id) return
+  const next = [...tabs.values()].filter(t => t.session === tab.session).pop()
+  if (next) current.set(tab.session, next.id)
+  else current.delete(tab.session)
+}
+
+// An adopted tab stays open and goes back to its owner: with our listeners gone, Playwright no longer holds its dialogs
+// and downloads for an agent that is not there.
+async function drop(t: Tab) {
+  if (!t.adopted) return t.page.close().catch(() => {})
+  forget(t)
+  t.page.removeAllListeners()
+  await Promise.all([t.cdp, ...[...t.frames.values()].map(f => f.cdp)].map(c => c.detach().catch(() => {})))
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
@@ -915,17 +928,18 @@ const refCounter = { next: 1 }
 // Decoration is not loaded unless a site was allowed to show it.
 const skipDecoration = (r: Route) => (DECORATION.has(r.request().resourceType()) && !pictured.has(siteOf(r.request())) ? r.abort() : r.continue())
 
-async function setupTab(session: string, page: Page, background = false): Promise<Tab> {
-  // Attached, these reach this tab only; a launched browser has them for all its tabs (see main).
-  if (ATTACH) {
+async function setupTab(session: string, page: Page, background = false, adopted = false): Promise<Tab> {
+  // Attached, these reach this tab only; a launched browser has them for all its tabs (see main). A person's own tab keeps
+  // its images and its animations: nothing here changes how it looks to them.
+  if (ATTACH && !adopted) {
     await page.route('**/*', skipDecoration)
     await page.addInitScript(PAGE_HOOKS)
   }
   const cdp = await ctx.newCDPSession(page)
   await cdp.send('Accessibility.enable')
   await cdp.send('Animation.enable')
-  await cdp.send('Animation.setPlaybackRate', { playbackRate: MOTION_RATE })
-  const tab: Tab = { id: nextId++, session, page, cdp, refs: newRefs(refCounter), used: Date.now(), doc: 0, shown: new Map(), seen: { map: new Map(), text: new Map() }, pending: new Map(), standing: new Set(), carried: new Set(), net: [], netId: 0, frames: new Map(), opened: [], downloads: [], saving: [] }
+  if (!adopted) await cdp.send('Animation.setPlaybackRate', { playbackRate: MOTION_RATE })
+  const tab: Tab = { adopted, id: nextId++, session, page, cdp, refs: newRefs(refCounter), used: Date.now(), doc: 0, shown: new Map(), seen: { map: new Map(), text: new Map() }, pending: new Map(), standing: new Set(), carried: new Set(), net: [], netId: 0, frames: new Map(), opened: [], downloads: [], saving: [] }
   // A new document can reuse node ids, so old refs are dropped; numbering continues, never reused.
   // Only a new document invalidates node ids. pushState and hash changes (navigatedWithinDocument)
   // keep the same nodes, so refs and the agent's view of the page stay valid.
@@ -1243,6 +1257,15 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
   async use(c) {
     current.set(c.session, own(c.session, c.id!).id)
     return `${await header(need(c.session))}  — current (map · read)`
+  },
+  // Attached, the person's own tabs: listed by address and title only, and one taken by its number in that list.
+  async adopt(c) {
+    if (!ATTACH) throw new Error("adopt is for an attached browser: the tabs of a person's own Chrome (--attach)")
+    const open = ctx.pages().filter(p => ![...tabs.values()].some(t => t.page === p))
+    if (!c.id) return open.length ? `${(await Promise.all(open.map(async (p, i) => `${i + 1}  ${p.url()}  "${await p.title().catch(() => '')}"`))).join('\n')}\nadopt <n> takes one into this session` : 'no other tabs open in this browser'
+    if (!open[c.id - 1]) throw new Error(`no tab ${c.id} to adopt: run adopt for the list`)
+    const tab = await setupTab(c.session, open[c.id - 1], false, true)
+    return `${await header(tab)}  — adopted, current (map · read)`
   },
   async map(c) {
     return mapView(need(c.session), undefined, '', '', true)
@@ -1563,11 +1586,11 @@ const COMMANDS: Record<string, (c: Command) => Promise<string>> = {
   async close(c) {
     if (c.all) {
       const mine = [...tabs.values()].filter(t => t.session === c.session)
-      await Promise.all(mine.map(t => t.page.close()))
+      await Promise.all(mine.map(drop))
       return `closed ${mine.length} tab${mine.length === 1 ? '' : 's'} of session "${c.session}"`
     }
     const tab = c.id ? own(c.session, c.id) : need(c.session)
-    await tab.page.close()
+    await drop(tab)
     const now = current.get(c.session)
     return now ? `closed tab ${tab.id}; now on tab ${now}` : `closed tab ${tab.id}; no live tabs left in session "${c.session}"`
   },
@@ -1649,7 +1672,7 @@ const dropSocket = () => { if (process.platform !== 'win32') rmSync(socketPath()
 // Attached, only the tabs the daemon opened close, and the person's Chrome keeps running.
 async function release() {
   if (!browser) return ctx.close().catch(() => {})
-  await Promise.all([...tabs.values()].map(t => t.page.close().catch(() => {})))
+  await Promise.all([...tabs.values()].map(drop))
   await browser.close().catch(() => {})
 }
 

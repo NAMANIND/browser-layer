@@ -78,11 +78,11 @@ Pop-ups open as tabs and become current; downloads are saved and reported.
 
 show / hide: watch the browser in a window. login <url>: a person signs in; the agent stays signed in.
 --session <name> (BROWSER_LAYER_SESSION): an agent's own tabs, cookies shared. --profile <name>: a separate browser.
-attach: set up your own Chrome for the agent. --attach <port|auto> (BROWSER_LAYER_ATTACH): work in it, in tabs of its own; it never closes yours.
+attach: set up your own Chrome for the agent. --attach <port|auto> (BROWSER_LAYER_ATTACH): work in it, in tabs of its own; adopt [n] lists yours and takes one; it never closes yours.
 BROWSER_LAYER_BROWSER=<path> picks the browser.
 install · browser · update · --version`
 
-const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'viewport', 'dialog', 'eval', 'allow', 'explore', 'menu', 'check', 'uncheck', 'submit', 'drag', 'find', 'cookies', 'storage', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop', 'screenshot', 'status'])
+const LIVE = new Set(['tab', 'go', 'back', 'forward', 'reload', 'tabs', 'use', 'adopt', 'map', 'read', 'get', 'dblclick', 'rightclick', 'hover', 'upload', 'scroll', 'wait', 'viewport', 'dialog', 'eval', 'allow', 'explore', 'menu', 'check', 'uncheck', 'submit', 'drag', 'find', 'cookies', 'storage', 'click', 'type', 'pick', 'press', 'net', 'close', 'stop', 'screenshot', 'status'])
 
 function fail(msg: string): never {
   console.error(msg)
@@ -247,7 +247,7 @@ function liveCommand({ cmd, target, rest, page, limit, sort, cols, group, more, 
   if (cmd === 'stop' && session !== 'default') [c.cmd, c.all] = ['close', true]
   if (cmd === 'tab' || cmd === 'go') c.url = target ?? fail(`usage: browser-layer ${cmd} <url>`)
   if (cmd === 'tab' && rest.length) c.pages = [target, ...rest]
-  if (cmd === 'use' || (cmd === 'close' && target)) c.id = Number(target)
+  if (cmd === 'use' || ((cmd === 'close' || cmd === 'adopt') && target)) c.id = Number(target)
   if (cmd === 'net' && target) {
     if (!['show', 'save'].includes(target) || !/^#?\d+$/.test(rest[0] ?? '') || (target === 'save' && !rest[1])) fail('usage: browser-layer net [--all] | net show <#> | net save <#> <file>')
     c.id = Number(rest[0].replace('#', ''))
