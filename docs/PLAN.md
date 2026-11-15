@@ -546,3 +546,10 @@ held-out task that grades derivations would be the test of a retry.
 Long tasks, state on 13 Nov: six of the seven contracts are built on `agent-fixes` (LONG-TASKS §5 has the floor before and
 after and three agent gates). The floor improved on every row it was aimed at. The clean agent gate is a tie on every
 metric (steps +4%, tokens -4%): its tasks average nine steps and do not reach what the contracts change.
+
+## A gate for hosts (15 Nov 2026)
+
+Design in [DESIGN.md §8a](DESIGN.md): the engine as a library (`createEngine`, `run(session, command, { signal })`, hooks before and
+after every action) and the browser as a driver (CDP plus tabs; launch, attach and a host's own browser are three ways in). Three
+steps, each green and measured: (1) engine, hooks and abort on today's launch and attach; (2) Playwright replaced by CDP, one use per
+commit; (3) the host's driver on a real Electron view. Written, not built: `src/` unchanged at this commit.

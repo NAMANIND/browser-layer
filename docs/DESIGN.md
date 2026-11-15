@@ -399,6 +399,73 @@ When many tabs run at once, the 70–220 ms of paint per load becomes a real cos
 raster and compositing removed after layout. It replaces the `chromium` engine behind the same
 adapter; nothing above changes. Decision point: measured CPU per tab at the parallelism we need.
 
+## 8a. A gate for hosts: the engine as a library, the browser as a driver (decided 15 Nov 2026)
+
+A host app (an Electron app with its own browser views) should be able to use us without a second, hidden browser and without a
+port. We open a gate; we customise nothing for any one host. Two pieces, and one rule for what stays out.
+
+**1. The engine is a library.** `createEngine(options)` returns `{ run(session, command, { signal }), close() }`.
+`command` is the line the CLI takes (`click 12`, `steps 'type 4 "x"; press Enter'`), split as `steps` splits it, so there is one
+vocabulary and one parser. `run` answers `{ ok, text, url, title }`; `signal` stops a command mid-way (settle, waits, `each`, `get --all`
+all stop at their next step) and the answer is `{ ok: false, error: 'aborted' }`. No socket, no pid file, no `process.exit`, no
+environment read except `BROWSER_LAYER_HOME`; every tab, ref counter, record and policy value belongs to the engine, so engines
+run side by side. The daemon is one host of this engine: it owns the socket and the idle timer and nothing else.
+
+**2. The browser is a driver.** An engine takes its browser from one of three ways in; the reader and the actions see only CDP:
+
+| Way in | Who runs the browser | Port |
+|---|---|---|
+| launch | we start Chrome (today's default, headless or shown) | no |
+| attach | a Chrome the person already runs (`--attach`) | yes |
+| driver | the host hands its own browser in | no |
+
+```ts
+interface Driver {
+  apiVersion: 1
+  tabs(): { id: string; url: string }[]
+  open(url?: string): Promise<string>
+  close(id: string): Promise<void>
+  cdp(id: string): { send(method: string, params?: object, sessionId?: string): Promise<any>; on(event: string, cb: (params: any, sessionId?: string) => void): void; off(event: string, cb: Function): void }
+  on(event: 'popup' | 'tabclosed', cb: (id: string, opener?: string) => void): void
+  capabilities: { downloads?: boolean; cookies?: boolean }
+}
+```
+
+Only what CDP cannot do is in the interface: opening and closing a tab, listing tabs, a new tab the page opened. Navigation, reload, back,
+forward, the address and the title are `Page.navigate`, `Page.getNavigationHistory` and `Runtime.evaluate`; dialogs, init scripts,
+request blocking, frames (`Target.setAutoAttach` with `flatten`, hence `sessionId`), input and cookies are CDP domains. A host
+with a browser view maps `cdp` onto its debugger (Electron: `webContents.debugger.sendCommand` and its `message` event, in process,
+no port). A capability a driver lacks is said in the answer where it matters (`downloads`: "this browser does not report
+downloads"); behaviour never differs without saying so.
+
+**Hooks, before and after every action.** One object on `createEngine`, all optional, none of them a script surface:
+
+- `describe(ref)` → `{ role, name, href, formAction, host, page }`: what the element is, from the page; the host classifies risk with it.
+- `beforeAct({ kind, ref, role, name, href, formAction, typed, host, page, tab })` → `allow`, `{ deny: reason }` or a promise that
+  resolves to either (wait). `kind` is `click | type | press | select | upload | submit | drag | dialog`. A denied action does
+  nothing and answers with the reason; a waiting one is stopped by `signal` like any other step.
+- `afterAct({ kind, ref, ok, url })` and `onDialog({ type, message, host })` → `accept | dismiss` (without it, a dialog waits for the
+  agent, as today).
+
+We ship no risk classifier, no allowed sites and no confirm UI: that is the host's policy, and it stays in front because `beforeAct`
+runs before the first input event.
+
+**What stays out.** Per-host overlays, tab limits per ant, isolated worlds, file-chooser interception, `window.print` stubs and
+anything else a host wants on its pages: the host has the CDP handle and does it itself. If two hosts want the same thing, it becomes a
+hook or a policy value; one host's wish is not our code (§1).
+
+**Build order, because the daemon is the weight.** `src/daemon.ts` is 1,789 lines with its state at module level and about 100
+Playwright calls (`page.evaluate`, `route`, `addInitScript`, `Request` objects in the network log, `Dialog`, `Download`, cookies,
+`opener`, frames). So, each step green before the next:
+
+1. **Engine, hooks, abort** on today's launch and attach (Playwright stays the only way in). The daemon's state moves inside
+   `createEngine`; `run` takes the CLI's line. A host can already use us, attached to its own browser's debug port. Tests first:
+   two engines side by side with separate tabs, an aborted command, a denied `beforeAct`.
+2. **The driver seam**: replace each Playwright use by its CDP form, one use per commit, `npm run measure` and the live tests after
+   each (settle is tuned on Playwright's events; the network log keeps `Request` objects today and keeps CDP request ids after).
+   Launch and attach become two implementations of `Driver`; Playwright remains only in `launch`.
+3. **The host's driver**, proven on a real Electron view before it is called done.
+
 ## 9. Policy (`src/policy.ts`, documented, tested)
 
 Keys are added when the phase that uses them lands.
